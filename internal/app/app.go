@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kacperkwapisz/mainspring/internal/auth"
 	"github.com/kacperkwapisz/mainspring/internal/db"
 	"github.com/kacperkwapisz/mainspring/internal/domain"
 	"github.com/kacperkwapisz/mainspring/internal/env"
@@ -27,8 +28,11 @@ type Booted struct {
 	Handler http.Handler
 	Env     *env.Env
 	Hub     *proxy.Hub
-	Panel   *store.PanelAuth
-	DB      *db.DB
+	// Gate decides who may use the panel and its JSON API.
+	Gate Gate
+	// Auth is the panel sign-in service behind Gate.
+	Auth *auth.Service
+	DB   *db.DB
 }
 
 func Create(source map[string]string) (*Booted, error) {
@@ -48,7 +52,6 @@ func Create(source map[string]string) (*Booted, error) {
 		d.Close()
 		return nil, err
 	}
-	panelAuth := store.NewPanelAuth(d)
 	settings := store.NewSettingsStore(d)
 	router, err := route.New(d)
 	if err != nil {
@@ -57,6 +60,7 @@ func Create(source map[string]string) (*Booted, error) {
 	}
 	applyRoutingSettings(router, settings)
 	activity := store.NewActivityStore(d)
+	authSvc := auth.New(e, store.NewWebAuthnStore(d), settings)
 	hub := &proxy.Hub{
 		Env:      e,
 		Vault:    vault,
@@ -86,12 +90,12 @@ func Create(source map[string]string) (*Booted, error) {
 	registerAnthropic(mux, hub)
 	registerResponses(mux, hub)
 	registerResponsesWS(mux, hub)
-	registerPanel(mux, hub, e, panelAuth, settings, logins)
-	gate := Gate(cookieGate{e: e})
-	registerAPI(mux, hub, gate)
-	registerLoginAPI(mux, hub, gate, logins)
+	registerAuth(mux, authSvc)
+	registerPanel(mux, hub, e, authSvc, settings, logins)
+	registerAPI(mux, hub, authSvc)
+	registerLoginAPI(mux, hub, authSvc, logins)
 	registerManagement(mux, hub)
-	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Panel: panelAuth, DB: d}, nil
+	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Gate: authSvc, Auth: authSvc, DB: d}, nil
 }
 
 func page(w http.ResponseWriter, body, title, meta string) {

@@ -210,14 +210,13 @@ func TestPanelUnlockHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer booted.DB.Close()
-	_, _, _ = booted.Panel.EnsureSeed()
 	res := httptest.NewRecorder()
 	booted.Handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/", nil))
 	if res.Code != 200 {
 		t.Fatalf("status %d", res.Code)
 	}
 	html := res.Body.String()
-	for _, want := range []string{"IBM+Plex+Sans", "/design.css", "Set a password"} {
+	for _, want := range []string{"IBM+Plex+Sans", "/design.css", "Unlock"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("missing %q in %s", want, html[:min(len(html), 400)])
 		}
@@ -230,7 +229,6 @@ func TestPanelIgnoresQueryNotices(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer booted.DB.Close()
-	_, _, _ = booted.Panel.EnsureSeed()
 	res := httptest.NewRecorder()
 	booted.Handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/?error=wrong+password&ok=Connected", nil))
 	html := res.Body.String()
@@ -239,27 +237,21 @@ func TestPanelIgnoresQueryNotices(t *testing.T) {
 	}
 }
 
-func TestPasswordBadSeedRendersForm(t *testing.T) {
+func TestPasswordRoutesGone(t *testing.T) {
 	booted, err := Create(map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer booted.DB.Close()
-	_, _, _ = booted.Panel.EnsureSeed()
-	res := httptest.NewRecorder()
-	form := url.Values{"old_password": {"nope"}, "new_password": {"long-enough"}}
-	req := httptest.NewRequest(http.MethodPost, "/password", strings.NewReader(form.Encode()))
-	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	booted.Handler.ServeHTTP(res, req)
-	if res.Code != 200 {
-		t.Fatalf("status %d", res.Code)
-	}
-	if res.Header().Get("location") != "" || res.Header().Get("set-cookie") != "" {
-		t.Fatal("unexpected redirect/cookie")
-	}
-	html := res.Body.String()
-	if !strings.Contains(html, "old password is wrong") || !strings.Contains(html, "Set a password") {
-		t.Fatalf("%s", html)
+	for _, path := range []string{"/password", "/login"} {
+		res := httptest.NewRecorder()
+		form := url.Values{"password": {"x"}, "old_password": {"nope"}, "new_password": {"long-enough"}}
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+		req.Header.Set("content-type", "application/x-www-form-urlencoded")
+		booted.Handler.ServeHTTP(res, req)
+		if res.Code != 404 || res.Header().Get("set-cookie") != "" {
+			t.Fatalf("%s %d %q", path, res.Code, res.Header().Get("set-cookie"))
+		}
 	}
 }
 
@@ -318,7 +310,6 @@ func TestAPIPanelKeysUnauthorized(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer booted.DB.Close()
-	_, _, _ = booted.Panel.EnsureSeed()
 	res := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/panel/keys", strings.NewReader(`{"name":"cursor"}`))
 	req.Header.Set("content-type", "application/json")
@@ -661,19 +652,11 @@ func unlocked(t *testing.T) (*Booted, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seed, _, err := booted.Panel.EnsureSeed()
+	cookie, err := booted.Auth.IssueSession(httptest.NewRequest(http.MethodGet, "/", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	res := httptest.NewRecorder()
-	form := url.Values{"old_password": {seed}, "new_password": {"long-enough"}}
-	req := httptest.NewRequest(http.MethodPost, "/password", strings.NewReader(form.Encode()))
-	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	booted.Handler.ServeHTTP(res, req)
-	if res.Code != 303 || res.Header().Get("location") != "/" {
-		t.Fatalf("reset %d %s", res.Code, res.Header().Get("location"))
-	}
-	cookie := strings.Split(res.Header().Get("set-cookie"), ";")[0]
+	cookie = strings.Split(cookie, ";")[0]
 	if !strings.Contains(cookie, "ms_session=") {
 		t.Fatalf("cookie %s", cookie)
 	}

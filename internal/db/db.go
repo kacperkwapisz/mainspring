@@ -65,6 +65,20 @@ var migrations = []string{
      fetched_at INTEGER NOT NULL,
      PRIMARY KEY (provider, model)
    )`,
+	`CREATE TABLE IF NOT EXISTS auth_credentials (
+     id TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     kind TEXT NOT NULL,
+     rp_id TEXT NOT NULL,
+     credential_json TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     last_used_at INTEGER
+   )`,
+	`CREATE TABLE IF NOT EXISTS auth_setup (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     code_hash TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   )`,
 }
 
 type DB struct {
