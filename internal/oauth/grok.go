@@ -116,7 +116,7 @@ func (l *grokLogin) Complete(ctx context.Context, _, _, deviceCode, _ string) (L
 			grokMu.Lock()
 			delete(grokDevices, deviceCode)
 			grokMu.Unlock()
-			email := asString(jsonMap["email"])
+			email := firstString(asString(jsonMap["email"]), asString(decodeJWT(asString(jsonMap["id_token"]))["email"]))
 			label := email
 			if label == "" {
 				label = "Grok"

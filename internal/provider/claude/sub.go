@@ -25,7 +25,8 @@ func FetchSub(ctx context.Context, credential domain.Credential) (sub.Snapshot, 
 		"Content-Type":   "application/json",
 		"anthropic-beta": oauthBeta,
 		"Accept":         "application/json, text/plain, */*",
-		"User-Agent":     "axios/1.15.2",
+		"User-Agent":     ua,
+		"Cache-Control":  "no-cache",
 	}
 	var (
 		usage    any
@@ -66,7 +67,8 @@ func getJSON(ctx context.Context, rawURL string, headers map[string]string) (any
 
 func ParseSub(usage, profile any) sub.Snapshot {
 	u := sub.AsMap(usage)
-	snap := sub.Snapshot{Plan: claudePlan(profile)}
+	account := sub.AsMap(sub.AsMap(profile)["account"])
+	snap := sub.Snapshot{Plan: claudePlan(profile), Email: sub.AsStr(account["email"]), Account: sub.AsStr(account["uuid"])}
 	if extra := sub.AsMap(u["extra_usage"]); extra["is_enabled"] == true {
 		used, _ := sub.Num(extra["used_credits"])
 		limit, _ := sub.Num(extra["monthly_limit"])

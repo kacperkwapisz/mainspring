@@ -349,13 +349,14 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 		defer cancel()
-		snap := sub.Fetch(ctx, hub.Vault, hub.Executors, *c)
+		snap := proxy.CheckUsage(ctx, hub, *c)
 		if !snap.OK {
 			apiError(w, 502, "check_failed", "Couldn't check "+c.Label+": "+snap.Error)
 			return
 		}
-		hub.Router.ObserveWindows(c.ID, "usage", windowsFromSub(c.Provider, snap.Windows))
-		hub.Router.SetPlan(c.ID, snap.Plan)
+		if fresh, err := hub.Vault.Get(c.ID); err == nil && fresh != nil {
+			c = fresh
+		}
 		httpx.JSON(w, 200, accountDetail(hub, *c))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/rename", authed(func(w http.ResponseWriter, r *http.Request) {
@@ -466,42 +467,6 @@ func jsonBool(body any, key string) bool {
 		return v != 0
 	}
 	return false
-}
-
-// windowsFromSub converts usage-API windows to router windows with stable ids
-// that line up with the ones read from response headers.
-func windowsFromSub(p domain.ProviderID, in []sub.Window) []route.Window {
-	out := make([]route.Window, 0, len(in))
-	for _, w := range in {
-		rw := route.Window{ID: string(p) + "-usage-" + w.ID, Label: w.Label, UsedPercent: w.UsedPercent, ResetsAt: w.ResetsAt}
-		switch {
-		case strings.Contains(w.ID, "five-hour"):
-			rw.PeriodMS = 5 * 60 * 60 * 1000
-		case strings.Contains(w.ID, "seven-day") || strings.Contains(w.ID, "weekly"):
-			rw.PeriodMS = 7 * 24 * 60 * 60 * 1000
-		case strings.Contains(w.ID, "monthly"):
-			rw.PeriodMS = 30 * 24 * 60 * 60 * 1000
-		}
-		// Map the main windows onto the header ids so the two sources merge.
-		switch {
-		case p == domain.ProviderClaude && w.ID == "five-hour":
-			rw.ID = "claude-5h"
-		case p == domain.ProviderClaude && w.ID == "seven-day":
-			rw.ID = "claude-7d"
-		case p == domain.ProviderCodex && w.ID == "five-hour":
-			rw.ID = "codex-primary"
-		case p == domain.ProviderCodex && (w.ID == "weekly" || w.ID == "monthly"):
-			rw.ID = "codex-secondary"
-		}
-		if rw.UsedPercent != nil && *rw.UsedPercent >= 100 {
-			rw.Rejected = true
-		}
-		if strings.HasPrefix(w.ID, "code-review") {
-			rw.Soft = true // a separate code-review allowance never blocks coding traffic
-		}
-		out = append(out, rw)
-	}
-	return out
 }
 
 func accountDetail(hub *proxy.Hub, c domain.Credential) map[string]any {

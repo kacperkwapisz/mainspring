@@ -34,6 +34,8 @@ type Snapshot struct {
 	OK       bool              `json:"ok"`
 	Error    string            `json:"error,omitempty"`
 	Plan     string            `json:"plan,omitempty"`
+	Email    string            `json:"email,omitempty"`      // the account's email, when the provider reports it
+	Account  string            `json:"account_id,omitempty"` // the provider's account id, when reported
 	Note     string            `json:"note,omitempty"`
 	Windows  []Window          `json:"windows,omitempty"`
 }

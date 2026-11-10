@@ -38,6 +38,13 @@ func saveLogin(hub *proxy.Hub, result oauth.LoginResult) (domain.Credential, boo
 		return cred, existed, err
 	}
 	hub.Router.SignedIn(cred.ID)
+	// Read the new account's limits (and its email, if the sign-in left it out)
+	// now rather than at its first request.
+	go func(c domain.Credential) {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		proxy.CheckUsage(ctx, hub, c)
+	}(cred)
 	hub.Activity.Add(store.ActivityAdded, string(cred.Provider), cred.ID, map[string]any{"account": cred.Label, "updated": existed})
 	return cred, existed, nil
 }

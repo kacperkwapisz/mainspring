@@ -100,7 +100,7 @@ func (l *codexLogin) Complete(ctx context.Context, code, state, _, _ string) (Lo
 		return LoginResult{}, fmt.Errorf("codex token response missing access_token")
 	}
 	id := decodeJWT(asString(jsonMap["id_token"]))
-	email := asString(id["email"])
+	email := firstString(asString(id["email"]), asString(asMap(decodeJWT(access)["https://api.openai.com/profile"])["email"]))
 	accountID := chatgptAccountID(access, asString(jsonMap["id_token"]))
 	label := email
 	if label == "" {

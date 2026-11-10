@@ -1,5 +1,7 @@
 package oauth
 
+import "strings"
+
 func asString(v any) string {
 	s, _ := v.(string)
 	return s
@@ -23,6 +25,15 @@ func chatgptAccountID(tokens ...string) string {
 		}
 		if id := asString(asMap(payload[openaiAuthClaim])["chatgpt_account_id"]); id != "" {
 			return id
+		}
+	}
+	return ""
+}
+
+func firstString(values ...string) string {
+	for _, v := range values {
+		if v = strings.TrimSpace(v); v != "" {
+			return v
 		}
 	}
 	return ""

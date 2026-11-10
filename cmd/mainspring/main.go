@@ -72,10 +72,15 @@ func main() {
 		}
 	}()
 	go func() {
-		_, _ = proxy.KeepaliveCredentials(context.Background(), booted.Hub)
-		t := time.NewTicker(15 * time.Minute)
-		for range t.C {
+		// Refresh tokens first, then read limits for accounts that went quiet.
+		tick := func() {
 			_, _ = proxy.KeepaliveCredentials(context.Background(), booted.Hub)
+			proxy.PollUsage(context.Background(), booted.Hub, proxy.UsageMaxAge)
+		}
+		tick()
+		t := time.NewTicker(proxy.UsageMaxAge)
+		for range t.C {
+			tick()
 		}
 	}()
 	addr := net.JoinHostPort(booted.Env.Host, strconv.Itoa(booted.Env.Port))

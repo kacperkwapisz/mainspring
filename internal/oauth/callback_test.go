@@ -64,3 +64,20 @@ func TestRandomStateMatchesClaudeCode(t *testing.T) {
 		t.Fatalf("state length %d, Claude Code sends 43", n)
 	}
 }
+
+func TestClaudeLoginResultReadsAccount(t *testing.T) {
+	got, err := claudeLoginResult(map[string]any{
+		"access_token": "at", "refresh_token": "rt", "expires_in": float64(3600),
+		"account":      map[string]any{"uuid": "11111111-2222-4333-8444-555555555555", "email_address": "sam@example.com"},
+		"organization": map[string]any{"uuid": "org-1", "name": "Example"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Label != "sam@example.com" || got.Tokens.Email != "sam@example.com" {
+		t.Fatalf("email not read: label %q email %q", got.Label, got.Tokens.Email)
+	}
+	if got.Tokens.AccountID != "11111111-2222-4333-8444-555555555555" || got.Tokens.Extra["organization_uuid"] != "org-1" {
+		t.Fatalf("ids: %q %v", got.Tokens.AccountID, got.Tokens.Extra)
+	}
+}

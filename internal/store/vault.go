@@ -240,6 +240,46 @@ func (v *Vault) findSame(input SaveCredential) *domain.Credential {
 	return nil
 }
 
+// FillIdentity records an account's email and provider account id where they
+// are still missing, and swaps a default name for the email. It reads and writes
+// in one transaction, so a token refresh landing at the same moment isn't lost.
+func (v *Vault) FillIdentity(id, email, accountID string, isDefaultLabel func(string) bool) (bool, error) {
+	tx, err := v.db.SQL.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	c, err := v.scan(tx.QueryRow(`SELECT id, provider, label, blob, expires_at, created_at, updated_at FROM credentials WHERE id = ?`, id))
+	if err != nil {
+		return false, err
+	}
+	changed := false
+	if email != "" && c.Tokens.Email == "" {
+		c.Tokens.Email, changed = email, true
+	}
+	if accountID != "" && c.Tokens.AccountID == "" {
+		c.Tokens.AccountID, changed = accountID, true
+	}
+	if email != "" && isDefaultLabel != nil && isDefaultLabel(c.Label) {
+		c.Label, changed = email, true
+	}
+	if !changed {
+		return false, nil
+	}
+	raw, err := json.Marshal(tokenJSON(c.Tokens))
+	if err != nil {
+		return false, err
+	}
+	blob, err := fcrypto.Encrypt(v.key, string(raw))
+	if err != nil {
+		return false, err
+	}
+	if _, err := tx.Exec(`UPDATE credentials SET label = ?, blob = ?, updated_at = ? WHERE id = ?`, c.Label, blob, nowMs(), id); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
+}
+
 // Rename changes a credential's label.
 func (v *Vault) Rename(id, label string) error {
 	_, err := v.db.SQL.Exec(`UPDATE credentials SET label = ?, updated_at = ? WHERE id = ?`, label, nowMs(), id)

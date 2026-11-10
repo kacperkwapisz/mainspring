@@ -104,13 +104,24 @@ func (l *claudeLogin) Complete(ctx context.Context, code, state, _, _ string) (L
 	if err := json.Unmarshal(raw, &jsonMap); err != nil {
 		return LoginResult{}, err
 	}
+	return claudeLoginResult(jsonMap)
+}
+
+// claudeLoginResult reads Claude's token response.
+func claudeLoginResult(jsonMap map[string]any) (LoginResult, error) {
 	access := asString(jsonMap["access_token"])
 	if access == "" {
 		return LoginResult{}, fmt.Errorf("claude token response missing access_token")
 	}
-	email := asString(jsonMap["email"])
-	if email == "" {
-		email = asString(asMap(jsonMap["account"])["email"])
+	// Claude Code reads account.email_address, account.uuid and organization.uuid.
+	account, org := asMap(jsonMap["account"]), asMap(jsonMap["organization"])
+	email := firstString(asString(account["email_address"]), asString(account["email"]), asString(jsonMap["email"]))
+	extra := map[string]any{}
+	if v := asString(org["uuid"]); v != "" {
+		extra["organization_uuid"] = v
+	}
+	if v := asString(org["name"]); v != "" {
+		extra["organization_name"] = v
 	}
 	label := email
 	if label == "" {
@@ -127,9 +138,9 @@ func (l *claudeLogin) Complete(ctx context.Context, code, state, _, _ string) (L
 		Tokens: domain.CredentialTokens{
 			AccessToken:  access,
 			RefreshToken: asString(jsonMap["refresh_token"]),
-			AccountID:    asString(jsonMap["organization_uuid"]),
+			AccountID:    asString(account["uuid"]),
 			Email:        email,
-			Extra:        map[string]any{},
+			Extra:        extra,
 		},
 		ExpiresAt: exp,
 	}, nil
