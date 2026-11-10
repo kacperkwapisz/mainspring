@@ -345,6 +345,10 @@ func ListModels(hub *Hub) []domain.ModelInfo {
 		if ex == nil {
 			continue
 		}
+		if offered := accountModels(hub, ex, providerID); len(offered) > 0 {
+			add(offered)
+			continue
+		}
 		add(ex.Models())
 	}
 	if cursorOn {
@@ -677,4 +681,40 @@ func int64From(vals ...any) int64 {
 		}
 	}
 	return 0
+}
+
+// accountModels is the union of what the provider's accounts offer, in the
+// providers' own order, or nil when none could be asked.
+func accountModels(hub *Hub, ex provider.Executor, providerID domain.ProviderID) []domain.ModelInfo {
+	live, ok := ex.(liveModels)
+	if !ok {
+		return nil
+	}
+	creds, _ := hub.Vault.List(providerID)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	lists := make([][]domain.ModelInfo, len(creds))
+	var wg sync.WaitGroup
+	for i, c := range creds {
+		if hub.Router != nil && hub.Router.Get(c.ID).NeedsSignIn {
+			continue
+		}
+		wg.Add(1)
+		go func(i int, c domain.Credential) {
+			defer wg.Done()
+			lists[i] = live.ModelsFor(ctx, c)
+		}(i, c)
+	}
+	wg.Wait()
+	seen := map[string]bool{}
+	var out []domain.ModelInfo
+	for _, list := range lists {
+		for _, m := range list {
+			if !seen[m.ID] {
+				seen[m.ID] = true
+				out = append(out, m)
+			}
+		}
+	}
+	return out
 }

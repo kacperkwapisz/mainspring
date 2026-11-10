@@ -14,8 +14,10 @@ import (
 
 const (
 	Originator = "codex-tui"
-	UserAgent  = "codex-tui/0.160.0 (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 (codex-tui; 0.160.0)"
-	idLimit    = 64
+	// ClientVersion is the Codex release Mainspring presents as.
+	ClientVersion = "0.160.0"
+	UserAgent     = "codex-tui/" + ClientVersion + " (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 (codex-tui; " + ClientVersion + ")"
+	idLimit       = 64
 )
 
 var idPrefix = map[string]string{
