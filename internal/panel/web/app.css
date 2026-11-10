@@ -54,6 +54,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; background: none; border: 0; padding: 0; user-select: none; touch-action: manipulation; }
 a { color: inherit; }
 [x-cloak] { display: none !important; }
+/* Inline SVGs sit on the text baseline and leave descender space under them,
+   which pushes icons up inside buttons and rows. Render them as blocks. */
+svg { display: block; flex-shrink: 0; }
+.btn > span, .nav a > span.ico, .status > span { display: inline-flex; align-items: center; }
 .num { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--font-mono); font-size: 12px; line-height: 16px; }
 .strong { color: var(--color-text-strong); }
