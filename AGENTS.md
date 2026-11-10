@@ -20,7 +20,7 @@ Base style: `dense-neutral` (dark values), adapted below. Rules come from the `d
 - **Notices:** plain card with an icon. No coloured side stripe.
 - **Radii:** 6 badges, 8 small controls, 10 buttons/inputs, 14 cards, 18 modals.
 - **Rows:** 40px data rows, 44px settings rows.
-- **Icons:** Lucide-style, 16px, 1.2px stroke.
+- **Icons:** Lucide (real icons, not redrawn), 16px, 1.2px stroke. Provider marks are the real logos from LobeHub Icons, monochrome. Both are inlined in `app.js`.
 - **Confirms:** destructive actions always use a modal, never a popover.
 - **Toasts:** Ding (`@yusufceng1z/ding`, plain-DOM build), pinned and vendored like Alpine.
   - Bottom right, one toast at a time, changing in place.
