@@ -91,7 +91,7 @@ func TestFailLineAndLog(t *testing.T) {
 		Route: "openai.chat", Message: "no grok credential is connected", Hint: "open the panel and login to grok",
 	}.Log()
 	got := buf.String()
-	for _, want := range []string{"hub error", "503", "grok/grok-4.6", "openai.chat", "no grok credential", "open the panel"} {
+	for _, want := range []string{"mainspring error", "503", "grok/grok-4.6", "openai.chat", "no grok credential", "open the panel"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in %q", want, got)
 		}
@@ -111,7 +111,7 @@ func TestSuccessQuietUnlessDebug(t *testing.T) {
 	}
 	SetLogLevel("debug")
 	LogOK("claude", "claude-opus-4-7", "openai.chat")
-	if !strings.Contains(buf.String(), "hub  200  claude/claude-opus-4-7") {
+	if !strings.Contains(buf.String(), "mainspring ok  200  claude/claude-opus-4-7") {
 		t.Fatalf("%q", buf.String())
 	}
 	SetLogLevel("info")

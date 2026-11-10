@@ -55,7 +55,7 @@ func (f Fail) Display() string {
 
 func (f Fail) Line() string {
 	var b strings.Builder
-	b.WriteString("hub error")
+	b.WriteString("mainspring error")
 	if f.Status > 0 {
 		b.WriteString("  ")
 		b.WriteString(strconv.Itoa(f.Status))

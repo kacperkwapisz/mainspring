@@ -80,6 +80,6 @@ func main() {
 	}()
 	addr := net.JoinHostPort(booted.Env.Host, strconv.Itoa(booted.Env.Port))
 	srv := httpx.Server(addr, booted.Handler)
-	fmt.Printf("hub %s listening on http://%s\n", version, addr)
+	fmt.Printf("mainspring %s listening on http://%s\n", version, addr)
 	log.Fatal(srv.ListenAndServe())
 }

@@ -163,7 +163,7 @@ func TestChatUnauthorizedLogsAndKeepsShape(t *testing.T) {
 	if !strings.Contains(res.Body.String(), `"type":"invalid_request_error"`) || !strings.Contains(res.Body.String(), "invalid api key") {
 		t.Fatalf("%s", res.Body.String())
 	}
-	if !strings.Contains(buf.String(), "hub error") || !strings.Contains(buf.String(), "/v1/chat/completions") {
+	if !strings.Contains(buf.String(), "mainspring error") || !strings.Contains(buf.String(), "/v1/chat/completions") {
 		t.Fatalf("log %q", buf.String())
 	}
 }

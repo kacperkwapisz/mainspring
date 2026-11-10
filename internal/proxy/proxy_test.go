@@ -426,7 +426,7 @@ func TestCursorStreamLogsProviderError(t *testing.T) {
 	for range result.Stream {
 	}
 	log := buf.String()
-	if !strings.Contains(log, "hub error  502  cursor/gpt-5.6-terra-medium") {
+	if !strings.Contains(log, "mainspring error  502  cursor/gpt-5.6-terra-medium") {
 		t.Fatalf("log %q", log)
 	}
 	if !strings.Contains(log, "Cursor went silent waiting for the next token") {
@@ -483,7 +483,7 @@ func TestTraceDumpsOnFailureOnly(t *testing.T) {
 	}
 	for range result.Stream {
 	}
-	if strings.Contains(buf.String(), "hub trace") {
+	if strings.Contains(buf.String(), "mainspring trace") {
 		t.Fatalf("success dumped %q", buf.String())
 	}
 }
@@ -555,7 +555,7 @@ func TestUnknownModelLogsHumanError(t *testing.T) {
 	if !strings.Contains(msg, "unknown model: nope-9") || !strings.Contains(msg, "/v1/models") {
 		t.Fatalf("client %q", msg)
 	}
-	if !strings.Contains(buf.String(), "hub error") || !strings.Contains(buf.String(), "nope-9") {
+	if !strings.Contains(buf.String(), "mainspring error") || !strings.Contains(buf.String(), "nope-9") {
 		t.Fatalf("log %q", buf.String())
 	}
 }
@@ -707,7 +707,7 @@ func TestFailoverDoesNotLogError(t *testing.T) {
 	if err != nil || !result.OK {
 		t.Fatalf("%+v %v", result, err)
 	}
-	if strings.Contains(buf.String(), "hub error") {
+	if strings.Contains(buf.String(), "mainspring error") {
 		t.Fatalf("failover logged error %q", buf.String())
 	}
 }

@@ -265,6 +265,10 @@ func (s *Service) SetupNeeded() (bool, error) {
 // EnsureSetupCode creates a fresh setup code when no credentials exist and
 // returns it; otherwise it returns "".
 func (s *Service) EnsureSetupCode() (string, error) {
+	// Behind a sign-in proxy with no key required, there is nothing to set up.
+	if !s.KeyRequired() {
+		return "", nil
+	}
 	n, err := s.Creds.Count()
 	if err != nil || n > 0 {
 		return "", err
