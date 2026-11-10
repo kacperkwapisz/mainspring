@@ -85,6 +85,7 @@ func Create(source map[string]string) (*Booted, error) {
 	registerOpenAI(mux, hub)
 	registerAnthropic(mux, hub)
 	registerResponses(mux, hub)
+	registerResponsesWS(mux, hub)
 	registerPanel(mux, hub, e, panelAuth, settings, logins)
 	gate := Gate(cookieGate{e: e})
 	registerAPI(mux, hub, gate)
