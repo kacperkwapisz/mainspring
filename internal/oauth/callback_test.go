@@ -51,3 +51,10 @@ func TestTakePendingOneShot(t *testing.T) {
 		t.Fatalf("%+v", latest)
 	}
 }
+
+func TestParseCallbackCopyCode(t *testing.T) {
+	got := ParseCallback("  abc123#st4te ")
+	if got.Code != "abc123" || got.State != "st4te" {
+		t.Fatalf("%+v", got)
+	}
+}

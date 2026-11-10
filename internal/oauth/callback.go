@@ -18,6 +18,10 @@ func ParseCallback(raw string) ParsedCallback {
 		return ParsedCallback{}
 	}
 	if !strings.Contains(value, "://") && !strings.Contains(value, "?") && !strings.Contains(value, "&") && !strings.Contains(value, "=") {
+		// Anthropic's copy-code page shows "code#state".
+		if code, state, ok := strings.Cut(value, "#"); ok {
+			return ParsedCallback{Code: code, State: state}
+		}
 		return ParsedCallback{Code: value}
 	}
 	var u *url.URL

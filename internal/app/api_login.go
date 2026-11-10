@@ -70,6 +70,11 @@ func registerLoginAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate, logins map[doma
 			return
 		}
 		out := map[string]any{"kind": start.Kind, "url": start.URL, "state": start.State, "user_code": start.UserCode, "expires_at": start.ExpiresAt}
+		if start.Kind == "code" {
+			// The provider shows a code on its own page; the panel posts it to /finish.
+			httpx.JSON(w, 200, out)
+			return
+		}
 		if p == domain.ProviderClaude || p == domain.ProviderCodex {
 			hint := oauth.ClaudeRedirectURI
 			if p == domain.ProviderCodex {

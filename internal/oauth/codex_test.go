@@ -1,7 +1,10 @@
 package oauth
 
 import (
+	"context"
 	"encoding/base64"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/kacperkwapisz/mainspring/internal/env"
@@ -34,4 +37,19 @@ func TestChatgptAccountIDPrefersAccessJWT(t *testing.T) {
 
 func jwtWith(payload string) string {
 	return "aaa." + base64.RawURLEncoding.EncodeToString([]byte(payload)) + ".sig"
+}
+
+func TestClaudeAuthorizeURL(t *testing.T) {
+	e, _ := env.Load(map[string]string{"JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "DATABASE_PATH": ":memory:"})
+	for mode, redirect := range map[string]string{"": ClaudeRedirectURI, "copy_code": ClaudeCopyCodeRedirectURI} {
+		start, err := ClaudeLogin(e).Start(context.Background(), "", mode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		u, _ := url.Parse(start.URL)
+		q := u.Query()
+		if q.Get("code") != "true" || q.Get("redirect_uri") != redirect || !strings.HasPrefix(q.Get("scope"), "org:create_api_key ") || q.Get("code_challenge_method") != "S256" {
+			t.Fatalf("mode %q: %s", mode, start.URL)
+		}
+	}
 }

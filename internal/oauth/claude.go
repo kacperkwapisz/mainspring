@@ -17,10 +17,14 @@ import (
 
 const ClaudeRedirectURI = "http://localhost:54545/callback"
 
+// ClaudeCopyCodeRedirectURI makes Anthropic show the code on its own page, for
+// when the browser and Mainspring are on different machines.
+const ClaudeCopyCodeRedirectURI = "https://platform.claude.com/oauth/code/callback"
+
 const (
 	claudeAuthURL  = "https://claude.ai/oauth/authorize"
 	claudeTokenURL = "https://platform.claude.com/v1/oauth/token"
-	claudeScope    = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+	claudeScope    = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
 )
 
 type claudeLogin struct{ clientID string }
@@ -29,27 +33,36 @@ func ClaudeLogin(e *env.Env) ProviderLogin { return &claudeLogin{clientID: e.Cla
 
 func (l *claudeLogin) ID() domain.ProviderID { return domain.ProviderClaude }
 
-func (l *claudeLogin) Start(_ context.Context, _, _ string) (LoginStart, error) {
+// Start begins a Claude sign-in. mode "copy_code" sends the browser to
+// Anthropic's page that shows a code to paste back; anything else redirects to
+// the local callback listener.
+func (l *claudeLogin) Start(_ context.Context, _, mode string) (LoginStart, error) {
 	verifier, challenge := PKCE()
 	state := RandomState()
+	redirect := ClaudeRedirectURI
+	kind := "redirect"
+	if mode == "copy_code" {
+		redirect, kind = ClaudeCopyCodeRedirectURI, "code"
+	}
 	PutPending(PendingLogin{
 		Provider:    domain.ProviderClaude,
 		State:       state,
 		Verifier:    verifier,
-		RedirectURI: ClaudeRedirectURI,
+		RedirectURI: redirect,
 		CreatedAt:   time.Now().UnixMilli(),
 	})
 	u, _ := url.Parse(claudeAuthURL)
 	q := u.Query()
+	q.Set("code", "true")
 	q.Set("client_id", l.clientID)
 	q.Set("response_type", "code")
-	q.Set("redirect_uri", ClaudeRedirectURI)
+	q.Set("redirect_uri", redirect)
 	q.Set("scope", claudeScope)
 	q.Set("code_challenge", challenge)
 	q.Set("code_challenge_method", "S256")
 	q.Set("state", state)
 	u.RawQuery = q.Encode()
-	return LoginStart{Kind: "redirect", URL: u.String(), State: state}, nil
+	return LoginStart{Kind: kind, URL: u.String(), State: state}, nil
 }
 
 func (l *claudeLogin) Complete(ctx context.Context, code, state, _, _ string) (LoginResult, error) {

@@ -391,7 +391,10 @@
         const d = { provider, mode: "browser", start: null, callback: "", secret: "", done: false };
         this.openDialog("login", d);
         if (provider === "cursor") return; // choose a mode first
-        await this.beginLogin();
+        // Away from the hub itself, a redirect to localhost can't reach Mainspring,
+        // so Claude shows a code to paste back instead.
+        const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+        await this.beginLogin(provider === "claude" && !local ? "copy_code" : "");
       },
       async beginLogin(mode) {
         const d = this.dialog;
@@ -399,7 +402,9 @@
         d.error = ""; d.busy = true; d.start = null;
         try {
           d.start = await api("POST", `/api/login/${d.provider}/start`, { mode: mode || "" });
-          if (d.start.kind === "callback" || d.start.kind === "redirect") {
+          if (d.start.kind === "code") {
+            if (d.start.url) window.open(d.start.url, "_blank", "noopener");
+          } else if (d.start.kind === "callback" || d.start.kind === "redirect") {
             if (d.start.url) window.open(d.start.url, "_blank", "noopener");
             d.pollTimer = setInterval(() => this.pollLogin(), 1500);
           } else if (d.start.kind === "device") {

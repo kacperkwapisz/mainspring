@@ -613,6 +613,14 @@
           </div>
         </template>
 
+        <template x-if="dialog.start && dialog.start.kind === 'code'">
+          <form style="display:flex;flex-direction:column;gap:16px" @submit.prevent="finishCallback()" id="codeform">
+            <div class="step"><div class="mark on">1</div><div class="body"><div class="strong">Sign in in the tab we opened</div><div class="subtle"><a :href="dialog.start.url" target="_blank" rel="noopener">Open the sign-in page again</a></div></div></div>
+            <div class="step"><div class="mark on">2</div><div class="body"><div class="strong">Copy the code Anthropic shows, and paste it here</div>
+              <input class="input mono" x-model="dialog.callback" placeholder="Paste the code" autocomplete="off" spellcheck="false">
+              <div class="help">If the account is already in the pool, it's updated, not added twice</div></div></div>
+          </form>
+        </template>
         <template x-if="dialog.start && dialog.start.kind === 'device'">
           <div style="display:flex;flex-direction:column;gap:14px">
             <template x-if="dialog.start.user_code">
@@ -630,6 +638,7 @@
           <template x-if="dialog.provider === 'cursor' && dialog.mode === 'key'"><button class="btn btn-ink" form="cursorkey" :disabled="dialog.busy || !dialog.secret.trim()">Connect</button></template>
           <template x-if="dialog.provider === 'cursor' && dialog.mode === 'browser' && !dialog.start"><button class="btn btn-ink" @click="beginLogin()" :disabled="dialog.busy">Open Cursor<span x-html="icon('external','#171717')"></span></button></template>
           <template x-if="dialog.start && (dialog.start.kind === 'callback' || dialog.start.kind === 'redirect')"><button class="btn btn-ink" @click="finishCallback()" :disabled="dialog.busy || !dialog.callback.trim()">Connect</button></template>
+          <template x-if="dialog.start && dialog.start.kind === 'code'"><button class="btn btn-ink" form="codeform" :disabled="dialog.busy || !dialog.callback.trim()">Connect</button></template>
           <template x-if="dialog.start && dialog.start.kind === 'device' && dialog.start.url && dialog.provider === 'grok'"><a class="btn btn-ink" :href="dialog.start.url" target="_blank" rel="noopener">Open x.ai/device<span x-html="icon('external','#171717')"></span></a></template>
         </div>
       </div></template>
