@@ -1,6 +1,5 @@
 /* Mainspring panel. Values mirror the Paper file's tokens (see AGENTS.md). */
-@font-face { font-family: "Inter"; src: url("/assets/fonts/inter.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
-@font-face { font-family: "Archivo"; src: url("/assets/fonts/archivo.woff2") format("woff2"); font-weight: 100 900; font-stretch: 62% 125%; font-display: swap; }
+@font-face { font-family: "Geist"; src: url("/assets/fonts/geist.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
 @font-face { font-family: "Geist Mono"; src: url("/assets/fonts/geistmono.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 
 :root {
@@ -21,8 +20,8 @@
   --color-warning: #FBBF24;
   --color-danger: #F87171;
   --color-scrim: rgb(8 8 8 / 72%);
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Archivo", var(--font-sans);
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-sans);
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --radius-badge: 6px;
   --radius-control-sm: 8px;
@@ -95,13 +94,13 @@ a { color: inherit; }
 .endpoint .url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; color: var(--color-text); }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 100dvh; border-left: 1px solid var(--color-hairline); }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 28px 32px 20px; }
-.page-title { margin: 0; color: var(--color-text-strong); font-family: var(--font-display); font-stretch: 125%; font-size: 24px; line-height: 32px; font-weight: 500; letter-spacing: -0.01em; }
+.page-title { margin: 0; color: var(--color-text-strong); font-family: var(--font-display); font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.03em; }
 .page-meta { color: var(--color-text-subtle); font-variant-numeric: tabular-nums; }
 .content { display: flex; flex-direction: column; gap: 16px; padding: 0 32px 40px; }
-.topbar { display: none; }
 
 /* ---- Buttons ---- */
 .btn {
+  text-decoration: none;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px;
   border-radius: var(--radius-control); font-weight: 500; white-space: nowrap; transition: background-color 120ms ease, transform 120ms var(--ease-out), opacity 120ms ease;
 }
@@ -269,7 +268,7 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 /* ---- Meter ---- */
 .stats { display: flex; gap: 48px; flex-wrap: wrap; padding: 0 32px 8px; }
 .stat .k { color: var(--color-text-subtle); }
-.stat .v { color: var(--color-text-strong); font-family: var(--font-display); font-stretch: 125%; font-size: 32px; line-height: 40px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stat .v { color: var(--color-text-strong); font-family: var(--font-display); font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .stat .s { color: var(--color-text-subtle); }
 .chart { padding: 8px 15px 15px; }
 .chart svg { display: block; width: 100%; height: auto; }
@@ -303,22 +302,80 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 .guide-step:first-child { border-top: 0; }
 .guide-step .n { width: 16px; color: var(--color-text-muted); }
 
-/* ---- Small screens ---- */
-@media (max-width: 900px) {
-  .shell { flex-direction: column; }
-  .sidebar { display: none; }
-  .main { border-left: 0; }
-  .topbar { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 20; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); background: var(--color-page); border-bottom: 1px solid var(--color-hairline); overflow-x: auto; }
-  .topbar .nav { flex-direction: row; margin: 0; }
-  .topbar .nav a { height: 44px; padding: 0 10px; }
-  .page-head { padding: 20px 16px 16px; flex-wrap: wrap; }
-  .content { padding: 0 16px 32px; }
-  .stats { padding: 0 16px 8px; gap: 24px; }
-  .split { grid-template-columns: 1fr; }
+/* ---- Responsive ----
+   ≥1100: full layout. 760–1099 (tablets, iPhone Duo open in landscape): full
+   sidebar, single-column cards. <760 (phones, iPhone Duo closed and open in
+   portrait): the sidebar becomes a 64px icon rail and Pool rows stack. */
+.sm-only { display: none; }
+.sidebar { padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); padding-left: max(12px, env(safe-area-inset-left)); }
+.main { padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
+@media (max-width: 1099px) {
+  .split, .split[style] { grid-template-columns: 1fr !important; }
   .setting-section { grid-template-columns: 1fr; gap: 12px; }
-  .setting-row { flex-wrap: wrap; }
-  .setting-row .name { width: auto; }
+  .stats { gap: 32px; }
+}
+@media (max-width: 759px) {
+  .sidebar { width: calc(64px + env(safe-area-inset-left)); padding-right: 10px; padding-left: max(10px, env(safe-area-inset-left)); align-items: center; }
+  .sidebar .label { display: none; }
+  .wordmark { justify-content: center; padding: 0; width: 44px; }
+  .nav { align-items: center; }
+  .nav a { position: relative; width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .nav a .grow { display: none; }
+  .nav .dot { position: absolute; top: 9px; right: 9px; }
+  .nav .count { position: absolute; top: 4px; right: 1px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--color-surface-hover); font-size: 10px; line-height: 16px; text-align: center; color: var(--color-text-subtle); }
+  .endpoint { width: 44px; height: 44px; padding: 0; align-items: center; justify-content: center; }
+  .sidebar-foot { align-items: center; }
+  .page-head { padding: 20px 16px 14px; flex-wrap: wrap; gap: 12px; }
+  .page-title { font-size: 22px; line-height: 28px; }
+  .content { padding: 0 12px 28px; gap: 12px; }
+  .stats { padding: 0 16px 8px; gap: 20px 28px; }
+  .stat .v { font-size: 26px; line-height: 32px; }
+  .setting-row { flex-wrap: wrap; row-gap: 6px; }
+  .setting-row .name { width: auto; flex: 1 1 100%; }
   .hide-sm { display: none !important; }
+  .sm-only { display: inline; }
+  .card-head .title-row { flex-wrap: wrap; }
+  .dialog { padding: 20px; }
+  .drawer { width: 100vw; }
+
+  .acct { max-width: none; }
+}
+
+/* Pool rows below 1400px, where the 7-column table doesn't fit: each account
+   becomes a small grid. Two lines from 760px, a stacked card on phones. */
+@media (max-width: 1399px) {
+  table.pool { min-width: 0; table-layout: auto; }
+  table.pool thead { display: none; }
+  table.pool, table.pool tbody { display: block; }
+  table.pool tr { display: grid; column-gap: 20px; padding: 12px 15px; border-top: 1px solid var(--color-hairline); align-items: center;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto auto;
+    grid-template-areas: "acct status sess rot" "short long long upd" "msg msg msg upd"; }
+  table.pool td { display: block; height: auto; border: 0; padding: 0 !important; white-space: normal; }
+  table.pool td.c-acct { grid-area: acct; }
+  table.pool td.c-status { grid-area: status; }
+  table.pool td.c-sess { grid-area: sess; text-align: right; }
+  table.pool td.c-rot { grid-area: rot; }
+  table.pool td.c-short { grid-area: short; padding-top: 8px !important; }
+  table.pool td.c-long { grid-area: long; padding-top: 8px !important; min-width: 0; overflow: hidden; }
+  table.pool td.c-msg { grid-area: msg; padding-top: 6px !important; }
+  table.pool td.c-upd { grid-area: upd; padding-top: 8px !important; justify-self: end; }
+  table.pool td.c-short::before, table.pool td.c-long::before { content: attr(data-label); display: block; color: var(--color-text-muted); font-size: 12px; line-height: 16px; margin-bottom: 2px; }
+  table.pool .reserve .pct { width: auto; min-width: 36px; text-align: left; }
+  table.pool .sm-only { display: inline; }
+}
+@media (max-width: 759px) {
+  table.pool tr { grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px;
+    grid-template-areas: "acct rot" "status status" "short short" "long long" "msg msg" "upd sess"; }
+  table.pool td.c-status { padding-top: 6px !important; }
+  table.pool td.c-upd { justify-self: start; }
+  table.pool td.c-sess { padding-top: 8px !important; }
+  table.pool .lane { max-width: calc(100vw - 150px); overflow: hidden; }
+}
+/* Foldables that report two side-by-side segments (Viewport Segments API):
+   keep dialogs off the fold, in the right-hand segment. */
+@media (horizontal-viewport-segments: 2) {
+  .scrim { justify-content: flex-end; padding-right: 16px; }
+  .dialog { max-width: calc(env(viewport-segment-width 1 0, 480px) - 32px); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }

@@ -7,7 +7,7 @@
 <meta name="color-scheme" content="dark">
 <title>Mainspring</title>
 <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
-<link rel="preload" href="/assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/app.css?v={{VERSION}}">
 <script defer src="/assets/app.js?v={{VERSION}}"></script>
 <script defer src="/assets/alpine.min.js"></script>
@@ -128,11 +128,11 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div>
-      <a class="wordmark" href="#/pool"><img src="/assets/mark.svg" width="20" height="20" alt="">Mainspring</a>
+      <a class="wordmark" href="#/pool" aria-label="Mainspring"><img src="/assets/mark.svg" width="20" height="20" alt=""><span class="label">Mainspring</span></a>
       <nav class="nav" aria-label="Main">
         <template x-for="r in ROUTES" :key="r">
-          <a :href="'#/' + r" :aria-current="route === r ? 'page' : null">
-            <span x-html="icon(r)"></span><span class="grow" x-text="r[0].toUpperCase() + r.slice(1)"></span>
+          <a :href="'#/' + r" :aria-current="route === r ? 'page' : null" :title="r[0].toUpperCase() + r.slice(1)">
+            <span class="ico" x-html="icon(r)"></span><span class="grow label" x-text="r[0].toUpperCase() + r.slice(1)"></span>
             <template x-if="r === 'pool' && attention"><span class="dot" title="An account needs you"></span></template>
             <template x-if="r === 'sessions'"><span class="count" x-text="liveSessions"></span></template>
           </a>
@@ -140,22 +140,15 @@
       </nav>
     </div>
     <div class="sidebar-foot">
-      <button class="endpoint" @click="copy(endpoint, 'the endpoint')" title="Copy the endpoint">
-        <span class="small muted">Endpoint</span>
-        <span class="row"><span class="url mono" x-text="endpoint.replace(/^https?:\/\//, '')"></span><span x-html="icon('copy','#A1A1A1')"></span></span>
+      <button class="endpoint" @click="copy(endpoint, 'the endpoint')" title="Copy the endpoint" aria-label="Copy the endpoint">
+        <span class="small muted label">Endpoint</span>
+        <span class="row"><span class="url mono label" x-text="endpoint.replace(/^https?:\/\//, '')"></span><span x-html="icon('copy','#A1A1A1')"></span></span>
       </button>
       <template x-if="auth.mode !== 'proxy' || auth.requireKey">
-        <nav class="nav" style="margin:0"><a href="#" @click.prevent="lock()"><span x-html="icon('lock')"></span><span class="grow">Lock</span></a></nav>
+        <nav class="nav" style="margin:0"><a href="#" @click.prevent="lock()" title="Lock"><span class="ico" x-html="icon('lock')"></span><span class="grow label">Lock</span></a></nav>
       </template>
     </div>
   </aside>
-  <header class="topbar">
-    <nav class="nav" aria-label="Main">
-      <template x-for="r in ROUTES" :key="r">
-        <a :href="'#/' + r" :aria-current="route === r ? 'page' : null"><span x-text="r[0].toUpperCase() + r.slice(1)"></span><template x-if="r === 'pool' && attention"><span class="dot"></span></template></a>
-      </template>
-    </nav>
-  </header>
 
   <main class="main">
 
@@ -206,20 +199,20 @@
                 <tbody>
                   <template x-for="a in g.accounts" :key="a.id">
                     <tr class="clickable" :class="{ next: isAccent(a, g), dim: a.status === 'benched', stale: a.stale && a.status !== 'cooling' }" @click="openDrawer(a.id)">
-                      <td><div class="acct"><span class="acct-name" x-text="a.label"></span><span class="acct-plan" x-text="a.plan"></span></div></td>
-                      <td><span class="status" :class="statusOf(a,g).cls"><span x-html="statusOf(a,g).mark"></span><span x-text="statusOf(a,g).text"></span></span></td>
+                      <td class="c-acct"><div class="acct"><span class="acct-name" x-text="a.label"></span><span class="acct-plan" x-text="a.plan"></span></div></td>
+                      <td class="c-status"><span class="status" :class="statusOf(a,g).cls"><span x-html="statusOf(a,g).mark"></span><span x-text="statusOf(a,g).text"></span></span></td>
                       <template x-if="a.status === 'needs_sign_in' || a.status === 'benched'">
-                        <td colspan="2" class="subtle" x-text="rowMessage(a)"></td>
+                        <td colspan="2" class="subtle c-msg" x-text="rowMessage(a)"></td>
                       </template>
                       <template x-if="a.status !== 'needs_sign_in' && a.status !== 'benched'">
-                        <td><div class="reserve"><span class="pct" x-text="a.short ? fmt.pct(a.short.left) : '—'"></span><span class="bar"><i :style="'width:' + (a.short && a.short.left != null ? a.short.left : 0) + '%'"></i></span><span class="rel ellipsis" style="width:96px" x-text="shortRel(a)"></span></div></td>
+                        <td class="c-short" :data-label="shortHeader(g)"><div class="reserve"><span class="pct" x-text="a.short ? fmt.pct(a.short.left) : '—'"></span><span class="bar"><i :style="'width:' + (a.short && a.short.left != null ? a.short.left : 0) + '%'"></i></span><span class="rel ellipsis" style="width:96px" x-text="shortRel(a)"></span></div></td>
                       </template>
                       <template x-if="a.status !== 'needs_sign_in' && a.status !== 'benched'">
-                        <td><div class="reserve"><span class="pct" x-text="a.long ? fmt.pct(a.long.left) : '—'"></span>
+                        <td class="c-long" :data-label="longHeader(g)"><div class="reserve"><span class="pct" x-text="a.long ? fmt.pct(a.long.left) : '—'"></span>
                           <span class="lane" style="width:270px"><span x-html="lane(a).svg"></span><span class="rel" :style="'left:' + lane(a).x + 'px'" x-text="lane(a).label"></span></span></div></td>
                       </template>
-                      <td class="r" :class="a.sessions ? 'strong' : 'muted'" x-text="a.status === 'needs_sign_in' ? '—' : a.sessions"></td>
-                      <td @click.stop>
+                      <td class="r c-sess" :class="a.sessions ? 'strong' : 'muted'"><span x-text="a.status === 'needs_sign_in' ? '—' : a.sessions"></span><span class="sm-only" x-show="a.status !== 'needs_sign_in'" x-text="a.sessions === 1 ? ' session' : ' sessions'"></span></td>
+                      <td class="c-upd" @click.stop>
                         <div style="display:flex;align-items:center;gap:8px">
                           <template x-if="a.status === 'needs_sign_in'"><button class="btn btn-secondary btn-sm" @click="startLogin(a.provider)">Sign in again</button></template>
                           <template x-if="a.status !== 'needs_sign_in' && a.status !== 'benched'"><span :class="a.stale ? 'muted' : 'subtle'" x-text="a.observed_at ? fmt.ago(a.observed_at, now) : 'not read yet'"></span></template>
@@ -228,7 +221,7 @@
                           </template>
                         </div>
                       </td>
-                      <td class="r" @click.stop><template x-if="a.status !== 'needs_sign_in'"><span class="switch-hit"><button class="switch" role="switch" :aria-checked="a.in_rotation ? 'true' : 'false'" :aria-label="'In rotation: ' + a.label" @click="setRotation(a, !a.in_rotation)"></button></span></template></td>
+                      <td class="r c-rot" @click.stop><template x-if="a.status !== 'needs_sign_in'"><span class="switch-hit"><button class="switch" role="switch" :aria-checked="a.in_rotation ? 'true' : 'false'" :aria-label="'In rotation: ' + a.label" @click="setRotation(a, !a.in_rotation)"></button></span></template></td>
                     </tr>
                   </template>
                 </tbody>
