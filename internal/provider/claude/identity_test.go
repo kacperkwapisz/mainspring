@@ -68,3 +68,20 @@ func TestForcedToolChoiceDropsThinking(t *testing.T) {
 		t.Fatal("thinking still present")
 	}
 }
+
+func TestNativeClaudeCodeKeepsItsSDKFingerprint(t *testing.T) {
+	inbound := map[string]string{
+		"User-Agent": "claude-cli/2.1.322 (external, cli)", "x-app": "cli",
+		"anthropic-beta":              "claude-code-20250219,oauth-2025-04-20",
+		"X-Stainless-Package-Version": "0.128.0", "X-Stainless-Runtime-Version": "v26.12.1",
+	}
+	body := map[string]any{"model": "claude-opus-5", "metadata": map[string]any{"user_id": "{\"session_id\":\"s\"}"},
+		"messages": []any{map[string]any{"role": "user", "content": "hi"}}}
+	p := PrepareUpstream(body, "tok", "cred", "", inbound, false, false, "k")
+	if p.Headers["User-Agent"] != "claude-cli/2.1.322 (external, cli)" || p.Headers["X-Stainless-Package-Version"] != "0.128.0" || p.Headers["X-Stainless-Runtime-Version"] != "v26.12.1" {
+		t.Fatalf("native fingerprint not kept: %v", p.Headers)
+	}
+	if p.Headers["anthropic-beta"] != "claude-code-20250219,oauth-2025-04-20" {
+		t.Fatalf("native betas changed: %s", p.Headers["anthropic-beta"])
+	}
+}

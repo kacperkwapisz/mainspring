@@ -81,3 +81,13 @@ func TestChatgptAccountIDFromAccessJWT(t *testing.T) {
 		t.Fatalf("%s", got)
 	}
 }
+
+func TestRealCodexKeepsItsUserAgent(t *testing.T) {
+	h := UpstreamHeaders("tok", "acct", map[string]string{"User-Agent": "codex_cli_rs/0.160.0 (Mac OS 26.5.2; arm64)", "originator": "codex_cli_rs"}, true, "")
+	if h["User-Agent"] != "codex_cli_rs/0.160.0 (Mac OS 26.5.2; arm64)" || h["Originator"] != "codex_cli_rs" {
+		t.Fatalf("%v", h)
+	}
+	if other := UpstreamHeaders("tok", "acct", map[string]string{"User-Agent": "curl/8"}, true, ""); other["User-Agent"] != UserAgent {
+		t.Fatalf("non-Codex client must get the Codex UA: %v", other["User-Agent"])
+	}
+}

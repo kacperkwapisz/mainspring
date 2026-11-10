@@ -14,11 +14,11 @@ import (
 
 const (
 	fingerprintSalt = "59cf53e54c78"
-	cliVersion      = "2.1.220"
+	cliVersion      = "2.1.322"
 	cliIdentity     = "You are Claude Code, Anthropic's official CLI for Claude."
-	ua              = "claude-cli/2.1.220 (external, cli)"
-	packageVersion  = "0.94.0"
-	runtimeVersion  = "v26.3.0"
+	ua              = "claude-cli/2.1.322 (external, cli)"
+	packageVersion  = "0.128.0"
+	runtimeVersion  = "v26.12.1"
 	osName          = "MacOS"
 	arch            = "arm64"
 	codeBeta        = "claude-code-20250219"
@@ -144,7 +144,7 @@ func claudeBetas(body map[string]any, requested string, countTokens bool) string
 		}
 		out = append(out, beta)
 	}
-	if hasRoleSystem(body) {
+	if asked["mid-conversation-system-2026-04-07"] {
 		out = append(out, "mid-conversation-system-2026-04-07")
 	}
 	if asked[advisorBeta] || hasAdvisorTool(body) {
@@ -154,8 +154,8 @@ func claudeBetas(body map[string]any, requested string, countTokens bool) string
 		out = append(out, "advanced-tool-use-2025-11-20")
 	}
 	out = append(out, "effort-2025-11-24")
-	if !asked["fallback-credit-2026-06-01"] {
-		out = append(out, "fallback-credit-2026-06-01")
+	if body["fallbacks"] != nil {
+		out = append(out, "server-side-fallback-2026-06-01", "fallback-credit-2026-06-01")
 	}
 	for _, beta := range trailingBetas {
 		if asked[beta] {
@@ -511,6 +511,11 @@ func claudeHeaders(accessToken string, confirmed, cloaked, countTokens, stream b
 	if confirmed {
 		if v := header(inbound, "user-agent"); v != "" {
 			headers["User-Agent"] = v
+		}
+		for _, name := range []string{"X-Stainless-Package-Version", "X-Stainless-Runtime-Version", "X-Stainless-OS", "X-Stainless-Arch", "X-Stainless-Runtime", "X-Stainless-Lang", "X-Stainless-Timeout"} {
+			if v := header(inbound, name); v != "" {
+				headers[name] = v
+			}
 		}
 		for _, name := range []string{"X-Claude-Code-Agent-Id", "X-Claude-Code-Parent-Agent-Id", "X-Claude-Remote-Container-Id", "X-Claude-Remote-Session-Id", "X-Client-App", "X-Anthropic-Additional-Protection"} {
 			if v := header(inbound, name); v != "" {

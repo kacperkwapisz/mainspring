@@ -14,7 +14,7 @@ import (
 
 const (
 	Originator = "codex-tui"
-	UserAgent  = "codex-tui/0.146.0 (Mac OS 26.5.0; arm64) iTerm.app/3.6.10 (codex-tui; 0.146.0)"
+	UserAgent  = "codex-tui/0.160.0 (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 (codex-tui; 0.160.0)"
 	idLimit    = 64
 )
 
@@ -81,6 +81,10 @@ func UpstreamHeaders(accessToken, accountID string, inbound map[string]string, s
 	}
 	if v := inboundHeader(inbound, "originator"); v != "" {
 		headers["Originator"] = v
+	}
+	// A real Codex client keeps its own User-Agent, so it matches its originator.
+	if v := inboundHeader(inbound, "user-agent"); strings.HasPrefix(strings.ToLower(v), "codex") {
+		headers["User-Agent"] = v
 	}
 	if accountID != "" {
 		headers["ChatGPT-Account-Id"] = accountID
