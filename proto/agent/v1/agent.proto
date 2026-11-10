@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package agent.v1;
 
-option go_package = "github.com/kacperkwapisz/fob/internal/provider/cursor/agentpb";
+option go_package = "github.com/kacperkwapisz/mainspring/internal/provider/cursor/agentpb";
 
 message AbortArgs {
 }

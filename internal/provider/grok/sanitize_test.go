@@ -3,7 +3,7 @@ package grok
 import (
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 func TestSanitizeGrokBody(t *testing.T) {

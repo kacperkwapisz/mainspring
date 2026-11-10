@@ -4,7 +4,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/kacperkwapisz/fob/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
 )
 
 func FailFromResponse(res *http.Response) ExecuteResult {

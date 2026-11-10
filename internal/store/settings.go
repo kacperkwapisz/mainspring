@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/kacperkwapisz/fob/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/db"
 )
 
 type SettingsStore struct {

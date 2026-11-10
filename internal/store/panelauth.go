@@ -3,8 +3,8 @@ package store
 import (
 	"database/sql"
 
-	fcrypto "github.com/kacperkwapisz/fob/internal/crypto"
-	"github.com/kacperkwapisz/fob/internal/db"
+	fcrypto "github.com/kacperkwapisz/mainspring/internal/crypto"
+	"github.com/kacperkwapisz/mainspring/internal/db"
 )
 
 type PanelAuthState struct {

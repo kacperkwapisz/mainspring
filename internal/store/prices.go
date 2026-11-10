@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/db"
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/prices"
+	"github.com/kacperkwapisz/mainspring/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/prices"
 )
 
 const (

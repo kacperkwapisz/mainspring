@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/env"
-	"github.com/kacperkwapisz/fob/internal/provider"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/env"
+	"github.com/kacperkwapisz/mainspring/internal/provider"
 )
 
 const ClaudeRedirectURI = "http://localhost:54545/callback"

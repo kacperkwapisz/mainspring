@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/env"
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/provider"
-	"github.com/kacperkwapisz/fob/internal/provider/cursor"
-	"github.com/kacperkwapisz/fob/internal/provider/openai"
-	"github.com/kacperkwapisz/fob/internal/store"
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/env"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/provider"
+	"github.com/kacperkwapisz/mainspring/internal/provider/cursor"
+	"github.com/kacperkwapisz/mainspring/internal/provider/openai"
+	"github.com/kacperkwapisz/mainspring/internal/store"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 type liveModels interface {
@@ -28,7 +28,7 @@ const (
 	SettingLogTrace           = httpx.SettingLogTrace
 )
 
-type Fob struct {
+type Hub struct {
 	Env       *env.Env
 	Vault     *store.Vault
 	Keys      *store.KeyStore
@@ -58,9 +58,9 @@ type Result struct {
 
 var sticky sync.Map
 
-func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
+func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 	started := time.Now().UnixMilli()
-	syncTraceMode(fob)
+	syncTraceMode(hub)
 	if httpx.ShouldTrace() {
 		ctx = httpx.WithTrace(ctx, httpx.NewTrace())
 	}
@@ -70,7 +70,7 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 	if model == "" {
 		return failOut(req, 400, httpx.KindRequest, "", "", "model is required", `set "model" in the request body`), nil
 	}
-	chain := resolveProviderChain(fob, model)
+	chain := resolveProviderChain(hub, model)
 	if len(chain) == 0 {
 		httpx.DumpTrace(ctx, true, "unknown model")
 		return failOut(req, 404, httpx.KindModel, "", model, "unknown model: "+model, "GET /v1/models for ids this instance can serve"), nil
@@ -79,7 +79,7 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 		tr.Add("hop %s/%s", h.Provider, h.Model)
 	}
 	if req.Key.DailyCap != nil {
-		used, err := fob.Usage.TodayTokensForKey(req.Key.ID)
+		used, err := hub.Usage.TodayTokensForKey(req.Key.ID)
 		if err != nil {
 			return Result{}, err
 		}
@@ -95,12 +95,12 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 	route := string(req.Inbound)
 
 	for hopIndex, hop := range chain {
-		if err := fob.Keys.Allows(req.Key, hop.Provider, hop.Model); err != nil {
+		if err := hub.Keys.Allows(req.Key, hop.Provider, hop.Model); err != nil {
 			last = provider.ExecuteResult{OK: false, Status: 403, Message: err.Error()}
 			lastHop = hop
 			continue
 		}
-		executor := fob.Executors[hop.Provider]
+		executor := hub.Executors[hop.Provider]
 		if executor == nil {
 			last = provider.ExecuteResult{OK: false, Status: 503, Message: "provider " + string(hop.Provider) + " is not available"}
 			lastHop = hop
@@ -112,7 +112,7 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 			inboundBody = translate.FlattenCodexMultiAgent(req.Body)
 		}
 		translated := translate.TranslateRequest(req.Inbound, execFormat, hop.Model, req.Stream, inboundBody)
-		creds, err := pickCredentials(fob, hop.Provider, hop.Model, req.Key.ID, req.StickyID)
+		creds, err := pickCredentials(hub, hop.Provider, hop.Model, req.Key.ID, req.StickyID)
 		if err != nil {
 			return Result{}, err
 		}
@@ -126,7 +126,7 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 			if nearExpiry(cred) {
 				if refreshed, err := executor.Refresh(ctx, cred); err == nil {
 					cred = refreshed
-					_, _ = fob.Vault.Save(store.SaveCredential{
+					_, _ = hub.Vault.Save(store.SaveCredential{
 						ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Tokens: cred.Tokens, ExpiresAt: cred.ExpiresAt,
 					})
 				} else {
@@ -143,7 +143,7 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 			if !result.OK && result.Status == 401 {
 				if refreshed, err := executor.Refresh(ctx, cred); err == nil {
 					cred = refreshed
-					_, _ = fob.Vault.Save(store.SaveCredential{
+					_, _ = hub.Vault.Save(store.SaveCredential{
 						ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Tokens: cred.Tokens, ExpiresAt: cred.ExpiresAt,
 					})
 					result, err = executor.Execute(ctx, cred, translated.Body, provider.ExecuteOptions{
@@ -167,7 +167,7 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 				if moreHops {
 					break
 				}
-				record(fob, req, hop.Provider, hop.Model, started, "error", 0, 0, 0, 0, "")
+				record(hub, req, hop.Provider, hop.Model, started, "error", 0, 0, 0, 0, "")
 				httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s status=%d", hop.Provider, hop.Model, result.Status))
 				return failFromExec(req, hop.Provider, hop.Model, result), nil
 			}
@@ -203,7 +203,7 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 						httpx.LogOK(string(hop.Provider), hop.Model, route)
 						httpx.DumpTrace(ctx, false, fmt.Sprintf("%s/%s ok", hop.Provider, hop.Model))
 					}
-					record(fob, req, hop.Provider, hop.Model, started, status, state.PromptTokens, state.CompletionTokens, state.CacheRead, state.CacheWrite, state.RoutedModel)
+					record(hub, req, hop.Provider, hop.Model, started, status, state.PromptTokens, state.CompletionTokens, state.CacheRead, state.CacheWrite, state.RoutedModel)
 				}()
 				return Result{OK: true, Status: 200, Stream: out}, nil
 			}
@@ -211,7 +211,7 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 			pt, ct, cr, cw := usageFrom(body, result.Body)
 			httpx.LogOK(string(hop.Provider), hop.Model, route)
 			httpx.DumpTrace(ctx, false, fmt.Sprintf("%s/%s ok", hop.Provider, hop.Model))
-			record(fob, req, hop.Provider, hop.Model, started, "ok", pt, ct, cr, cw, routedModel(body, result.Body))
+			record(hub, req, hop.Provider, hop.Model, started, "ok", pt, ct, cr, cw, routedModel(body, result.Body))
 			return Result{OK: true, Status: 200, Body: body}, nil
 		}
 	}
@@ -231,13 +231,13 @@ func Proxy(ctx context.Context, fob *Fob, req Request) (Result, error) {
 			}
 		}
 	}
-	record(fob, req, lastHop.Provider, lastHop.Model, started, "error", 0, 0, 0, 0, "")
+	record(hub, req, lastHop.Provider, lastHop.Model, started, "error", 0, 0, 0, 0, "")
 	httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s status=%d", lastHop.Provider, lastHop.Model, last.Status))
 	return failFromExec(req, lastHop.Provider, lastHop.Model, last), nil
 }
 
-func ListModels(fob *Fob) []domain.ModelInfo {
-	creds, _ := fob.Vault.List()
+func ListModels(hub *Hub) []domain.ModelInfo {
+	creds, _ := hub.Vault.List()
 	seenProv := map[domain.ProviderID]bool{}
 	var native []domain.ProviderID
 	cursorOn := false
@@ -264,10 +264,10 @@ func ListModels(fob *Fob) []domain.ModelInfo {
 	}
 	prefix := false
 	listFast := true
-	if fob.Settings != nil {
-		v, _ := fob.Settings.Get(SettingCursorPrefix)
+	if hub.Settings != nil {
+		v, _ := hub.Settings.Get(SettingCursorPrefix)
 		prefix = v == "1"
-		listFast = settingOnByDefault(fob, SettingCursorListFast)
+		listFast = settingOnByDefault(hub, SettingCursorListFast)
 	}
 	seenID := map[string]bool{}
 	var models []domain.ModelInfo
@@ -284,18 +284,18 @@ func ListModels(fob *Fob) []domain.ModelInfo {
 		}
 	}
 	for _, providerID := range native {
-		ex := fob.Executors[providerID]
+		ex := hub.Executors[providerID]
 		if ex == nil {
 			continue
 		}
 		add(ex.Models())
 	}
 	if cursorOn {
-		if ex := fob.Executors[domain.ProviderCursor]; ex != nil {
+		if ex := hub.Executors[domain.ProviderCursor]; ex != nil {
 			add(cursorModelsForList(ex, prefix, listFast))
 		}
 	}
-	if live, ok := fob.Executors[domain.ProviderOpenAI].(liveModels); ok && len(openaiOn) > 0 {
+	if live, ok := hub.Executors[domain.ProviderOpenAI].(liveModels); ok && len(openaiOn) > 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
 		var wg sync.WaitGroup
@@ -309,11 +309,11 @@ func ListModels(fob *Fob) []domain.ModelInfo {
 		wg.Wait()
 	}
 	if len(opencodeOn) > 0 {
-		if live, ok := fob.Executors[domain.ProviderOpenCode].(liveModels); ok {
+		if live, ok := hub.Executors[domain.ProviderOpenCode].(liveModels); ok {
 			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 			defer cancel()
 			add(live.ModelsFor(ctx, opencodeOn[0]))
-		} else if ex := fob.Executors[domain.ProviderOpenCode]; ex != nil {
+		} else if ex := hub.Executors[domain.ProviderOpenCode]; ex != nil {
 			add(ex.Models())
 		}
 	}
@@ -353,8 +353,8 @@ type hop struct {
 	Model    string
 }
 
-func pickCredentials(fob *Fob, providerID domain.ProviderID, model, keyID, stickyID string) ([]domain.Credential, error) {
-	all, err := fob.Vault.List(providerID)
+func pickCredentials(hub *Hub, providerID domain.ProviderID, model, keyID, stickyID string) ([]domain.Credential, error) {
+	all, err := hub.Vault.List(providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -408,29 +408,29 @@ func pickCredentials(fob *Fob, providerID domain.ProviderID, model, keyID, stick
 	return append([]domain.Credential{*hit}, rest...), nil
 }
 
-func resolveProviderChain(fob *Fob, rawModel string) []hop {
+func resolveProviderChain(hub *Hub, rawModel string) []hop {
 	if strings.HasPrefix(rawModel, "opencode/") {
-		if opencodeConnected(fob) {
+		if opencodeConnected(hub) {
 			return []hop{{domain.ProviderOpenCode, rawModel}}
 		}
 		return nil
 	}
-	if hops := openaiSourceHops(fob, rawModel); len(hops) > 0 {
+	if hops := openaiSourceHops(hub, rawModel); len(hops) > 0 {
 		return hops
 	}
 	forced := strings.HasPrefix(rawModel, "cursor/")
 	model := cursor.StripPublicPrefix(rawModel)
 	known := cursor.KnownIDs()
 	restored := cursor.RestoreWirePrefix(model, known)
-	cursorOK := cursorConnected(fob)
+	cursorOK := cursorConnected(hub)
 	if forced || strings.HasSuffix(model, "-fast") || strings.HasSuffix(restored, "-fast") || strings.HasPrefix(restored, "composer-") || strings.HasPrefix(restored, "cursor-") || strings.HasPrefix(restored, "gemini-") || strings.HasPrefix(restored, "kimi-") || strings.HasPrefix(restored, "glm-") || restored == "cursor-auto" {
 		var hops []hop
 		if cursorOK {
 			hops = append(hops, hop{domain.ProviderCursor, restored})
 		}
-		if len(hops) > 0 && grokFailoverOn(fob) && strings.Contains(restored, "grok") {
+		if len(hops) > 0 && grokFailoverOn(hub) && strings.Contains(restored, "grok") {
 			if p, native, ok := cursor.MapWireToNative(restored); ok {
-				list, _ := fob.Vault.List(p)
+				list, _ := hub.Vault.List(p)
 				if len(list) > 0 {
 					hops = append(hops, hop{p, native})
 				}
@@ -458,7 +458,7 @@ func resolveProviderChain(fob *Fob, rawModel string) []hop {
 	}
 	if strings.HasPrefix(model, "grok-") {
 		hops := []hop{{domain.ProviderGrok, model}}
-		if grokFailoverOn(fob) && cursorOK {
+		if grokFailoverOn(hub) && cursorOK {
 			if mapped := cursor.MapNativeToWire(model, known); mapped != "" {
 				hops = append(hops, hop{domain.ProviderCursor, mapped})
 			}
@@ -468,12 +468,12 @@ func resolveProviderChain(fob *Fob, rawModel string) []hop {
 	if domain.IsProviderID(model) {
 		return []hop{{domain.ProviderID(model), model}}
 	}
-	creds, _ := fob.Vault.List()
+	creds, _ := hub.Vault.List()
 	for _, c := range creds {
 		if c.Provider == domain.ProviderOpenAI || c.Provider == domain.ProviderOpenCode {
 			continue
 		}
-		ex := fob.Executors[c.Provider]
+		ex := hub.Executors[c.Provider]
 		if ex == nil {
 			continue
 		}
@@ -486,13 +486,13 @@ func resolveProviderChain(fob *Fob, rawModel string) []hop {
 	return nil
 }
 
-func opencodeConnected(fob *Fob) bool {
-	list, _ := fob.Vault.List(domain.ProviderOpenCode)
+func opencodeConnected(hub *Hub) bool {
+	list, _ := hub.Vault.List(domain.ProviderOpenCode)
 	return len(list) > 0
 }
 
-func openaiSourceHops(fob *Fob, model string) []hop {
-	list, _ := fob.Vault.List(domain.ProviderOpenAI)
+func openaiSourceHops(hub *Hub, model string) []hop {
+	list, _ := hub.Vault.List(domain.ProviderOpenAI)
 	for _, c := range list {
 		slug := openai.SourceSlug(c)
 		if slug != "" && strings.HasPrefix(model, slug+"/") {
@@ -502,34 +502,34 @@ func openaiSourceHops(fob *Fob, model string) []hop {
 	return nil
 }
 
-func cursorConnected(fob *Fob) bool {
-	list, _ := fob.Vault.List(domain.ProviderCursor)
+func cursorConnected(hub *Hub) bool {
+	list, _ := hub.Vault.List(domain.ProviderCursor)
 	return len(list) > 0
 }
 
-func grokFailoverOn(fob *Fob) bool {
-	if fob.Settings == nil {
+func grokFailoverOn(hub *Hub) bool {
+	if hub.Settings == nil {
 		return false
 	}
-	v, _ := fob.Settings.Get(SettingCursorGrokFailover)
+	v, _ := hub.Settings.Get(SettingCursorGrokFailover)
 	return v == "1"
 }
 
-func settingOnByDefault(fob *Fob, key string) bool {
-	if fob == nil || fob.Settings == nil {
+func settingOnByDefault(hub *Hub, key string) bool {
+	if hub == nil || hub.Settings == nil {
 		return true
 	}
-	v, ok := fob.Settings.Get(key)
+	v, ok := hub.Settings.Get(key)
 	if !ok {
 		return true
 	}
 	return v != "0"
 }
 
-func syncTraceMode(fob *Fob) {
+func syncTraceMode(hub *Hub) {
 	mode := httpx.TraceOff
-	if fob != nil && fob.Settings != nil {
-		if v, ok := fob.Settings.Get(SettingLogTrace); ok {
+	if hub != nil && hub.Settings != nil {
+		if v, ok := hub.Settings.Get(SettingLogTrace); ok {
 			mode = v
 		}
 	}
@@ -548,11 +548,11 @@ func nearExpiry(c domain.Credential) bool {
 
 const keepaliveSkewMS = 5 * 60 * 1000
 
-func KeepaliveCredentials(ctx context.Context, fob *Fob) (int, error) {
-	if fob == nil || fob.Vault == nil {
+func KeepaliveCredentials(ctx context.Context, hub *Hub) (int, error) {
+	if hub == nil || hub.Vault == nil {
 		return 0, nil
 	}
-	creds, err := fob.Vault.List()
+	creds, err := hub.Vault.List()
 	if err != nil {
 		return 0, err
 	}
@@ -561,7 +561,7 @@ func KeepaliveCredentials(ctx context.Context, fob *Fob) (int, error) {
 		if !nearExpiry(cred) {
 			continue
 		}
-		ex := fob.Executors[cred.Provider]
+		ex := hub.Executors[cred.Provider]
 		if ex == nil {
 			continue
 		}
@@ -573,7 +573,7 @@ func KeepaliveCredentials(ctx context.Context, fob *Fob) (int, error) {
 		if !credentialAdvanced(cred, refreshed) {
 			continue
 		}
-		if _, err := fob.Vault.Save(store.SaveCredential{
+		if _, err := hub.Vault.Save(store.SaveCredential{
 			ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Tokens: refreshed.Tokens, ExpiresAt: refreshed.ExpiresAt,
 		}); err != nil {
 			httpx.Fail{
@@ -618,7 +618,7 @@ func usageFrom(translated, upstream any) (pt, ct, cr, cw int64) {
 	return
 }
 
-func record(fob *Fob, req Request, providerID domain.ProviderID, model string, started int64, status string, pt, ct, cr, cw int64, routed string) {
+func record(hub *Hub, req Request, providerID domain.ProviderID, model string, started int64, status string, pt, ct, cr, cw int64, routed string) {
 	priceProvider := map[domain.ProviderID]string{
 		domain.ProviderClaude:   "anthropic",
 		domain.ProviderCodex:    "openai",
@@ -631,13 +631,13 @@ func record(fob *Fob, req Request, providerID domain.ProviderID, model string, s
 	if routed != "" {
 		meterModel = routed
 	}
-	usd := fob.Prices.Estimate(priceProvider, meterModel, pt, ct, cr, cw)
+	usd := hub.Prices.Estimate(priceProvider, meterModel, pt, ct, cr, cw)
 	if usd == 0 && (providerID == domain.ProviderOpenAI || providerID == domain.ProviderOpenCode) {
 		if i := strings.Index(meterModel, "/"); i >= 0 {
-			usd = fob.Prices.Estimate(priceProvider, meterModel[i+1:], pt, ct, cr, cw)
+			usd = hub.Prices.Estimate(priceProvider, meterModel[i+1:], pt, ct, cr, cw)
 		}
 	}
-	_ = fob.Usage.Record(domain.UsageEvent{
+	_ = hub.Usage.Record(domain.UsageEvent{
 		TS: time.Now().UnixMilli(), KeyID: req.Key.ID, Provider: providerID, Model: meterModel, Inbound: req.Inbound,
 		PromptTokens: pt, CompletionTokens: ct, CacheReadTokens: cr, CacheWriteTokens: cw,
 		LatencyMs: time.Now().UnixMilli() - started, Status: status, USD: usd,

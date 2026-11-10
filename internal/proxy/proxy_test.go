@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/db"
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/env"
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/provider"
-	"github.com/kacperkwapisz/fob/internal/provider/cursor"
-	"github.com/kacperkwapisz/fob/internal/store"
+	"github.com/kacperkwapisz/mainspring/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/env"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/provider"
+	"github.com/kacperkwapisz/mainspring/internal/provider/cursor"
+	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
 type fakeExec struct {
@@ -37,7 +37,7 @@ func (f fakeExec) Refresh(_ context.Context, c domain.Credential) (domain.Creden
 	return c, nil
 }
 
-func testFob(t *testing.T, execs map[domain.ProviderID]provider.Executor) (*Fob, *db.DB) {
+func testHub(t *testing.T, execs map[domain.ProviderID]provider.Executor) (*Hub, *db.DB) {
 	t.Helper()
 	e, err := env.Load(map[string]string{"JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "DATABASE_PATH": ":memory:"})
 	if err != nil {
@@ -51,7 +51,7 @@ func testFob(t *testing.T, execs map[domain.ProviderID]provider.Executor) (*Fob,
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Fob{
+	return &Hub{
 		Env: e, Vault: store.NewVault(d, e.JWTKey), Keys: store.NewKeyStore(d),
 		Usage: store.NewUsageStore(d), Prices: prices, Executors: execs, Settings: store.NewSettingsStore(d),
 	}, d
@@ -59,7 +59,7 @@ func testFob(t *testing.T, execs map[domain.ProviderID]provider.Executor) (*Fob,
 
 func TestRetriesNextCredentialBeforeFirstByte(t *testing.T) {
 	var seen []string
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderClaude: fakeExec{
 			id: domain.ProviderClaude, format: domain.FormatClaude,
 			models: []domain.ModelInfo{{ID: "claude-opus-4-7", Object: "model", OwnedBy: "claude"}},
@@ -79,14 +79,14 @@ func TestRetriesNextCredentialBeforeFirstByte(t *testing.T) {
 		domain.ProviderCursor: fakeExec{id: domain.ProviderCursor, format: domain.FormatCursor, fn: func(domain.Credential) provider.ExecuteResult { return provider.ExecuteResult{OK: false, Status: 500} }},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "a", Provider: domain.ProviderClaude, Label: "A", Tokens: domain.CredentialTokens{AccessToken: "a", Extra: map[string]any{}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "b", Provider: domain.ProviderClaude, Label: "B", Tokens: domain.CredentialTokens{AccessToken: "b", Extra: map[string]any{}}})
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "a", Provider: domain.ProviderClaude, Label: "A", Tokens: domain.CredentialTokens{AccessToken: "a", Extra: map[string]any{}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "b", Provider: domain.ProviderClaude, Label: "B", Tokens: domain.CredentialTokens{AccessToken: "b", Extra: map[string]any{}}})
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "claude-opus-4-7", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -105,7 +105,7 @@ func TestRetriesNextCredentialBeforeFirstByte(t *testing.T) {
 
 func TestClaude429FailoversToCursor(t *testing.T) {
 	var seen []string
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderClaude: fakeExec{
 			id: domain.ProviderClaude, format: domain.FormatClaude,
 			models: []domain.ModelInfo{{ID: "claude-opus-4-7", Object: "model", OwnedBy: "claude"}},
@@ -130,11 +130,11 @@ func TestClaude429FailoversToCursor(t *testing.T) {
 		domain.ProviderGrok:  fakeExec{id: domain.ProviderGrok, format: domain.FormatGrok, fn: func(domain.Credential) provider.ExecuteResult { return provider.ExecuteResult{OK: false, Status: 500} }},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "claude-1", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "cursor-1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "k", Extra: map[string]any{"kind": "oauth"}}})
-	created, _ := fob.Keys.Create("t", nil, nil, nil)
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "claude-1", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "cursor-1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "k", Extra: map[string]any{"kind": "oauth"}}})
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "claude-opus-5", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -165,7 +165,7 @@ func TestGrokStreamMetersAPIEquivalentUSD(t *testing.T) {
 			},
 		}
 	}()
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderGrok: fakeExec{
 			id: domain.ProviderGrok, format: domain.FormatGrok,
 			models: []domain.ModelInfo{{ID: "grok-4.6", Object: "model", OwnedBy: "grok"}},
@@ -175,13 +175,13 @@ func TestGrokStreamMetersAPIEquivalentUSD(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "g1", Provider: domain.ProviderGrok, Label: "Grok", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{}}})
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "g1", Provider: domain.ProviderGrok, Label: "Grok", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{}}})
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundClaudeMessages,
 		Body:    map[string]any{"model": "grok-4.6", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -192,7 +192,7 @@ func TestGrokStreamMetersAPIEquivalentUSD(t *testing.T) {
 	}
 	for range result.Stream {
 	}
-	today, err := fob.Usage.Since(24 * 60 * 60 * 1000)
+	today, err := hub.Usage.Since(24 * 60 * 60 * 1000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestGrokStreamMetersAPIEquivalentUSD(t *testing.T) {
 }
 
 func TestListModelsCollapsesCursorVariants(t *testing.T) {
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderGrok: fakeExec{
 			id: domain.ProviderGrok, format: domain.FormatGrok,
 			models: []domain.ModelInfo{{ID: "grok-4.5", Object: "model", OwnedBy: "grok", DisplayName: "Grok 4.5"}},
@@ -212,9 +212,9 @@ func TestListModelsCollapsesCursorVariants(t *testing.T) {
 		domain.ProviderCodex:  fakeExec{id: domain.ProviderCodex, format: domain.FormatCodex},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "g", Provider: domain.ProviderGrok, Label: "Grok", Tokens: domain.CredentialTokens{AccessToken: "g", Extra: map[string]any{}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "c", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{"kind": "oauth"}}})
-	models := ListModels(fob)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "g", Provider: domain.ProviderGrok, Label: "Grok", Tokens: domain.CredentialTokens{AccessToken: "g", Extra: map[string]any{}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "c", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{"kind": "oauth"}}})
+	models := ListModels(hub)
 	ids := map[string]int{}
 	for _, m := range models {
 		ids[m.ID]++
@@ -235,17 +235,17 @@ func TestListModelsCollapsesCursorVariants(t *testing.T) {
 }
 
 func TestListModelsHidesFastWhenDisabled(t *testing.T) {
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderCursor: &cursor.Executor{},
 		domain.ProviderClaude: fakeExec{id: domain.ProviderClaude, format: domain.FormatClaude},
 		domain.ProviderCodex:  fakeExec{id: domain.ProviderCodex, format: domain.FormatCodex},
 		domain.ProviderGrok:   fakeExec{id: domain.ProviderGrok, format: domain.FormatGrok},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "c", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{"kind": "oauth"}}})
-	_ = fob.Settings.Set(SettingCursorListFast, "0")
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "c", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{"kind": "oauth"}}})
+	_ = hub.Settings.Set(SettingCursorListFast, "0")
 	ids := map[string]bool{}
-	for _, m := range ListModels(fob) {
+	for _, m := range ListModels(hub) {
 		ids[m.ID] = true
 	}
 	if !ids["composer-2.5"] {
@@ -258,7 +258,7 @@ func TestListModelsHidesFastWhenDisabled(t *testing.T) {
 
 func TestFastSuffixRoutesToCursor(t *testing.T) {
 	var seen []domain.ProviderID
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderCodex: fakeExec{
 			id: domain.ProviderCodex, format: domain.FormatCodex,
 			models: []domain.ModelInfo{{ID: "gpt-5.6-terra", Object: "model", OwnedBy: "codex"}},
@@ -280,14 +280,14 @@ func TestFastSuffixRoutesToCursor(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "codex", Provider: domain.ProviderCodex, Label: "Codex", Tokens: domain.CredentialTokens{AccessToken: "x", Extra: map[string]any{}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "cursor", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{"kind": "oauth"}}})
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "codex", Provider: domain.ProviderCodex, Label: "Codex", Tokens: domain.CredentialTokens{AccessToken: "x", Extra: map[string]any{}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "cursor", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{"kind": "oauth"}}})
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "gpt-5.6-terra-fast", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -301,7 +301,7 @@ func TestFastSuffixRoutesToCursor(t *testing.T) {
 }
 
 func TestListModelsSkipsCursorWhenNativeOwnsID(t *testing.T) {
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderClaude: fakeExec{
 			id: domain.ProviderClaude, format: domain.FormatClaude,
 			models: []domain.ModelInfo{{ID: "claude-opus-5", Object: "model", OwnedBy: "claude", DisplayName: "Claude Opus 5"}},
@@ -311,11 +311,11 @@ func TestListModelsSkipsCursorWhenNativeOwnsID(t *testing.T) {
 		domain.ProviderGrok:   fakeExec{id: domain.ProviderGrok, format: domain.FormatGrok},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "claude", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "cursor", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "k", Extra: map[string]any{"kind": "oauth"}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "claude", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "cursor", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "k", Extra: map[string]any{"kind": "oauth"}}})
 	var owner string
 	count := 0
-	for _, m := range ListModels(fob) {
+	for _, m := range ListModels(hub) {
 		if m.ID == "claude-opus-5" {
 			count++
 			owner = m.OwnedBy
@@ -340,7 +340,7 @@ func TestCursorStreamMetersOkOnStop(t *testing.T) {
 			"usage":   map[string]any{"prompt_tokens": 10.0, "completion_tokens": 2.0},
 		}
 	}()
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderCursor: fakeExec{
 			id: domain.ProviderCursor, format: domain.FormatCursor,
 			models: []domain.ModelInfo{{ID: "gpt-5.6-terra-medium", Object: "model", OwnedBy: "cursor"}},
@@ -350,13 +350,13 @@ func TestCursorStreamMetersOkOnStop(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{"kind": "oauth"}}})
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{"kind": "oauth"}}})
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "gpt-5.6-terra-medium", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -367,7 +367,7 @@ func TestCursorStreamMetersOkOnStop(t *testing.T) {
 	}
 	for range result.Stream {
 	}
-	today, err := fob.Usage.Since(24 * 60 * 60 * 1000)
+	today, err := hub.Usage.Since(24 * 60 * 60 * 1000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +392,7 @@ func TestCursorStreamLogsProviderError(t *testing.T) {
 			"choices": []any{map[string]any{"index": 0, "delta": map[string]any{"content": "Cursor went silent waiting for the next token"}, "finish_reason": "error"}},
 		}
 	}()
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderCursor: fakeExec{
 			id: domain.ProviderCursor, format: domain.FormatCursor,
 			models: []domain.ModelInfo{{ID: "gpt-5.6-terra-medium", Object: "model", OwnedBy: "cursor"}},
@@ -402,13 +402,13 @@ func TestCursorStreamLogsProviderError(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{"kind": "oauth"}}})
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{"kind": "oauth"}}})
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "gpt-5.6-terra-medium", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -420,7 +420,7 @@ func TestCursorStreamLogsProviderError(t *testing.T) {
 	for range result.Stream {
 	}
 	log := buf.String()
-	if !strings.Contains(log, "fob error  502  cursor/gpt-5.6-terra-medium") {
+	if !strings.Contains(log, "hub error  502  cursor/gpt-5.6-terra-medium") {
 		t.Fatalf("log %q", log)
 	}
 	if !strings.Contains(log, "Cursor went silent waiting for the next token") {
@@ -449,7 +449,7 @@ func TestTraceDumpsOnFailureOnly(t *testing.T) {
 			"choices": []any{map[string]any{"index": 0, "delta": map[string]any{}, "finish_reason": "stop"}},
 		}
 	}()
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderCursor: fakeExec{
 			id: domain.ProviderCursor, format: domain.FormatCursor,
 			models: []domain.ModelInfo{{ID: "gpt-5.6-terra-medium", Object: "model", OwnedBy: "cursor"}},
@@ -459,14 +459,14 @@ func TestTraceDumpsOnFailureOnly(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_ = fob.Settings.Set(SettingLogTrace, httpx.TraceErrors)
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{"kind": "oauth"}}})
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	_ = hub.Settings.Set(SettingLogTrace, httpx.TraceErrors)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{"kind": "oauth"}}})
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "gpt-5.6-terra-medium", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -477,14 +477,14 @@ func TestTraceDumpsOnFailureOnly(t *testing.T) {
 	}
 	for range result.Stream {
 	}
-	if strings.Contains(buf.String(), "fob trace") {
+	if strings.Contains(buf.String(), "hub trace") {
 		t.Fatalf("success dumped %q", buf.String())
 	}
 }
 
 func TestKeepaliveRefreshesExpiredCredentialWithoutTraffic(t *testing.T) {
 	refreshed := 0
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderGrok: fakeExec{
 			id: domain.ProviderGrok, format: domain.FormatGrok,
 			models: []domain.ModelInfo{{ID: "grok-4.6", Object: "model", OwnedBy: "grok"}},
@@ -502,19 +502,19 @@ func TestKeepaliveRefreshesExpiredCredentialWithoutTraffic(t *testing.T) {
 	})
 	defer d.Close()
 	expired := time.Now().UnixMilli() - 60*1000
-	_, _ = fob.Vault.Save(store.SaveCredential{
+	_, _ = hub.Vault.Save(store.SaveCredential{
 		ID: "g1", Provider: domain.ProviderGrok, Label: "Grok",
 		Tokens:    domain.CredentialTokens{AccessToken: "old", RefreshToken: "r", Extra: map[string]any{}},
 		ExpiresAt: &expired,
 	})
-	n, err := KeepaliveCredentials(context.Background(), fob)
+	n, err := KeepaliveCredentials(context.Background(), hub)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n != 1 || refreshed != 1 {
 		t.Fatalf("n=%d refreshed=%d", n, refreshed)
 	}
-	got, err := fob.Vault.Get("g1")
+	got, err := hub.Vault.Get("g1")
 	if err != nil || got == nil {
 		t.Fatal(err)
 	}
@@ -530,14 +530,14 @@ func TestUnknownModelLogsHumanError(t *testing.T) {
 	var buf bytes.Buffer
 	defer httpx.SetLogOutput(&buf)()
 	httpx.SetLogLevel("info")
-	fob, d := testFob(t, nil)
+	hub, d := testHub(t, nil)
 	defer d.Close()
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "nope-9"},
 		Key:     *key,
@@ -549,7 +549,7 @@ func TestUnknownModelLogsHumanError(t *testing.T) {
 	if !strings.Contains(msg, "unknown model: nope-9") || !strings.Contains(msg, "/v1/models") {
 		t.Fatalf("client %q", msg)
 	}
-	if !strings.Contains(buf.String(), "fob error") || !strings.Contains(buf.String(), "nope-9") {
+	if !strings.Contains(buf.String(), "hub error") || !strings.Contains(buf.String(), "nope-9") {
 		t.Fatalf("log %q", buf.String())
 	}
 }
@@ -558,13 +558,13 @@ func TestNoCredentialClaudeShapeAndLog(t *testing.T) {
 	var buf bytes.Buffer
 	defer httpx.SetLogOutput(&buf)()
 	httpx.SetLogLevel("info")
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderGrok: fakeExec{id: domain.ProviderGrok, format: domain.FormatGrok, models: []domain.ModelInfo{{ID: "grok-4.6", Object: "model", OwnedBy: "grok"}}},
 	})
 	defer d.Close()
-	created, _ := fob.Keys.Create("t", nil, nil, nil)
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundClaudeMessages,
 		Body:    map[string]any{"model": "grok-4.6", "messages": []any{}},
 		Key:     *key,
@@ -592,7 +592,7 @@ func TestUpstreamHTMLNotForwarded(t *testing.T) {
 	var buf bytes.Buffer
 	defer httpx.SetLogOutput(&buf)()
 	httpx.SetLogLevel("info")
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderClaude: fakeExec{
 			id: domain.ProviderClaude, format: domain.FormatClaude,
 			models: []domain.ModelInfo{{ID: "claude-opus-4-7", Object: "model", OwnedBy: "claude"}},
@@ -606,10 +606,10 @@ func TestUpstreamHTMLNotForwarded(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{}}})
-	created, _ := fob.Keys.Create("t", nil, nil, nil)
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{}}})
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "claude-opus-4-7", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -633,7 +633,7 @@ func TestSuccessStaysQuiet(t *testing.T) {
 	var buf bytes.Buffer
 	defer httpx.SetLogOutput(&buf)()
 	httpx.SetLogLevel("info")
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderGrok: fakeExec{
 			id: domain.ProviderGrok, format: domain.FormatGrok,
 			models: []domain.ModelInfo{{ID: "grok-4.6", Object: "model", OwnedBy: "grok"}},
@@ -646,10 +646,10 @@ func TestSuccessStaysQuiet(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "g1", Provider: domain.ProviderGrok, Label: "Grok", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{}}})
-	created, _ := fob.Keys.Create("t", nil, nil, nil)
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "g1", Provider: domain.ProviderGrok, Label: "Grok", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{}}})
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "grok-4.6", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -657,7 +657,7 @@ func TestSuccessStaysQuiet(t *testing.T) {
 	if err != nil || !result.OK {
 		t.Fatalf("%+v %v", result, err)
 	}
-	if strings.Contains(buf.String(), "fob") {
+	if strings.Contains(buf.String(), "hub") {
 		t.Fatalf("happy path logged %q", buf.String())
 	}
 }
@@ -666,7 +666,7 @@ func TestFailoverDoesNotLogError(t *testing.T) {
 	var buf bytes.Buffer
 	defer httpx.SetLogOutput(&buf)()
 	httpx.SetLogLevel("info")
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderClaude: fakeExec{
 			id: domain.ProviderClaude, format: domain.FormatClaude,
 			models: []domain.ModelInfo{{ID: "claude-opus-4-7", Object: "model", OwnedBy: "claude"}},
@@ -689,11 +689,11 @@ func TestFailoverDoesNotLogError(t *testing.T) {
 		domain.ProviderGrok:  fakeExec{id: domain.ProviderGrok, format: domain.FormatGrok, fn: func(domain.Credential) provider.ExecuteResult { return provider.ExecuteResult{OK: false, Status: 500} }},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "claude-1", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "cursor-1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "k", Extra: map[string]any{"kind": "oauth"}}})
-	created, _ := fob.Keys.Create("t", nil, nil, nil)
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "claude-1", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "cursor-1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "k", Extra: map[string]any{"kind": "oauth"}}})
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "claude-opus-5", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -701,7 +701,7 @@ func TestFailoverDoesNotLogError(t *testing.T) {
 	if err != nil || !result.OK {
 		t.Fatalf("%+v %v", result, err)
 	}
-	if strings.Contains(buf.String(), "fob error") {
+	if strings.Contains(buf.String(), "hub error") {
 		t.Fatalf("failover logged error %q", buf.String())
 	}
 }
@@ -717,7 +717,7 @@ func (f liveFake) ModelsFor(_ context.Context, c domain.Credential) []domain.Mod
 
 func TestOpenAISourceRoutesPrefixedModel(t *testing.T) {
 	var seen []string
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderOpenAI: liveFake{
 			fakeExec: fakeExec{
 				id: domain.ProviderOpenAI, format: domain.FormatOpenAI,
@@ -740,14 +740,14 @@ func TestOpenAISourceRoutesPrefixedModel(t *testing.T) {
 		}},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "or1", Provider: domain.ProviderOpenAI, Label: "OpenRouter", Tokens: domain.CredentialTokens{AccessToken: "k1", Extra: map[string]any{"base_url": "https://openrouter.ai/api", "slug": "openrouter"}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "lm1", Provider: domain.ProviderOpenAI, Label: "Local", Tokens: domain.CredentialTokens{AccessToken: "k2", Extra: map[string]any{"base_url": "http://127.0.0.1:1234", "slug": "local"}}})
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "or1", Provider: domain.ProviderOpenAI, Label: "OpenRouter", Tokens: domain.CredentialTokens{AccessToken: "k1", Extra: map[string]any{"base_url": "https://openrouter.ai/api", "slug": "openrouter"}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "lm1", Provider: domain.ProviderOpenAI, Label: "Local", Tokens: domain.CredentialTokens{AccessToken: "k2", Extra: map[string]any{"base_url": "http://127.0.0.1:1234", "slug": "local"}}})
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "openrouter/gpt-4o", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -759,7 +759,7 @@ func TestOpenAISourceRoutesPrefixedModel(t *testing.T) {
 		t.Fatalf("seen %v", seen)
 	}
 	ids := map[string]bool{}
-	for _, m := range ListModels(fob) {
+	for _, m := range ListModels(hub) {
 		ids[m.ID] = true
 	}
 	if !ids["openrouter/gpt-4o"] || !ids["local/llama-3"] {
@@ -769,7 +769,7 @@ func TestOpenAISourceRoutesPrefixedModel(t *testing.T) {
 
 func TestUnprefixedGPTStillHitsCodexWithOpenAISource(t *testing.T) {
 	var seen []string
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderCodex: fakeExec{
 			id: domain.ProviderCodex, format: domain.FormatCodex,
 			models: []domain.ModelInfo{{ID: "gpt-5.4", Object: "model", OwnedBy: "codex"}},
@@ -792,11 +792,11 @@ func TestUnprefixedGPTStillHitsCodexWithOpenAISource(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "codex-1", Provider: domain.ProviderCodex, Label: "Codex", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "or1", Provider: domain.ProviderOpenAI, Label: "OpenRouter", Tokens: domain.CredentialTokens{AccessToken: "k", Extra: map[string]any{"base_url": "https://openrouter.ai/api", "slug": "openrouter"}}})
-	created, _ := fob.Keys.Create("t", nil, nil, nil)
-	key, _ := fob.Keys.Verify(created.Secret)
-	result, err := Proxy(context.Background(), fob, Request{
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "codex-1", Provider: domain.ProviderCodex, Label: "Codex", Tokens: domain.CredentialTokens{AccessToken: "c", Extra: map[string]any{}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "or1", Provider: domain.ProviderOpenAI, Label: "OpenRouter", Tokens: domain.CredentialTokens{AccessToken: "k", Extra: map[string]any{"base_url": "https://openrouter.ai/api", "slug": "openrouter"}}})
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "gpt-5.4", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -811,7 +811,7 @@ func TestUnprefixedGPTStillHitsCodexWithOpenAISource(t *testing.T) {
 
 func TestOpenCodePrefixRoutesAndLists(t *testing.T) {
 	var seenProvider []domain.ProviderID
-	fob, d := testFob(t, map[domain.ProviderID]provider.Executor{
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderOpenCode: liveFake{
 			fakeExec: fakeExec{
 				id: domain.ProviderOpenCode, format: domain.FormatOpenAI,
@@ -838,15 +838,15 @@ func TestOpenCodePrefixRoutesAndLists(t *testing.T) {
 		},
 	})
 	defer d.Close()
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "oc1", Provider: domain.ProviderOpenCode, Label: "OpenCode", Tokens: domain.CredentialTokens{AccessToken: "oc_sk", Extra: map[string]any{"kind": "api_key"}}})
-	_, _ = fob.Vault.Save(store.SaveCredential{ID: "claude-1", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "c"}})
-	created, err := fob.Keys.Create("t", nil, nil, nil)
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "oc1", Provider: domain.ProviderOpenCode, Label: "OpenCode", Tokens: domain.CredentialTokens{AccessToken: "oc_sk", Extra: map[string]any{"kind": "api_key"}}})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "claude-1", Provider: domain.ProviderClaude, Label: "Claude", Tokens: domain.CredentialTokens{AccessToken: "c"}})
+	created, err := hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _ := fob.Keys.Verify(created.Secret)
+	key, _ := hub.Keys.Verify(created.Secret)
 
-	result, err := Proxy(context.Background(), fob, Request{
+	result, err := Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "opencode/claude-sonnet-4-6", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
 		Key:     *key,
@@ -859,17 +859,17 @@ func TestOpenCodePrefixRoutesAndLists(t *testing.T) {
 	}
 
 	ids := map[string]bool{}
-	for _, m := range ListModels(fob) {
+	for _, m := range ListModels(hub) {
 		ids[m.ID] = true
 	}
 	if !ids["opencode/kimi-k2.6"] {
 		t.Fatalf("listed %+v", ids)
 	}
 
-	if ok, err := fob.Vault.Remove("oc1"); err != nil || !ok {
+	if ok, err := hub.Vault.Remove("oc1"); err != nil || !ok {
 		t.Fatalf("remove opencode cred: %v %v", ok, err)
 	}
-	result, err = Proxy(context.Background(), fob, Request{
+	result, err = Proxy(context.Background(), hub, Request{
 		Inbound: domain.InboundOpenAIChat,
 		Body:    map[string]any{"model": "opencode/kimi-k2.6", "messages": []any{}},
 		Key:     *key,

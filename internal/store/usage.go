@@ -3,8 +3,8 @@ package store
 import (
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/db"
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 const retainMS = 90 * 24 * 60 * 60 * 1000

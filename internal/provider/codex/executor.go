@@ -10,10 +10,10 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/provider"
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/provider"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 const (

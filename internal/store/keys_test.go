@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/db"
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 func TestKeyStoreCreateVerifyRevoke(t *testing.T) {
@@ -20,7 +20,7 @@ func TestKeyStoreCreateVerifyRevoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !regexp.MustCompile(`^sk-fob-[0-9a-f]{48}$`).MatchString(created.Secret) {
+	if !regexp.MustCompile(`^sk-ms-[0-9a-f]{48}$`).MatchString(created.Secret) {
 		t.Fatalf("secret %s", created.Secret)
 	}
 	if strings.Contains(created.Secret, "--") {
@@ -33,7 +33,7 @@ func TestKeyStoreCreateVerifyRevoke(t *testing.T) {
 	if err != nil || found == nil || found.ID != created.Key.ID || found.Name != "opencode" {
 		t.Fatalf("verify %+v %v", found, err)
 	}
-	miss, err := keys.Verify("sk-fob-nope")
+	miss, err := keys.Verify("sk-ms-nope")
 	if err != nil || miss != nil {
 		t.Fatalf("miss %+v %v", miss, err)
 	}

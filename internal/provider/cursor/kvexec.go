@@ -9,8 +9,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/provider/cursor/agentpb"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/provider/cursor/agentpb"
 )
 
 const rejectReason = "Tool not available in this environment. Use the MCP tools provided instead."

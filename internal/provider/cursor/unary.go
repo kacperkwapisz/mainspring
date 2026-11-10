@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/kacperkwapisz/fob/internal/provider/cursor/agentpb"
+	"github.com/kacperkwapisz/mainspring/internal/provider/cursor/agentpb"
 )
 
 func CallUnary(ctx context.Context, accessToken, rpcPath string, requestBody []byte, agentURL string, timeout time.Duration) (body []byte, exitCode int, timedOut bool) {

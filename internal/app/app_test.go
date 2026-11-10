@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/provider"
-	"github.com/kacperkwapisz/fob/internal/provider/opencode"
-	"github.com/kacperkwapisz/fob/internal/proxy"
-	"github.com/kacperkwapisz/fob/internal/store"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/provider"
+	"github.com/kacperkwapisz/mainspring/internal/provider/opencode"
+	"github.com/kacperkwapisz/mainspring/internal/proxy"
+	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
 const secret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -44,7 +44,7 @@ func TestModelsEmptyArrayNotNull(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer booted.DB.Close()
-	created, err := booted.Fob.Keys.Create("t", nil, nil, nil)
+	created, err := booted.Hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,13 +70,13 @@ func TestModelsDiscoveryFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer booted.DB.Close()
-	if _, err := booted.Fob.Vault.Save(store.SaveCredential{
+	if _, err := booted.Hub.Vault.Save(store.SaveCredential{
 		Provider: domain.ProviderGrok, Label: "grok",
 		Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	created, err := booted.Fob.Keys.Create("t", nil, nil, nil)
+	created, err := booted.Hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestChatUnauthorizedLogsAndKeepsShape(t *testing.T) {
 	if !strings.Contains(res.Body.String(), `"type":"invalid_request_error"`) || !strings.Contains(res.Body.String(), "invalid api key") {
 		t.Fatalf("%s", res.Body.String())
 	}
-	if !strings.Contains(buf.String(), "fob error") || !strings.Contains(buf.String(), "/v1/chat/completions") {
+	if !strings.Contains(buf.String(), "hub error") || !strings.Contains(buf.String(), "/v1/chat/completions") {
 		t.Fatalf("log %q", buf.String())
 	}
 }
@@ -181,7 +181,7 @@ func TestChatNoCredentialHumanJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer booted.DB.Close()
-	created, err := booted.Fob.Keys.Create("t", nil, nil, nil)
+	created, err := booted.Hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestMintRedirectsWithoutSecret(t *testing.T) {
 	if res.Code != 303 || res.Header().Get("location") != "/" {
 		t.Fatalf("status %d loc %s", res.Code, res.Header().Get("location"))
 	}
-	if strings.Contains(res.Header().Get("set-cookie"), "fob_flash") || strings.Contains(res.Body.String(), "sk-fob-") {
+	if strings.Contains(res.Header().Get("set-cookie"), "ms_flash") || strings.Contains(res.Body.String(), "sk-ms-") {
 		t.Fatal("leaked secret")
 	}
 	pageRes := httptest.NewRecorder()
@@ -283,7 +283,7 @@ func TestMintRedirectsWithoutSecret(t *testing.T) {
 	pageReq.Header.Set("cookie", session)
 	booted.Handler.ServeHTTP(pageRes, pageReq)
 	html := pageRes.Body.String()
-	for _, want := range []string{"opencode", "sk-fob-", "Logins", "Keys", "Meter", "Usage Trends", "Cursor", "OpenCode", "OpenAI-compatible", "Add source"} {
+	for _, want := range []string{"opencode", "sk-ms-", "Logins", "Keys", "Meter", "Usage Trends", "Cursor", "OpenCode", "OpenAI-compatible", "Add source"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("missing %q", want)
 		}
@@ -307,7 +307,7 @@ func TestAPIPanelKeysReturnsSecretOnce(t *testing.T) {
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.Name != "cursor" || !strings.HasPrefix(body.Secret, "sk-fob-") || body.Prefix != body.Secret[:12] || body.ID == "" {
+	if body.Name != "cursor" || !strings.HasPrefix(body.Secret, "sk-ms-") || body.Prefix != body.Secret[:12] || body.ID == "" {
 		t.Fatalf("%+v", body)
 	}
 }
@@ -345,7 +345,7 @@ func TestDeadPanelJSONGone(t *testing.T) {
 func TestConnectedLoginsRenderFromVault(t *testing.T) {
 	booted, session := unlocked(t)
 	defer booted.DB.Close()
-	if _, err := booted.Fob.Vault.Save(store.SaveCredential{
+	if _, err := booted.Hub.Vault.Save(store.SaveCredential{
 		Provider: domain.ProviderClaude,
 		Label:    "work claude",
 		Tokens:   domain.CredentialTokens{AccessToken: "at", Extra: map[string]any{}},
@@ -370,7 +370,7 @@ func TestConnectedLoginsRenderFromVault(t *testing.T) {
 func TestUsageTrendsRendersChart(t *testing.T) {
 	booted, session := unlocked(t)
 	defer booted.DB.Close()
-	if err := booted.Fob.Usage.Record(domain.UsageEvent{
+	if err := booted.Hub.Usage.Record(domain.UsageEvent{
 		TS:               time.Now().UnixMilli(),
 		Provider:         domain.ProviderClaude,
 		Model:            "claude-opus-4-7",
@@ -456,16 +456,16 @@ func TestCursorSettingsURLEncoded(t *testing.T) {
 		t.Fatal("list_fast should default on")
 	}
 	post(url.Values{"prefix": {"1"}, "grok_failover": {"1"}, "list_fast": {"1"}, "log_trace": {"errors"}})
-	if v, _ := booted.Fob.Settings.Get(proxy.SettingCursorPrefix); v != "1" {
+	if v, _ := booted.Hub.Settings.Get(proxy.SettingCursorPrefix); v != "1" {
 		t.Fatalf("prefix %q", v)
 	}
-	if v, _ := booted.Fob.Settings.Get(proxy.SettingCursorListFast); v != "1" {
+	if v, _ := booted.Hub.Settings.Get(proxy.SettingCursorListFast); v != "1" {
 		t.Fatalf("list_fast %q", v)
 	}
-	if v, _ := booted.Fob.Settings.Get(proxy.SettingCursorGrokFailover); v != "1" {
+	if v, _ := booted.Hub.Settings.Get(proxy.SettingCursorGrokFailover); v != "1" {
 		t.Fatalf("grok %q", v)
 	}
-	if v, _ := booted.Fob.Settings.Get(proxy.SettingLogTrace); v != "errors" {
+	if v, _ := booted.Hub.Settings.Get(proxy.SettingLogTrace); v != "errors" {
 		t.Fatalf("trace %q", v)
 	}
 	if httpx.TraceMode() != httpx.TraceErrors {
@@ -480,13 +480,13 @@ func TestCursorSettingsURLEncoded(t *testing.T) {
 		t.Fatal("toggles not checked after save")
 	}
 	post(url.Values{})
-	if v, _ := booted.Fob.Settings.Get(proxy.SettingCursorPrefix); v != "0" {
+	if v, _ := booted.Hub.Settings.Get(proxy.SettingCursorPrefix); v != "0" {
 		t.Fatalf("prefix after clear %q", v)
 	}
-	if v, _ := booted.Fob.Settings.Get(proxy.SettingCursorListFast); v != "0" {
+	if v, _ := booted.Hub.Settings.Get(proxy.SettingCursorListFast); v != "0" {
 		t.Fatalf("list_fast after clear %q", v)
 	}
-	if v, _ := booted.Fob.Settings.Get(proxy.SettingCursorGrokFailover); v != "0" {
+	if v, _ := booted.Hub.Settings.Get(proxy.SettingCursorGrokFailover); v != "0" {
 		t.Fatalf("grok after clear %q", v)
 	}
 }
@@ -519,7 +519,7 @@ func TestPanelSubJSON(t *testing.T) {
 	defer restore()
 	booted, session := unlocked(t)
 	defer booted.DB.Close()
-	if _, err := booted.Fob.Vault.Save(store.SaveCredential{
+	if _, err := booted.Hub.Vault.Save(store.SaveCredential{
 		Provider: domain.ProviderClaude, Label: "work claude",
 		Tokens: domain.CredentialTokens{AccessToken: "at", Extra: map[string]any{}},
 	}); err != nil {
@@ -546,7 +546,7 @@ func TestPanelSubJSON(t *testing.T) {
 func TestPanelSubOmitsUnknownProviders(t *testing.T) {
 	booted, session := unlocked(t)
 	defer booted.DB.Close()
-	if _, err := booted.Fob.Vault.Save(store.SaveCredential{
+	if _, err := booted.Hub.Vault.Save(store.SaveCredential{
 		Provider: domain.ProviderClaude, Label: "work claude",
 		Tokens: domain.CredentialTokens{AccessToken: "at", Extra: map[string]any{}},
 	}); err != nil {
@@ -589,7 +589,7 @@ func TestAddOpenAISourceFromPanel(t *testing.T) {
 	if res.Code != 303 || res.Header().Get("location") != "/" {
 		t.Fatalf("status %d loc %s body %s", res.Code, res.Header().Get("location"), res.Body.String())
 	}
-	creds, err := booted.Fob.Vault.List(domain.ProviderOpenAI)
+	creds, err := booted.Hub.Vault.List(domain.ProviderOpenAI)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -608,7 +608,7 @@ func TestAddOpenAISourceFromPanel(t *testing.T) {
 		t.Fatalf("%s", html)
 	}
 
-	created, err := booted.Fob.Keys.Create("t", nil, nil, nil)
+	created, err := booted.Hub.Keys.Create("t", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -633,7 +633,7 @@ func TestAddOpenAISourceRejectsBadURL(t *testing.T) {
 	if res.Code != 200 || !strings.Contains(res.Body.String(), "Add OpenAI source") {
 		t.Fatalf("status %d %s", res.Code, res.Body.String())
 	}
-	creds, err := booted.Fob.Vault.List(domain.ProviderOpenAI)
+	creds, err := booted.Hub.Vault.List(domain.ProviderOpenAI)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -674,7 +674,7 @@ func unlocked(t *testing.T) (*Booted, string) {
 		t.Fatalf("reset %d %s", res.Code, res.Header().Get("location"))
 	}
 	cookie := strings.Split(res.Header().Get("set-cookie"), ";")[0]
-	if !strings.Contains(cookie, "fob_session=") {
+	if !strings.Contains(cookie, "ms_session=") {
 		t.Fatalf("cookie %s", cookie)
 	}
 	return booted, cookie
@@ -725,7 +725,7 @@ func TestOpenCodeSecretConnect(t *testing.T) {
 	if res.Code != http.StatusSeeOther {
 		t.Fatalf("status %d body %s", res.Code, res.Body.String())
 	}
-	creds, err := booted.Fob.Vault.List(domain.ProviderOpenCode)
+	creds, err := booted.Hub.Vault.List(domain.ProviderOpenCode)
 	if err != nil || len(creds) != 1 || creds[0].Tokens.AccessToken != "oc_sk_test" {
 		t.Fatalf("%+v %v", creds, err)
 	}

@@ -23,7 +23,7 @@ func TestCryptoGoldens(t *testing.T) {
 	var g struct {
 		JWTSecret          string `json:"jwtSecret"`
 		JWTKeyHex          string `json:"jwtKeyHex"`
-		SHA256SkFob        string `json:"sha256SkFob"`
+		SHA256SkMs         string `json:"sha256SkMs"`
 		HMACExp            string `json:"hmacExp"`
 		NonHexSecretKeyHex string `json:"nonHexSecretKeyHex"`
 		EncryptDecrypt     struct {
@@ -37,8 +37,8 @@ func TestCryptoGoldens(t *testing.T) {
 	if hex.EncodeToString(key) != g.JWTKeyHex {
 		t.Fatalf("hex key %s want %s", hex.EncodeToString(key), g.JWTKeyHex)
 	}
-	if SHA256Hex("sk-fob-"+"abababababababababababababababababababababababab") != g.SHA256SkFob {
-		t.Fatalf("sha %s", SHA256Hex("sk-fob-"+"abababababababababababababababababababababababab"))
+	if SHA256Hex("sk-ms-"+"abababababababababababababababababababababababab") != g.SHA256SkMs {
+		t.Fatalf("sha %s", SHA256Hex("sk-ms-"+"abababababababababababababababababababababababab"))
 	}
 	if HMACSign(key, "1710000000000") != g.HMACExp {
 		t.Fatalf("hmac %s want %s", HMACSign(key, "1710000000000"), g.HMACExp)

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 func TestUnconfirmedCallersGetCLIBetas(t *testing.T) {

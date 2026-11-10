@@ -3,27 +3,27 @@ package app
 import (
 	"net/http"
 
-	"github.com/kacperkwapisz/fob/internal/db"
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/env"
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/oauth"
-	"github.com/kacperkwapisz/fob/internal/panel"
-	"github.com/kacperkwapisz/fob/internal/provider"
-	claudeexec "github.com/kacperkwapisz/fob/internal/provider/claude"
-	codexexec "github.com/kacperkwapisz/fob/internal/provider/codex"
-	cursorexec "github.com/kacperkwapisz/fob/internal/provider/cursor"
-	grokexec "github.com/kacperkwapisz/fob/internal/provider/grok"
-	openaiexec "github.com/kacperkwapisz/fob/internal/provider/openai"
-	opencodeexec "github.com/kacperkwapisz/fob/internal/provider/opencode"
-	"github.com/kacperkwapisz/fob/internal/proxy"
-	"github.com/kacperkwapisz/fob/internal/store"
+	"github.com/kacperkwapisz/mainspring/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/env"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/oauth"
+	"github.com/kacperkwapisz/mainspring/internal/panel"
+	"github.com/kacperkwapisz/mainspring/internal/provider"
+	claudeexec "github.com/kacperkwapisz/mainspring/internal/provider/claude"
+	codexexec "github.com/kacperkwapisz/mainspring/internal/provider/codex"
+	cursorexec "github.com/kacperkwapisz/mainspring/internal/provider/cursor"
+	grokexec "github.com/kacperkwapisz/mainspring/internal/provider/grok"
+	openaiexec "github.com/kacperkwapisz/mainspring/internal/provider/openai"
+	opencodeexec "github.com/kacperkwapisz/mainspring/internal/provider/opencode"
+	"github.com/kacperkwapisz/mainspring/internal/proxy"
+	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
 type Booted struct {
 	Handler http.Handler
 	Env     *env.Env
-	Fob     *proxy.Fob
+	Hub     *proxy.Hub
 	Panel   *store.PanelAuth
 	DB      *db.DB
 }
@@ -47,7 +47,7 @@ func Create(source map[string]string) (*Booted, error) {
 	}
 	panelAuth := store.NewPanelAuth(d)
 	settings := store.NewSettingsStore(d)
-	fob := &proxy.Fob{
+	hub := &proxy.Hub{
 		Env:      e,
 		Vault:    vault,
 		Keys:     keys,
@@ -70,11 +70,11 @@ func Create(source map[string]string) (*Booted, error) {
 	logins := oauth.Logins(e)
 	mux := httpx.NewMux()
 	registerHealth(mux)
-	registerOpenAI(mux, fob)
-	registerAnthropic(mux, fob)
-	registerResponses(mux, fob)
-	registerPanel(mux, fob, e, panelAuth, settings, logins)
-	return &Booted{Handler: httpx.Guard(mux), Env: e, Fob: fob, Panel: panelAuth, DB: d}, nil
+	registerOpenAI(mux, hub)
+	registerAnthropic(mux, hub)
+	registerResponses(mux, hub)
+	registerPanel(mux, hub, e, panelAuth, settings, logins)
+	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Panel: panelAuth, DB: d}, nil
 }
 
 func page(w http.ResponseWriter, body, title, meta string) {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/store"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
 type DashboardProps struct {
@@ -70,7 +70,7 @@ func Layout(title, meta, body string) string {
     <a class="skip" href="#main">Skip to content</a>
     <div class="shell">
       <header class="mast">
-        <div class="wordmark"><span class="led" aria-hidden="true"></span>Fob</div>
+        <div class="wordmark"><span class="led" aria-hidden="true"></span>Mainspring</div>
         <button type="button" class="endpoint" data-copy-text="` + attr(meta) + `" title="Copy endpoint">` + esc(meta) + `</button>
         <form class="mast-lock" method="post" action="/logout">
           <button class="btn btn-ghost" type="submit">Lock</button>
@@ -166,7 +166,7 @@ func PasteCallbackViewNote(provider, url, hint, note string, danger bool) string
         </label>
         <button class="btn btn-primary" type="submit">Connect</button>
       </form>
-      <p class="note">If the browser lands on a working Fob page, you can close it. Otherwise paste the whole failed URL here.</p>`, attr(provider), attr(hint))
+      <p class="note">If the browser lands on a working Mainspring page, you can close it. Otherwise paste the whole failed URL here.</p>`, attr(provider), attr(hint))
 	inner := fmt.Sprintf(`<h1>Finish %s login</h1>%s`, esc(provider), b.String())
 	return `<section class="gate card">` + inner + `</section>`
 }
@@ -188,7 +188,7 @@ func SourceView(label, baseURL, err string) string {
         </label>
         <button class="btn btn-primary" type="submit">Connect</button>
       </form>`, attr(label), attr(baseURL))
-	return gate("Add OpenAI source", "Any OpenAI-compatible API. Fob lists its models as slug/id so they never collide with a sub.", err, b.String())
+	return gate("Add OpenAI source", "Any OpenAI-compatible API. Mainspring lists its models as slug/id so they never collide with a sub.", err, b.String())
 }
 
 func SecretView(provider, url, err string) string {
@@ -222,10 +222,10 @@ func OpenCodeSecretView(err string) string {
 func Dashboard(props DashboardProps) string {
 	var b strings.Builder
 	b.WriteString(`
-    <div class="dialog-layer" id="minted" hidden x-data="{ copied: false }" @fob-minted.window="$el.hidden = false; copied = false">
+    <div class="dialog-layer" id="minted" hidden x-data="{ copied: false }" @hub-minted.window="$el.hidden = false; copied = false">
       <div class="card dialog-card" role="status">
         <h2>New local key</h2>
-        <p class="lede">Copy it now. Fob will not show it again.</p>
+        <p class="lede">Copy it now. Mainspring will not show it again.</p>
         <p class="secret"></p>
         <div class="actions">
           <button class="btn btn-primary" type="button" data-copy x-text="copied ? 'Copied' : 'Copy'" @click="copied = true">Copy</button>
@@ -350,7 +350,7 @@ func keysCard(keys []domain.LocalKey) string {
 		}
 	}
 	var b strings.Builder
-	b.WriteString(`<section class="card card-keys"><div class="card-head"><h2>Keys</h2><p class="lede">Hand a <code>sk-fob-…</code> to Cursor, Claude Code, OpenCode.</p></div>`)
+	b.WriteString(`<section class="card card-keys"><div class="card-head"><h2>Keys</h2><p class="lede">Hand a <code>sk-ms-…</code> to Cursor, Claude Code, OpenCode.</p></div>`)
 	if len(live) == 0 {
 		b.WriteString(`<p class="empty">No keys yet. Mint one and paste it into a tool as the OpenAI API key.</p>`)
 	} else {

@@ -9,7 +9,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 const (

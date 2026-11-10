@@ -5,6 +5,6 @@
 .git
 .env
 .env.*
-/fob
+/mainspring
 dist
 testdata

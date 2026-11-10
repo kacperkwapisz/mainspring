@@ -13,10 +13,10 @@ signoff: test
 	gh signoff create
 
 build:
-	CGO_ENABLED=0 go build -trimpath -o fob ./cmd/fob
+	CGO_ENABLED=0 go build -trimpath -o mainspring ./cmd/mainspring
 
 run:
-	go run ./cmd/fob
+	go run ./cmd/mainspring
 
 tidy:
 	go mod tidy
@@ -36,5 +36,5 @@ proto:
 	fi
 
 clean:
-	rm -f fob
+	rm -f mainspring
 	rm -rf dist

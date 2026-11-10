@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/sub"
+	"github.com/kacperkwapisz/mainspring/internal/sub"
 )
 
 func TestParseCursorSub(t *testing.T) {

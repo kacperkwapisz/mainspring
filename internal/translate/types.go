@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 type RequestResult struct {

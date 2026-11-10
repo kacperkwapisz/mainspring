@@ -6,17 +6,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/env"
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/oauth"
-	"github.com/kacperkwapisz/fob/internal/panel"
-	"github.com/kacperkwapisz/fob/internal/provider/openai"
-	"github.com/kacperkwapisz/fob/internal/provider/opencode"
-	"github.com/kacperkwapisz/fob/internal/proxy"
-	"github.com/kacperkwapisz/fob/internal/session"
-	"github.com/kacperkwapisz/fob/internal/store"
-	"github.com/kacperkwapisz/fob/internal/sub"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/env"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/oauth"
+	"github.com/kacperkwapisz/mainspring/internal/panel"
+	"github.com/kacperkwapisz/mainspring/internal/provider/openai"
+	"github.com/kacperkwapisz/mainspring/internal/provider/opencode"
+	"github.com/kacperkwapisz/mainspring/internal/proxy"
+	"github.com/kacperkwapisz/mainspring/internal/session"
+	"github.com/kacperkwapisz/mainspring/internal/store"
+	"github.com/kacperkwapisz/mainspring/internal/sub"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 	trendDays = 14
 )
 
-func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.PanelAuth, settings *store.SettingsStore, logins map[domain.ProviderID]oauth.ProviderLogin) {
+func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.PanelAuth, settings *store.SettingsStore, logins map[domain.ProviderID]oauth.ProviderLogin) {
 	mux.Handle(http.MethodGet, "/design.css", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.Static(w, "text/css; charset=utf-8", panel.DesignCSS)
 	})
@@ -36,29 +36,29 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 	})
 	mux.Handle(http.MethodGet, "/", func(w http.ResponseWriter, r *http.Request) {
 		if panelAuth.State().MustReset {
-			page(w, panel.ResetView(""), "Fob — set password", "")
+			page(w, panel.ResetView(""), "Mainspring — set password", "")
 			return
 		}
 		if !panelAuthed(r, e, panelAuth) {
-			page(w, panel.LoginView(""), "Fob — unlock", "")
+			page(w, panel.LoginView(""), "Mainspring — unlock", "")
 			return
 		}
 		meta := e.PublicURL
 		if meta == "" {
 			meta = "local"
 		}
-		page(w, dashboard(fob, settings), "Fob", meta)
+		page(w, dashboard(hub, settings), "Mainspring", meta)
 	})
 	mux.Handle(http.MethodPost, "/login", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := httpx.ParseBody(r)
 		password := httpx.FormString(body, "password")
 		ok, mustReset := panelAuth.Verify(password)
 		if !ok {
-			page(w, panel.LoginView("wrong password"), "Fob — unlock", "")
+			page(w, panel.LoginView("wrong password"), "Mainspring — unlock", "")
 			return
 		}
 		if mustReset {
-			page(w, panel.ResetView("reset required"), "Fob — set password", "")
+			page(w, panel.ResetView("reset required"), "Mainspring — set password", "")
 			return
 		}
 		httpx.SeeOther(w, "/", session.Issue(e.JWTKey, isSecure(e.PublicURL)))
@@ -67,7 +67,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 		body, _ := httpx.ParseBody(r)
 		ok, reason := panelAuth.Reset(httpx.FormString(body, "old_password"), httpx.FormString(body, "new_password"))
 		if !ok {
-			page(w, panel.ResetView(reason), "Fob — set password", "")
+			page(w, panel.ResetView(reason), "Mainspring — set password", "")
 			return
 		}
 		httpx.SeeOther(w, "/", session.Issue(e.JWTKey, isSecure(e.PublicURL)))
@@ -92,11 +92,11 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 			return
 		}
 		if start.Kind == "secret" {
-			page(w, panel.SecretView(string(providerID), start.URL, ""), "Fob — "+string(providerID), "")
+			page(w, panel.SecretView(string(providerID), start.URL, ""), "Mainspring — "+string(providerID), "")
 			return
 		}
 		if start.Kind == "device" {
-			page(w, panel.DeviceView(string(providerID), start.URL, start.UserCode, or(start.State, ""), ""), "Fob — "+string(providerID), "")
+			page(w, panel.DeviceView(string(providerID), start.URL, start.UserCode, or(start.State, ""), ""), "Mainspring — "+string(providerID), "")
 			return
 		}
 		hint := oauth.ClaudeRedirectURI
@@ -114,7 +114,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 				if err != nil {
 					return
 				}
-				_, _ = fob.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
+				_, _ = hub.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
 			})
 			if bind.Busy {
 				note = oauth.BindErrorNote(true)
@@ -124,7 +124,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 			}
 		}
 		view := panel.PasteCallbackViewNote(string(providerID), start.URL, hint, note, danger)
-		page(w, view, "Fob — "+string(providerID), "")
+		page(w, view, "Mainspring — "+string(providerID), "")
 	})
 	mux.Handle(http.MethodPost, "/login/{provider}/finish", func(w http.ResponseWriter, r *http.Request) {
 		if !panelAuthed(r, e, panelAuth) {
@@ -143,7 +143,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 		body, _ := httpx.ParseBody(r)
 		parsed := oauth.ParseCallback(httpx.FormString(body, "callback"))
 		fail := func(err string) {
-			page(w, panel.PasteCallbackView(string(providerID), "", hint, err), "Fob — "+string(providerID), "")
+			page(w, panel.PasteCallbackView(string(providerID), "", hint, err), "Mainspring — "+string(providerID), "")
 		}
 		if parsed.Error != "" {
 			msg := parsed.ErrorDescription
@@ -163,7 +163,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 			return
 		}
 		oauth.UnbindCallback(providerID)
-		_, _ = fob.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
+		_, _ = hub.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/login/{provider}/secret", func(w http.ResponseWriter, r *http.Request) {
@@ -178,17 +178,17 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 		case domain.ProviderCursor:
 			result, err := logins[providerID].Complete(r.Context(), "", "", "", secret)
 			if err != nil {
-				page(w, panel.SecretView("cursor", "https://cursor.com/dashboard?tab=integrations", err.Error()), "Fob — cursor", "")
+				page(w, panel.SecretView("cursor", "https://cursor.com/dashboard?tab=integrations", err.Error()), "Mainspring — cursor", "")
 				return
 			}
-			_, _ = fob.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
+			_, _ = hub.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
 		case domain.ProviderOpenCode:
 			label, err := opencode.ValidateKey(r.Context(), secret)
 			if err != nil {
-				page(w, panel.OpenCodeSecretView(err.Error()), "Fob — opencode", "")
+				page(w, panel.OpenCodeSecretView(err.Error()), "Mainspring — opencode", "")
 				return
 			}
-			_, _ = fob.Vault.Save(store.SaveCredential{
+			_, _ = hub.Vault.Save(store.SaveCredential{
 				Provider: domain.ProviderOpenCode,
 				Label:    label,
 				Tokens: domain.CredentialTokens{
@@ -207,7 +207,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 			httpx.SeeOther(w, "/", "")
 			return
 		}
-		page(w, panel.OpenCodeSecretView(""), "Fob — opencode", "")
+		page(w, panel.OpenCodeSecretView(""), "Mainspring — opencode", "")
 	})
 	mux.Handle(http.MethodPost, "/device/{provider}", func(w http.ResponseWriter, r *http.Request) {
 		if !panelAuthed(r, e, panelAuth) {
@@ -229,10 +229,10 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 		}
 		result, err := logins[providerID].Complete(ctx, "", "", deviceCode, "")
 		if err != nil {
-			page(w, panel.DeviceView(string(providerID), "", "", deviceCode, err.Error()), "Fob — "+string(providerID), "")
+			page(w, panel.DeviceView(string(providerID), "", "", deviceCode, err.Error()), "Mainspring — "+string(providerID), "")
 			return
 		}
-		_, _ = fob.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
+		_, _ = hub.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/sources/openai", func(w http.ResponseWriter, r *http.Request) {
@@ -245,7 +245,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 		baseURL := strings.TrimSpace(httpx.FormString(body, "base_url"))
 		secret := strings.TrimSpace(httpx.FormString(body, "secret"))
 		fail := func(msg string) {
-			page(w, panel.SourceView(label, baseURL, msg), "Fob — openai", "")
+			page(w, panel.SourceView(label, baseURL, msg), "Mainspring — openai", "")
 		}
 		base, err := openai.NormalizeBaseURL(baseURL)
 		if err != nil {
@@ -260,9 +260,9 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 		if label == "" {
 			label = host
 		}
-		existing, _ := fob.Vault.List(domain.ProviderOpenAI)
+		existing, _ := hub.Vault.List(domain.ProviderOpenAI)
 		slug := openai.UniqueSlug(existing, label)
-		_, err = fob.Vault.Save(store.SaveCredential{
+		_, err = hub.Vault.Save(store.SaveCredential{
 			Provider: domain.ProviderOpenAI,
 			Label:    label,
 			Tokens: domain.CredentialTokens{
@@ -312,7 +312,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 			httpx.SeeOther(w, "/", "")
 			return
 		}
-		_, _ = fob.Vault.Remove(httpx.Param(r, "id"))
+		_, _ = hub.Vault.Remove(httpx.Param(r, "id"))
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/keys", func(w http.ResponseWriter, r *http.Request) {
@@ -325,7 +325,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 		if name == "" {
 			name = "tool"
 		}
-		_, _ = fob.Keys.Create(name, nil, nil, nil)
+		_, _ = hub.Keys.Create(name, nil, nil, nil)
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/keys/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
@@ -333,7 +333,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 			httpx.SeeOther(w, "/", "")
 			return
 		}
-		_, _ = fob.Keys.Revoke(httpx.Param(r, "id"))
+		_, _ = hub.Keys.Revoke(httpx.Param(r, "id"))
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodGet, "/api/panel/sub", func(w http.ResponseWriter, r *http.Request) {
@@ -341,7 +341,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 			httpx.PanelUnauthorized(w, "")
 			return
 		}
-		httpx.JSON(w, 200, map[string]any{"credentials": sub.Collect(r.Context(), fob.Vault, fob.Executors)})
+		httpx.JSON(w, 200, map[string]any{"credentials": sub.Collect(r.Context(), hub.Vault, hub.Executors)})
 	})
 	mux.Handle(http.MethodPost, "/api/panel/keys", func(w http.ResponseWriter, r *http.Request) {
 		if !panelAuthed(r, e, panelAuth) {
@@ -353,7 +353,7 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 		if name == "" {
 			name = "tool"
 		}
-		created, err := fob.Keys.Create(name, nil, nil, nil)
+		created, err := hub.Keys.Create(name, nil, nil, nil)
 		if err != nil {
 			httpx.JSON(w, 500, map[string]any{"error": err.Error()})
 			return
@@ -367,15 +367,15 @@ func registerPanel(mux *httpx.Mux, fob *proxy.Fob, e *env.Env, panelAuth *store.
 	})
 }
 
-func dashboard(fob *proxy.Fob, settings *store.SettingsStore) string {
-	creds, _ := fob.Vault.List()
-	keys, _ := fob.Keys.List()
-	today, _ := fob.Usage.Since(dayMS)
-	d7, _ := fob.Usage.Since(7 * dayMS)
-	byProvider, _ := fob.Usage.GroupBy(7*dayMS, "provider")
-	byModel, _ := fob.Usage.GroupBy(7*dayMS, "model")
-	daily, _ := fob.Usage.Daily(7)
-	trends, _ := fob.Usage.Daily(trendDays)
+func dashboard(hub *proxy.Hub, settings *store.SettingsStore) string {
+	creds, _ := hub.Vault.List()
+	keys, _ := hub.Keys.List()
+	today, _ := hub.Usage.Since(dayMS)
+	d7, _ := hub.Usage.Since(7 * dayMS)
+	byProvider, _ := hub.Usage.GroupBy(7*dayMS, "provider")
+	byModel, _ := hub.Usage.GroupBy(7*dayMS, "model")
+	daily, _ := hub.Usage.Daily(7)
+	trends, _ := hub.Usage.Daily(trendDays)
 	prefix, _ := settings.Get(proxy.SettingCursorPrefix)
 	listFast, listFastSet := settings.Get(proxy.SettingCursorListFast)
 	grok, _ := settings.Get(proxy.SettingCursorGrokFailover)

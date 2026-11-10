@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/db"
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/provider"
-	"github.com/kacperkwapisz/fob/internal/store"
+	"github.com/kacperkwapisz/mainspring/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/provider"
+	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
 func TestCollectSkipsUnknownAndIsolatesErrors(t *testing.T) {

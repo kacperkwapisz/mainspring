@@ -1,10 +1,10 @@
 version: 2
-project_name: fob
+project_name: mainspring
 
 builds:
-  - id: fob
-    main: ./cmd/fob
-    binary: fob
+  - id: mainspring
+    main: ./cmd/mainspring
+    binary: mainspring
     env:
       - CGO_ENABLED=0
     goos: [linux, darwin]

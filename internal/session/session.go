@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	fcrypto "github.com/kacperkwapisz/fob/internal/crypto"
+	fcrypto "github.com/kacperkwapisz/mainspring/internal/crypto"
 )
 
 const (
-	CookieName = "fob_session"
+	CookieName = "ms_session"
 	ttl        = 7 * 24 * time.Hour
 )
 
@@ -72,7 +72,7 @@ func BearerPassword(r *http.Request) string {
 		return ""
 	}
 	token := strings.TrimSpace(h[7:])
-	if strings.HasPrefix(token, "sk-fob-") {
+	if strings.HasPrefix(token, "sk-ms-") {
 		return ""
 	}
 	return token
@@ -84,7 +84,7 @@ func BearerLocalKey(r *http.Request) string {
 		return ""
 	}
 	token := strings.TrimSpace(h[7:])
-	if strings.HasPrefix(token, "sk-fob-") {
+	if strings.HasPrefix(token, "sk-ms-") {
 		return token
 	}
 	return ""

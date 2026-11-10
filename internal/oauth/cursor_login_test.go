@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/env"
-	"github.com/kacperkwapisz/fob/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/env"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
 )
 
 func TestCursorOAuthStartIsDevicePoll(t *testing.T) {

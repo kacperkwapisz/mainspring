@@ -14,7 +14,7 @@ import (
 	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/http2"
 
-	"github.com/kacperkwapisz/fob/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
 )
 
 const (

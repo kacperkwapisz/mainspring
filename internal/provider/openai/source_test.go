@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 func TestSlugify(t *testing.T) {

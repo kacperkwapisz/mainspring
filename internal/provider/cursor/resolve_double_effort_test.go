@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/kacperkwapisz/fob/internal/provider/cursor/agentpb"
+	"github.com/kacperkwapisz/mainspring/internal/provider/cursor/agentpb"
 )
 
 func TestResolveModelIDDoesNotDoubleEffort(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 const pendingTTL = 15 * time.Minute

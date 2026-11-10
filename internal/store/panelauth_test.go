@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/db"
 )
 
 func TestPanelAuthSeedOnce(t *testing.T) {

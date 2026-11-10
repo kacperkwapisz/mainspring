@@ -3,7 +3,7 @@ package opencode
 import (
 	"sort"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 func CatalogModels() []domain.ModelInfo {

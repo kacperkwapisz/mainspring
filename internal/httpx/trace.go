@@ -87,7 +87,7 @@ func (t *Trace) Dump(reason string) {
 	if len(lines) == 0 && reason == "" {
 		return
 	}
-	head := "fob trace"
+	head := "hub trace"
 	if reason != "" {
 		head += "  " + reason
 	}

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 type ImagePart struct {

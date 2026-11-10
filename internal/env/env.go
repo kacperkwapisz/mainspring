@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	fcrypto "github.com/kacperkwapisz/fob/internal/crypto"
+	fcrypto "github.com/kacperkwapisz/mainspring/internal/crypto"
 )
 
 const (
@@ -44,7 +44,7 @@ type Env struct {
 	CodexClientSecret  string
 	GrokClientID       string
 	GrokClientSecret   string
-	FobHome            string
+	Home               string
 	JWTGenerated       bool
 }
 
@@ -64,8 +64,8 @@ func Load(source map[string]string) (*Env, error) {
 		return os.Getenv(k)
 	}
 
-	inDocker := strings.TrimSpace(get("DATABASE_PATH")) == "/data/fob.sqlite"
-	home, err := resolveHome(get("FOB_HOME"))
+	inDocker := strings.TrimSpace(get("DATABASE_PATH")) == "/data/mainspring.sqlite"
+	home, err := resolveHome(get("MAINSPRING_HOME"))
 	if err != nil {
 		return nil, err
 	}
@@ -127,12 +127,12 @@ func Load(source map[string]string) (*Env, error) {
 
 	dbPath := strings.TrimSpace(get("DATABASE_PATH"))
 	if dbPath == "" {
-		if get("NODE_ENV") == "test" || get("FOB_TEST") == "1" {
+		if get("NODE_ENV") == "test" || get("MAINSPRING_TEST") == "1" {
 			dbPath = ":memory:"
 		} else if inDocker {
-			dbPath = "/data/fob.sqlite"
+			dbPath = "/data/mainspring.sqlite"
 		} else {
-			dbPath = filepath.Join(home, "fob.sqlite")
+			dbPath = filepath.Join(home, "mainspring.sqlite")
 		}
 	}
 
@@ -155,7 +155,7 @@ func Load(source map[string]string) (*Env, error) {
 		CodexClientSecret:  emptyToUndef(get("CODEX_CLIENT_SECRET")),
 		GrokClientID:       firstNonEmpty(strings.TrimSpace(get("GROK_CLIENT_ID")), EmbeddedGrokClientID),
 		GrokClientSecret:   emptyToUndef(get("GROK_CLIENT_SECRET")),
-		FobHome:            home,
+		Home:               home,
 		JWTGenerated:       generated,
 	}, nil
 }
@@ -171,7 +171,7 @@ func resolveHome(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".fob"), nil
+	return filepath.Join(home, ".mainspring"), nil
 }
 
 func emptyToUndef(v string) string {

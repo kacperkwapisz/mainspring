@@ -13,7 +13,7 @@ const (
 	ServerConfigPath = "/aiserver.v1.ServerConfigService/GetServerConfig"
 	CLIVersion       = "cli-2026.08.25-3e8eec8"
 	SDKVersion       = "sdk-1.0.13"
-	MCPProvider      = "fob"
+	MCPProvider      = "mainspring"
 	MaxImageBytes    = 1024 * 1024
 )
 

@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/kacperkwapisz/fob/internal/provider/cursor/agentpb"
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/provider/cursor/agentpb"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 func TestParseMessages(t *testing.T) {

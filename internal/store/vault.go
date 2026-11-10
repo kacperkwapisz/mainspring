@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	fcrypto "github.com/kacperkwapisz/fob/internal/crypto"
-	"github.com/kacperkwapisz/fob/internal/db"
-	"github.com/kacperkwapisz/fob/internal/domain"
+	fcrypto "github.com/kacperkwapisz/mainspring/internal/crypto"
+	"github.com/kacperkwapisz/mainspring/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 type Vault struct {

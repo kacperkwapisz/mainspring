@@ -3,7 +3,7 @@ package app
 import (
 	"net/http"
 
-	"github.com/kacperkwapisz/fob/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
 )
 
 func registerHealth(mux *httpx.Mux) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 func eSig() string {

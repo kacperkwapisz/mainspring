@@ -3,14 +3,14 @@ package app
 import (
 	"net/http"
 
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/proxy"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/proxy"
 )
 
 func writeUnauthorized(w http.ResponseWriter, r *http.Request, inbound string) {
 	httpx.Fail{
 		Kind: httpx.KindAuth, Status: http.StatusUnauthorized, Route: r.URL.Path,
-		Message: "invalid api key", Hint: "send Authorization: Bearer sk-fob-… from the panel",
+		Message: "invalid api key", Hint: "send Authorization: Bearer sk-ms-… from the panel",
 	}.Log()
 	if inbound == httpx.InboundClaude {
 		httpx.ClaudeUnauthorized(w)

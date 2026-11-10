@@ -3,14 +3,14 @@ package app
 import (
 	"net/http"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/httpx"
-	"github.com/kacperkwapisz/fob/internal/proxy"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/proxy"
 )
 
-func registerResponses(mux *httpx.Mux, fob *proxy.Fob) {
+func registerResponses(mux *httpx.Mux, hub *proxy.Hub) {
 	mux.Handle(http.MethodPost, "/v1/responses", func(w http.ResponseWriter, r *http.Request) {
-		key := requireLocalKey(r, fob)
+		key := requireLocalKey(r, hub)
 		if key == nil {
 			writeUnauthorized(w, r, string(domain.InboundOpenAIResponses))
 			return
@@ -24,7 +24,7 @@ func registerResponses(mux *httpx.Mux, fob *proxy.Fob) {
 		if payload == nil {
 			payload = map[string]any{}
 		}
-		result, err := proxy.Proxy(r.Context(), fob, proxy.Request{
+		result, err := proxy.Proxy(r.Context(), hub, proxy.Request{
 			Inbound: domain.InboundOpenAIResponses, Body: payload, Key: *key,
 			Stream: payload["stream"] == true, InboundHeaders: httpx.InboundHeaders(r),
 		})
@@ -35,7 +35,7 @@ func registerResponses(mux *httpx.Mux, fob *proxy.Fob) {
 		writeProxy(w, r, result)
 	})
 	mux.Handle(http.MethodPost, "/v1/responses/compact", func(w http.ResponseWriter, r *http.Request) {
-		key := requireLocalKey(r, fob)
+		key := requireLocalKey(r, hub)
 		if key == nil {
 			writeUnauthorized(w, r, string(domain.InboundOpenAIResponses))
 			return
@@ -59,7 +59,7 @@ func registerResponses(mux *httpx.Mux, fob *proxy.Fob) {
 			return
 		}
 		delete(payload, "stream")
-		result, err := proxy.Proxy(r.Context(), fob, proxy.Request{
+		result, err := proxy.Proxy(r.Context(), hub, proxy.Request{
 			Inbound: domain.InboundOpenAIResponses, Body: payload, Key: *key,
 			Compact: true, InboundHeaders: httpx.InboundHeaders(r),
 		})

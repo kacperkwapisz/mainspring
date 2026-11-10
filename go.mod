@@ -1,4 +1,4 @@
-module github.com/kacperkwapisz/fob
+module github.com/kacperkwapisz/mainspring
 
 go 1.24.0
 

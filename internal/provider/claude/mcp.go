@@ -6,7 +6,7 @@ import (
 	_ "embed"
 	"strings"
 
-	"github.com/kacperkwapisz/fob/internal/translate"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 //go:embed claude-bip39.txt

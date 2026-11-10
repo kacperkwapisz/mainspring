@@ -1,6 +1,6 @@
 package translate
 
-import "github.com/kacperkwapisz/fob/internal/domain"
+import "github.com/kacperkwapisz/mainspring/internal/domain"
 
 type requestFn func(model string, stream bool, body any) RequestResult
 type responseFn func(model string, original, upstream any) any

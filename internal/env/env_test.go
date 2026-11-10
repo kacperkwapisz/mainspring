@@ -10,7 +10,7 @@ import (
 const secret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 func TestLoadRefusesMissingSecretInDocker(t *testing.T) {
-	_, err := Load(map[string]string{"DATABASE_PATH": "/data/fob.sqlite"})
+	_, err := Load(map[string]string{"DATABASE_PATH": "/data/mainspring.sqlite"})
 	if err == nil || !strings.Contains(err.Error(), "JWT_SECRET") {
 		t.Fatalf("got %v", err)
 	}
@@ -63,7 +63,7 @@ func TestLoadRejectsBadPublicURL(t *testing.T) {
 
 func TestLoadWritesJWTFileWhenUnset(t *testing.T) {
 	dir := t.TempDir()
-	e, err := Load(map[string]string{"FOB_HOME": dir})
+	e, err := Load(map[string]string{"MAINSPRING_HOME": dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestLoadWritesJWTFileWhenUnset(t *testing.T) {
 	if strings.TrimSpace(string(raw)) != e.JWTSecret {
 		t.Fatalf("secret mismatch")
 	}
-	if e.DatabasePath != filepath.Join(dir, "fob.sqlite") {
+	if e.DatabasePath != filepath.Join(dir, "mainspring.sqlite") {
 		t.Fatalf("db path %s", e.DatabasePath)
 	}
 }

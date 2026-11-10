@@ -1,4 +1,4 @@
-# Fob
+# Mainspring
 
 A local OpenAI-compatible proxy that turns Claude, Codex, Grok, and Cursor subscriptions — plus OpenCode Console inference and any OpenAI-compatible API — into keys other tools can call.
 
@@ -9,7 +9,7 @@ An OAuth login for one upstream provider, an OpenCode Console service key, or an
 _Avoid_: account, auth file, token
 
 **LocalKey**:
-A `sk-fob-…` secret the operator hands to a tool. Fob hashes it; the tool sends it as Bearer.
+A `sk-ms-…` secret the operator hands to a tool. Mainspring hashes it; the tool sends it as Bearer.
 _Avoid_: API key, user, token
 
 **Executor**:

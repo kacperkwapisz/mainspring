@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 func TestOpenAIChatToClaudeCache(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 type BindResult struct {
@@ -46,7 +46,7 @@ func BindCallback(provider domain.ProviderID, onCode func(code, state string)) (
 		q := r.URL.Query()
 		code, state := q.Get("code"), q.Get("state")
 		w.Header().Set("content-type", "text/html; charset=utf-8")
-		_, _ = io.WriteString(w, "<!doctype html><title>Fob</title><p>Login captured. You can close this tab and return to Fob.</p>")
+		_, _ = io.WriteString(w, "<!doctype html><title>Mainspring</title><p>Login captured. You can close this tab and return to Mainspring.</p>")
 		if onCode != nil && code != "" {
 			go onCode(code, state)
 		}

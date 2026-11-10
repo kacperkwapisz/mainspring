@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 type ExecuteOptions struct {

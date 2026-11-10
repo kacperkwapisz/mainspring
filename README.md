@@ -13,7 +13,7 @@ chmod +x fob
 ./fob
 ```
 
-On first boot without `JWT_SECRET`, Fob writes `~/.fob/jwt_secret` (`0600`) and `~/.fob/fob.sqlite`. The seed panel password is printed once. Open http://localhost:8317, change it, login to a provider, mint a `sk-fob-…` key.
+On first boot without `JWT_SECRET`, Fob writes `~/.mainspring/jwt_secret` (`0600`) and `~/.mainspring/mainspring.sqlite`. The seed panel password is printed once. Open http://localhost:8317, change it, login to a provider, mint a `sk-ms-…` key.
 
 ## Run (Docker)
 
@@ -22,7 +22,7 @@ export JWT_SECRET=$(openssl rand -hex 32)
 docker compose up --build
 ```
 
-Compose **requires** `JWT_SECRET`. Data lives on the `fob-data` volume at `/data/fob.sqlite`.
+Compose **requires** `JWT_SECRET`. Data lives on the `mainspring-data` volume at `/data/mainspring.sqlite`.
 
 ## OAuth
 
@@ -32,9 +32,9 @@ Claude and Codex OAuth apps only allow their CLI callbacks (`http://localhost:54
 
 | Var | Default | Role |
 |---|---|---|
-| `JWT_SECRET` | binary: `~/.fob/jwt_secret` (auto); Docker: required | Encrypts credentials and signs the panel cookie |
-| `FOB_HOME` | `~/.fob` | Binary data dir (`fob.sqlite`, `jwt_secret`) |
-| `DATABASE_PATH` | binary: `$FOB_HOME/fob.sqlite`; image: `/data/fob.sqlite` | SQLite |
+| `JWT_SECRET` | binary: `~/.mainspring/jwt_secret` (auto); Docker: required | Encrypts credentials and signs the panel cookie |
+| `MAINSPRING_HOME` | `~/.mainspring` | Binary data dir (`mainspring.sqlite`, `jwt_secret`) |
+| `DATABASE_PATH` | binary: `$MAINSPRING_HOME/mainspring.sqlite`; image: `/data/mainspring.sqlite` | SQLite |
 | `HOST` | `0.0.0.0` | Bind |
 | `PORT` | `8317` | Listen |
 | `LOG_LEVEL` | `info` | Failures always log one line to stderr. `debug` also logs successful hops. Optional panel **Request trace** (`off` / `errors` / `always`) dumps hop breadcrumbs on failure or always. No tokens. |
@@ -51,18 +51,18 @@ Cursor effort variants (`-high`, `-medium`, …) collapse to one listed id (`cla
 - `POST /v1/messages/count_tokens`
 - `POST /v1/responses`
 
-Bearer: a LocalKey (`sk-fob-…`). Meter dollars are **API-equivalent $** from [models.dev](https://models.dev) list prices, not your subscription bill. The panel Sub card is remaining on the subscription (click to load).
+Bearer: a LocalKey (`sk-ms-…`). Meter dollars are **API-equivalent $** from [models.dev](https://models.dev) list prices, not your subscription bill. The panel Sub card is remaining on the subscription (click to load).
 
 ## Dev
 
 ```bash
 make test
-go run ./cmd/fob
+go run ./cmd/mainspring
 ```
 
 Live HTTP against a real vault (skips unless you ask):
 
 ```bash
-make live                         # boots ~/.fob, mints a throwaway key
-FOB_LIVE_URL=https://hub.example.com FOB_LIVE_KEY=sk-fob-… make live
+make live                         # boots ~/.mainspring, mints a throwaway key
+MAINSPRING_LIVE_URL=https://hub.example.com MAINSPRING_LIVE_KEY=sk-ms-… make live
 ```

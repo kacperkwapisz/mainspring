@@ -55,7 +55,7 @@ func (f Fail) Display() string {
 
 func (f Fail) Line() string {
 	var b strings.Builder
-	b.WriteString("fob error")
+	b.WriteString("hub error")
 	if f.Status > 0 {
 		b.WriteString("  ")
 		b.WriteString(strconv.Itoa(f.Status))

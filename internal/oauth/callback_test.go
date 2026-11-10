@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 func TestParseCallbackClaudeURL(t *testing.T) {

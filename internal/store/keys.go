@@ -7,16 +7,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
-	fcrypto "github.com/kacperkwapisz/fob/internal/crypto"
-	"github.com/kacperkwapisz/fob/internal/db"
-	"github.com/kacperkwapisz/fob/internal/domain"
+	fcrypto "github.com/kacperkwapisz/mainspring/internal/crypto"
+	"github.com/kacperkwapisz/mainspring/internal/db"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 type CreatedKey struct {
 	Key    domain.LocalKey
 	Secret string
 }
+
+// KeyPrefix starts every LocalKey secret.
+const KeyPrefix = "sk-ms-"
 
 type KeyStore struct {
 	db *db.DB
@@ -30,7 +34,7 @@ func (s *KeyStore) Create(name string, providers []domain.ProviderID, models []s
 	if _, err := io.ReadFull(rand.Reader, raw); err != nil {
 		return CreatedKey{}, err
 	}
-	secret := "sk-fob-" + hex.EncodeToString(raw)
+	secret := KeyPrefix + hex.EncodeToString(raw)
 	prefix := secret[:12]
 	hash := fcrypto.SHA256Hex(secret)
 	createdAt := nowMs()
@@ -96,7 +100,7 @@ func (s *KeyStore) Get(id string) (*domain.LocalKey, error) {
 }
 
 func (s *KeyStore) Verify(secret string) (*domain.LocalKey, error) {
-	if len(secret) < 7 || secret[:7] != "sk-fob-" {
+	if !strings.HasPrefix(secret, KeyPrefix) {
 		return nil, nil
 	}
 	hash := fcrypto.SHA256Hex(secret)

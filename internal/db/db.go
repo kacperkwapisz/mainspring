@@ -82,7 +82,7 @@ func Open(path string) (*DB, error) {
 	}
 	dsn := path
 	if path == ":memory:" {
-		dsn = "file:fob?mode=memory&cache=shared"
+		dsn = "file:hub?mode=memory&cache=shared"
 	}
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {

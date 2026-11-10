@@ -53,7 +53,7 @@ func SetLogOutput(w io.Writer) func() {
 
 func LogOK(provider, model, route string) {
 	var b strings.Builder
-	b.WriteString("fob  200")
+	b.WriteString("hub  200")
 	if provider != "" {
 		b.WriteString("  ")
 		b.WriteString(provider)

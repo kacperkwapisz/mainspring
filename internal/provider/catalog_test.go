@@ -3,7 +3,7 @@ package provider
 import (
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 func TestCatalogModelsPreserveJSONOrder(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/env"
+	"github.com/kacperkwapisz/mainspring/internal/env"
 )
 
 func TestCodexStartIncludesCLIQuery(t *testing.T) {

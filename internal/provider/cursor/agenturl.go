@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/httpx"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
 )
 
 var agentHostRe = regexp.MustCompile(`(?i)^([a-z0-9-]+\.)+cursor\.sh$`)

@@ -3,7 +3,7 @@ package cursor
 import (
 	"testing"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
 
 func TestPublicIDs(t *testing.T) {

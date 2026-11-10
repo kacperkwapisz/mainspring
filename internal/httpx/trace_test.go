@@ -30,14 +30,14 @@ func TestTraceDumpModes(t *testing.T) {
 	}
 	DumpTrace(ctx, true, "unfinished stream")
 	got := buf.String()
-	if !strings.Contains(got, "fob trace  unfinished stream") || !strings.Contains(got, "cursor wire=gpt-5.6-sol-medium") {
+	if !strings.Contains(got, "hub trace  unfinished stream") || !strings.Contains(got, "cursor wire=gpt-5.6-sol-medium") {
 		t.Fatalf("errors dump %q", got)
 	}
 
 	buf.Reset()
 	SetTraceMode(TraceAlways)
 	DumpTrace(ctx, false, "ok")
-	if !strings.Contains(buf.String(), "fob trace  ok") {
+	if !strings.Contains(buf.String(), "hub trace  ok") {
 		t.Fatalf("always dump %q", buf.String())
 	}
 }

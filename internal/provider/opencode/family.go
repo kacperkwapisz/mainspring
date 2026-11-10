@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/prices"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/prices"
 )
 
 type Family string

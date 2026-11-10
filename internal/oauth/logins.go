@@ -1,8 +1,8 @@
 package oauth
 
 import (
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/env"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/env"
 )
 
 func Logins(e *env.Env) map[domain.ProviderID]ProviderLogin {

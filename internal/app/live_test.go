@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kacperkwapisz/fob/internal/domain"
-	"github.com/kacperkwapisz/fob/internal/proxy"
+	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/proxy"
 )
 
 type liveClient struct {
@@ -175,7 +175,7 @@ func TestLiveCursorAndGrok(t *testing.T) {
 
 	t.Run("auth/invalid-key", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, c.base+"/v1/models", nil)
-		req.Header.Set("authorization", "Bearer sk-fob-deadbeef")
+		req.Header.Set("authorization", "Bearer sk-ms-deadbeef")
 		res, err := c.http.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -198,11 +198,11 @@ func TestLiveCursorAndGrok(t *testing.T) {
 
 func openLive(t *testing.T) *liveClient {
 	t.Helper()
-	base := strings.TrimRight(os.Getenv("FOB_LIVE_URL"), "/")
-	key := strings.TrimSpace(os.Getenv("FOB_LIVE_KEY"))
+	base := strings.TrimRight(os.Getenv("MAINSPRING_LIVE_URL"), "/")
+	key := strings.TrimSpace(os.Getenv("MAINSPRING_LIVE_KEY"))
 	if base != "" {
 		if key == "" {
-			t.Fatal("FOB_LIVE_URL set but FOB_LIVE_KEY missing")
+			t.Fatal("MAINSPRING_LIVE_URL set but MAINSPRING_LIVE_KEY missing")
 		}
 		return &liveClient{base: base, key: key, http: &http.Client{Timeout: 3 * time.Minute}}
 	}
@@ -211,10 +211,10 @@ func openLive(t *testing.T) *liveClient {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := proxy.KeepaliveCredentials(context.Background(), booted.Fob); err != nil {
+	if _, err := proxy.KeepaliveCredentials(context.Background(), booted.Hub); err != nil {
 		t.Logf("keepalive: %v", err)
 	}
-	created, err := booted.Fob.Keys.Create("live-test", nil, nil, nil)
+	created, err := booted.Hub.Keys.Create("live-test", nil, nil, nil)
 	if err != nil {
 		booted.DB.Close()
 		t.Fatal(err)
@@ -236,10 +236,10 @@ func (c *liveClient) close(t *testing.T) {
 		return
 	}
 	if c.booted != nil {
-		keys, _ := c.booted.Fob.Keys.List()
+		keys, _ := c.booted.Hub.Keys.List()
 		for _, k := range keys {
 			if k.Name == "live-test" && !k.Revoked {
-				_, _ = c.booted.Fob.Keys.Revoke(k.ID)
+				_, _ = c.booted.Hub.Keys.Revoke(k.ID)
 			}
 		}
 		_ = c.booted.DB.Close()
