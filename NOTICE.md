@@ -13,7 +13,7 @@ Cursor's agent protocol is unofficial and may change without notice.
 
 - [Alpine.js](https://github.com/alpinejs/alpine), MIT.
 - [Ding](https://github.com/YusufCeng1z/ding) 0.0.4 by Yusuf Cengiz, MIT. See `internal/panel/web/ding.LICENSE`.
-- Inter, Archivo and Geist Mono fonts, SIL Open Font License 1.1.
+- Geist and Geist Mono fonts by Vercel, SIL Open Font License 1.1.
 
 ## Go modules
 

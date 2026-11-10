@@ -628,7 +628,7 @@
           const fill = b.today ? "#3B9BFF" : b.inRange ? "#6B6B6B" : "#3A3A3A";
           const h = Math.max(b.h, b.tokens ? 2 : 0);
           out += `<rect x="${b.x.toFixed(1)}" y="${(180 - h).toFixed(1)}" width="${b.w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${fill}"><title>${fmt.tokens(b.tokens)} tokens</title></rect>`;
-          out += `<text x="${(b.x + b.w / 2).toFixed(1)}" y="212" text-anchor="middle" fill="#737373" font-size="22" font-family="Inter, sans-serif">${b.label}</text>`;
+          out += `<text x="${(b.x + b.w / 2).toFixed(1)}" y="212" text-anchor="middle" fill="#737373" font-size="22" font-family="Geist, sans-serif">${b.label}</text>`;
         }
         return out + "</svg>";
       },

@@ -216,7 +216,7 @@ func TestPanelServesAppAndAssets(t *testing.T) {
 		"/assets/ding.js":           "text/javascript",
 		"/assets/alpine.min.js":     "text/javascript",
 		"/assets/mark.svg":          "image/svg+xml",
-		"/assets/fonts/inter.woff2": "font/woff2",
+		"/assets/fonts/geist.woff2": "font/woff2",
 	} {
 		res := get(path)
 		if res.Code != 200 || !strings.HasPrefix(res.Header().Get("Content-Type"), ctype) {

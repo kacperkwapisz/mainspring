@@ -7,9 +7,9 @@ Paper file: `Mainspring` (`01M72YS3C4QBEB5E0SK99BPHYG`). Page `02 Pool + System`
 Base style: `dense-neutral` (dark values), adapted below. Rules come from the `design-principles` skill.
 
 - **Layout:** 216px left sidebar (wordmark, nav, endpoint, Lock), main area with 32px side padding.
-- **Type:**
-  - Interface: Inter 400/500. 13/20 body, 12/16 meta, 15/20 group titles.
-  - Character face: Archivo at `font-stretch: 125%`, weight 500 (`--font-display`). Only for page titles (24/32) and hero numbers (32/40).
+- **Type:** Geist for everything (it's a dev tool), self-hosted in `internal/panel/web/fonts`.
+  - Interface: Geist 400/500. 13/20 body, 12/16 meta, 15/20 group titles.
+  - Page titles (24/32) and hero numbers (32/40): Geist 600, letter-spacing -0.03em (`--font-display`). 600 is the one third weight, for this role only.
   - Geist Mono only for real data: keys, URLs, model IDs, timestamps.
 - **Colour:**
   - Use the file's tokens.
