@@ -135,6 +135,8 @@ svg { display: block; flex-shrink: 0; }
 .switch[aria-checked="true"] { background: var(--color-ink); }
 .switch[aria-checked="true"]::after { transform: translateX(12px); background: var(--color-on-ink); }
 .switch:disabled { opacity: 0.4; }
+/* A turned-off model stays listed so it can be turned back on, but recedes. */
+.grid tr.row-off td:not(:nth-last-child(-n+2)) { opacity: 0.45; }
 .switch-hit { display: inline-flex; align-items: center; justify-content: flex-end; min-width: 44px; min-height: 32px; }
 
 /* ---- Cards and tables ---- */

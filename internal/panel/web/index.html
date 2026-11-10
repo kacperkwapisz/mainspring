@@ -382,7 +382,7 @@
   <template x-if="route === 'sources'">
     <div>
       <div class="page-head">
-        <div><h1 class="page-title">Sources</h1><div class="page-meta" x-text="models ? fmt.plural(models.models.length, 'model ID', 'model IDs') : ''"></div></div>
+        <div><h1 class="page-title">Sources</h1><div class="page-meta" x-text="models ? fmt.plural(models.models.length, 'model ID', 'model IDs') + (modelsOff ? ' · ' + modelsOff + ' turned off' : '') : ''"></div></div>
         <button class="btn btn-secondary" @click="startLogin('openai')"><span x-html="icon('plus')"></span>Add OpenAI-compatible source</button>
       </div>
       <div class="content">
@@ -400,20 +400,21 @@
             <div class="title-row" style="align-items:center;flex-wrap:wrap">
               <div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Models</span><span class="meta">Exactly as your tools should send them</span></div>
               <div style="display:flex;gap:8px"><input class="input" style="width:220px;height:32px" placeholder="Search model IDs" x-model="modelSearch" aria-label="Search model IDs">
-                <select class="input" style="width:160px;height:32px" x-model="modelSource" aria-label="Source"><option value="">All sources</option><template x-for="s in modelSources()" :key="s"><option :value="s" x-text="s"></option></template></select></div>
+                <select class="input" style="width:160px;height:32px" x-model="modelSource" aria-label="Source"><option value="">All sources</option><template x-for="s in modelSources()" :key="s"><option :value="s" x-text="s"></option></template><template x-if="modelsOff"><option value="__off">Turned off</option></template></select></div>
             </div>
-            <div class="reason">Plain IDs go to their own provider first and fall back to Cursor on retryable errors. <span class="mono">cursor/…</span> always uses Cursor</div>
+            <div class="reason">Plain IDs go to their own provider first and fall back to Cursor on retryable errors. <span class="mono">cursor/…</span> always uses Cursor. A model you turn off leaves <span class="mono">/v1/models</span> and is refused</div>
           </div>
           <template x-if="modelsError && !models"><div class="pane-error"><div class="subtle" x-text="modelsError"></div><button class="btn btn-secondary btn-sm" @click="loadSources()">Retry</button></div></template>
           <template x-if="models && !models.models.length"><div class="list-row subtle">Add an account to see the models it serves</div></template>
           <template x-if="models && models.models.length">
-            <div class="scroll-x"><table class="grid"><thead><tr><th>Model ID</th><th>Served by</th><th class="r">Context</th><th>Reasoning effort</th><th>Input</th><th></th></tr></thead><tbody>
-              <template x-for="m in filteredModels().slice(0, 400)" :key="m.id"><tr>
+            <div class="scroll-x"><table class="grid"><thead><tr><th>Model ID</th><th>Served by</th><th class="r">Context</th><th>Reasoning effort</th><th>Input</th><th class="r">On</th><th></th></tr></thead><tbody>
+              <template x-for="m in filteredModels().slice(0, 400)" :key="m.id"><tr :class="!m.enabled && 'row-off'">
                 <td class="mono strong" x-text="m.id"></td>
                 <td><span x-text="m.served_by"></span><template x-if="m.fallback"><span class="muted" x-text="', then ' + m.fallback"></span></template></td>
                 <td class="r subtle" x-text="m.context_length ? fmt.tokens(m.context_length) : '—'"></td>
                 <td class="subtle" x-text="m.efforts && m.efforts.length ? m.efforts.join(' · ') : '—'"></td>
                 <td class="subtle" x-text="m.input && m.input.length ? m.input.map(s => s[0].toUpperCase()+s.slice(1)).join(', ') : 'Text'"></td>
+                <td class="r"><span class="switch-hit"><button class="switch" role="switch" :aria-checked="m.enabled ? 'true' : 'false'" :aria-label="(m.enabled ? 'Turn off ' : 'Turn on ') + m.id" @click="setModel(m, !m.enabled)"></button></span></td>
                 <td class="r"><button class="btn-icon" @click="copy(m.id, m.id)" x-html="icon('copy')" :aria-label="'Copy ' + m.id"></button></td>
               </tr></template>
             </tbody></table></div>

@@ -285,7 +285,9 @@ func modelsView(hub *proxy.Hub) map[string]any {
 		Efforts  []string `json:"efforts,omitempty"`
 		Input    []string `json:"input,omitempty"`
 		Name     string   `json:"name,omitempty"`
+		Enabled  bool     `json:"enabled"`
 	}
+	off := proxy.DisabledModels(hub)
 	rows := []row{}
 	for _, m := range models {
 		served, fallback := proxy.ServedBy(hub, m.ID)
@@ -297,7 +299,7 @@ func modelsView(hub *proxy.Hub) map[string]any {
 		if fallback != "" {
 			fb = providerName(fallback)
 		}
-		r := row{ID: m.ID, Context: m.ContextLength, Efforts: m.Efforts, Input: m.Input, Name: m.Name}
+		r := row{ID: m.ID, Context: m.ContextLength, Efforts: m.Efforts, Input: m.Input, Name: m.Name, Enabled: !off[m.ID]}
 		if len(names) > 0 {
 			r.ServedBy = names[0]
 		}

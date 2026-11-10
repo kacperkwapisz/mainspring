@@ -423,6 +423,19 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		hub.Activity.Add(store.ActivityKeyRevoke, "", "", map[string]any{"key": k.Name})
 		httpx.JSON(w, 200, map[string]any{"ok": true})
 	}))
+	mux.Handle(http.MethodPut, "/api/models/enabled", authed(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := httpx.ParseBody(r)
+		id := strings.TrimSpace(httpx.JSONField(body, "id"))
+		if id == "" || len(id) > 200 {
+			apiError(w, 400, "model_invalid", "Say which model to turn on or off")
+			return
+		}
+		if err := proxy.SetModelEnabled(hub, id, jsonBool(body, "on")); err != nil {
+			apiError(w, 500, "save_failed", "Couldn't save that change")
+			return
+		}
+		httpx.JSON(w, 200, modelsView(hub))
+	}))
 	mux.Handle(http.MethodGet, "/api/models", authed(func(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, 200, modelsView(hub))
 	}))

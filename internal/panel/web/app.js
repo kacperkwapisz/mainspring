@@ -678,7 +678,16 @@
       filteredModels() {
         if (!this.models) return [];
         const q = this.modelSearch.trim().toLowerCase();
-        return this.models.models.filter((m) => (!q || m.id.toLowerCase().includes(q) || (m.name || "").toLowerCase().includes(q)) && (!this.modelSource || m.served_by === this.modelSource));
+        const src = this.modelSource;
+        return this.models.models.filter((m) => (!q || m.id.toLowerCase().includes(q) || (m.name || "").toLowerCase().includes(q))
+          && (!src || (src === "__off" ? !m.enabled : m.served_by === src)));
+      },
+      get modelsOff() { return this.models ? this.models.models.filter((m) => !m.enabled).length : 0; },
+      // A turned-off model leaves /v1/models and is refused, so tools stop using it.
+      async setModel(m, on) {
+        m.enabled = on;
+        try { this.models = await api("PUT", "/api/models/enabled", { id: m.id, on }); }
+        catch (e) { m.enabled = !on; T.err(`Couldn't turn ${m.id} ${on ? "on" : "off"}`, e.message); }
       },
       modelSources() { return this.models ? [...new Set(this.models.models.map((m) => m.served_by).filter(Boolean))] : []; },
       chart() {

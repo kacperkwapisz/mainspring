@@ -16,7 +16,7 @@ func registerOpenAI(mux *httpx.Mux, hub *proxy.Hub) {
 			writeUnauthorized(w, r, string(domain.InboundOpenAIChat))
 			return
 		}
-		httpx.JSON(w, http.StatusOK, map[string]any{"object": "list", "data": proxy.ListModels(hub)})
+		httpx.JSON(w, http.StatusOK, map[string]any{"object": "list", "data": proxy.ServedModels(hub)})
 	})
 	mux.Handle(http.MethodPost, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
 		key := requireLocalKey(r, hub)

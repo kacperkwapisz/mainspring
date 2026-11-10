@@ -77,6 +77,10 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 	if model == "" {
 		return failOut(req, 400, httpx.KindRequest, "", "", "model is required", `set "model" in the request body`), nil
 	}
+	if modelDisabled(DisabledModels(hub), model) {
+		httpx.DumpTrace(ctx, true, "model turned off")
+		return failOut(req, 404, httpx.KindModel, "", model, model+" is turned off in Mainspring", "turn it on under Sources → Models in the panel, or pick another model from GET /v1/models"), nil
+	}
 	chain := resolveProviderChain(hub, model)
 	if len(chain) == 0 {
 		httpx.DumpTrace(ctx, true, "unknown model")
