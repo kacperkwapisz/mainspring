@@ -1,4 +1,4 @@
-.PHONY: test live live-agentic signoff build run tidy proto fmt vet clean
+.PHONY: test live live-agentic signoff build run demo tidy proto fmt vet clean
 
 test:
 	go test ./...
@@ -17,6 +17,9 @@ build:
 
 run:
 	go run ./cmd/mainspring
+
+demo:
+	go run ./cmd/mainspring demo
 
 tidy:
 	go mod tidy

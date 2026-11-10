@@ -3,7 +3,6 @@ package app
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -216,36 +215,4 @@ func TestPasswordRoutesGone(t *testing.T) {
 			t.Fatalf("%s %d %q", path, res.Code, res.Header().Get("set-cookie"))
 		}
 	}
-}
-
-func unlocked(t *testing.T) (*Booted, string) {
-	t.Helper()
-	booted, err := Create(map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cookie, err := booted.Auth.IssueSession(httptest.NewRequest(http.MethodGet, "/", nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	cookie = strings.Split(cookie, ";")[0]
-	if !strings.Contains(cookie, "ms_session=") {
-		t.Fatalf("cookie %s", cookie)
-	}
-	return booted, cookie
-}
-
-type roundTrip func(*http.Request) *http.Response
-
-func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r), nil }
-
-func jsonResp(status int, body any) *http.Response {
-	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	rec.Header().Set("content-type", "application/json")
-	rec.WriteHeader(status)
-	_, _ = rec.Write(raw)
-	res := rec.Result()
-	res.Body = io.NopCloser(strings.NewReader(string(raw)))
-	return res
 }

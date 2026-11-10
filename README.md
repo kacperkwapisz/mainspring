@@ -1,72 +1,132 @@
-# Fob
+<p align="center">
+  <img src="assets/gallery/1.jpg" alt="The Mainspring panel: a pool of Claude and Codex accounts with the limit left on each and when it resets" width="900">
+</p>
 
-A local proxy that turns Claude, Codex, Grok, and Cursor subscriptions — plus OpenCode Console inference and any OpenAI-compatible API — into one OpenAI-compatible endpoint. One panel for logins, sources, the keys you hand to other tools, and the usage meter.
+<h1 align="center">Mainspring</h1>
 
-Point Cursor, Claude Code, OpenCode, or anything that speaks OpenAI/Anthropic at `http://127.0.0.1:8317/v1`.
+<p align="center">One endpoint for all your AI subscriptions.</p>
 
-## Run (binary)
+Mainspring runs on one always-on computer at home and pools the AI subscriptions you already pay for: Claude, Codex (ChatGPT), Grok, Cursor, OpenCode Console, and any OpenAI-compatible API. Every other machine points Claude Code, Codex, Cursor, OpenCode or anything that speaks the OpenAI or Anthropic API at that one address.
 
-Download a release for your OS from GitHub Releases, then:
+- **Logins stay fresh.** Mainspring refreshes tokens before they expire and tells you when a provider rejects one.
+- **Sessions stay put.** Every request of a coding session goes to the same account, so its prompt cache stays warm.
+- **Limits are read, not guessed.** Each response carries the account's quota windows. An account that runs out rests until its window resets, and its sessions move to another account.
+- **Soonest reset first.** New sessions go to the account whose limit resets soonest while it still has reserve, so quota you've paid for doesn't expire unused.
+- **One place to look.** The panel shows each account's windows and when they reset, live sessions and their cache hit rate, a usage meter at API list price, and the keys you hand out.
+
+> [!WARNING]
+> Using a subscription through a proxy may break a provider's terms, and providers can suspend accounts. Run Mainspring at home rather than on a cloud server, use only your own accounts, and don't serve other people's traffic with them.
+
+## Install
+
+### Umbrel
+
+1. Open **App Store → ⋯ → Community App Stores** and add `https://github.com/kacperkwapisz/mainspring-umbrel`.
+2. Install **Mainspring** from that store and open it from the dashboard.
+
+Umbrel's login protects the panel. The API answers at `http://umbrel.local:8317/v1` to the keys you create in the panel.
+
+### Docker
 
 ```bash
-chmod +x fob
-./fob
+docker run -d --name mainspring -p 8317:8317 -v mainspring-data:/data \
+  ghcr.io/kacperkwapisz/mainspring:latest
+docker logs mainspring   # prints the one-time setup code
 ```
 
-On first boot without `JWT_SECRET`, Fob writes `~/.mainspring/jwt_secret` (`0600`) and `~/.mainspring/mainspring.sqlite`. While no security key is added, every boot prints a one-time setup code (`mainspring setup code: XXXX-XXXX`). Open http://localhost:8317, enter the code, add a security key (a passkey works too), login to a provider, mint a `sk-ms-…` key.
+### Binary
 
-Panel sign-in uses WebAuthn, so it needs HTTPS or `localhost`. Lost every key? Run `mainspring auth reset` on the hub: it removes all keys, signs out every panel session and prints a new setup code. `mainspring auth status` lists the mode and keys.
-
-## Run (Docker)
+Download a release for Linux or macOS from [Releases](https://github.com/kacperkwapisz/mainspring/releases), then:
 
 ```bash
-export JWT_SECRET=$(openssl rand -hex 32)
-docker compose up --build
+chmod +x mainspring && ./mainspring
 ```
 
-Compose **requires** `JWT_SECRET`. Data lives on the `mainspring-data` volume at `/data/mainspring.sqlite`.
+Data lives in `~/.mainspring` (`mainspring.sqlite` and the `jwt_secret` that encrypts your credentials). The bare binary listens on `127.0.0.1:8317`; set `HOST=0.0.0.0` to reach it from other machines.
 
-## OAuth
+## First run
 
-Claude and Codex OAuth apps only allow their CLI callbacks (`http://localhost:54545/callback` and `http://localhost:1455/auth/callback`). While a login is in flight, Fob binds those ports. If the port is already taken (the real CLI), the panel keeps the paste-callback form — paste the whole failed address bar. Grok uses device-code. Cursor uses CLI deep-control poll (Login) or a dashboard API key (Paste key). OpenCode uses a Console service account key; models list as `opencode/<id>` and route to chat, responses, or Anthropic messages by model family (no Gemini/Jev). OpenAI-compatible sources are unlimited: paste a base URL and optional key (OpenRouter, Groq, a local llama.cpp, anything that speaks `/v1`). Local servers can omit the key. Source models list as `slug/id` so they never collide with a sub.
+1. **Sign in to the panel.** Outside Umbrel the panel uses security keys and passkeys, with no password. Open it over HTTPS or on `localhost`, enter the setup code Mainspring printed when it started, and add a key. Add a second one as a backup.
+2. **Add accounts.** Choose **Add account**. Claude and Codex open their sign-in page in a new tab. When Mainspring runs on another machine, that tab ends on a page that can't load; copy its whole address into the panel. Grok uses a device code, Cursor a sign-in or an API key, OpenCode Console a service account key, and OpenAI-compatible APIs a base URL.
+3. **Create a key per machine** under **Keys**. The panel shows the exact config for Claude Code, Codex and other tools when you create one.
 
-## Env
+Security keys are registered without a passkey, so they don't take up one of your YubiKey's passkey slots. Lost every key? Run `mainspring auth reset` on the host for a fresh setup code.
 
-| Var | Default | Role |
+## Point your tools at it
+
+Claude Code, in `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://hub.example.ts.net:8317",
+    "ANTHROPIC_AUTH_TOKEN": "sk-ms-…"
+  }
+}
+```
+
+Codex, in `~/.codex/config.toml`:
+
+```toml
+model_provider = "mainspring"
+
+[model_providers.mainspring]
+name = "Mainspring"
+base_url = "https://hub.example.ts.net:8317/v1"
+wire_api = "responses"
+requires_openai_auth = false
+supports_websockets = true
+experimental_bearer_token = "sk-ms-…"
+```
+
+Anything else takes `https://hub.example.ts.net:8317/v1` as an OpenAI base URL and the `sk-ms-` key as its API key. `GET /v1/models` lists every model ID your accounts can serve.
+
+To reach the hub from other machines, [Tailscale](https://tailscale.com) works well: `tailscale serve --bg --https=8317 http://127.0.0.1:8317` gives it an HTTPS address only your tailnet can reach, which security keys also need.
+
+## How routing works
+
+For each request Mainspring picks the provider from the model ID, then an account:
+
+1. The account the session already uses, while the session has been active within the last hour (configurable).
+2. Otherwise the account whose longest quota window resets soonest and still has reserve.
+3. Accounts with no quota data yet, oldest first.
+
+Accounts that are out of rotation, waiting for a sign-in, or resting after a limit are skipped. A 429 rests the account until the window that ran out resets, using the reset time the provider sends. If every account of a provider is resting, clients get a 429 with `Retry-After` set to when the first one is back. Plain model IDs like `claude-opus-5` can fall back to Cursor on retryable errors, and `cursor/…` IDs always use Cursor.
+
+Codex can talk to Mainspring over WebSockets (`supports_websockets = true`). Usage dashboards such as T3 Code can read pooled limits through a read-only management key (**Settings → Usage hub**).
+
+## Configuration
+
+| Variable | Default | What it does |
 |---|---|---|
-| `JWT_SECRET` | binary: `~/.mainspring/jwt_secret` (auto); Docker: required | Encrypts credentials and signs the panel cookie |
-| `MAINSPRING_HOME` | `~/.mainspring` | Binary data dir (`mainspring.sqlite`, `jwt_secret`) |
-| `DATABASE_PATH` | binary: `$MAINSPRING_HOME/mainspring.sqlite`; image: `/data/mainspring.sqlite` | SQLite |
-| `MAINSPRING_AUTH` | `webauthn` | `webauthn`: panel sign-in with a security key or passkey. `proxy`: the reverse proxy in front (e.g. Umbrel) signs the operator in; the panel can still require a key |
-| `MAINSPRING_TRUST_PROXY` | unset | `1` honours `X-Forwarded-Host` / `X-Forwarded-Proto` for the sign-in origin (always on in `proxy` mode) |
-| `HOST` | `0.0.0.0` | Bind |
-| `PORT` | `8317` | Listen |
-| `LOG_LEVEL` | `info` | Failures always log one line to stderr. `debug` also logs successful hops. Optional panel **Request trace** (`off` / `errors` / `always`) dumps hop breadcrumbs on failure or always. No tokens. |
-| `CLAUDE_CLIENT_ID` / `CODEX_CLIENT_ID` / `GROK_CLIENT_ID` | embedded CLI clients | Override |
-
-Cursor effort variants (`-high`, `-medium`, …) collapse to one listed id (`claude-opus-5`, `composer-2.5`). Thinking stays a sibling (`claude-opus-5-thinking`). Fast twins list as `…-fast` by default (`composer-2.5-fast`); turn that off in the panel Cursor card. Pick effort with `reasoning_effort` and fast with `fast: true` or a `-fast` suffix. Ids that already appear on a connected Claude/Codex/Grok catalog are omitted; force Cursor with a `cursor/` prefix (`cursor/claude-opus-5`). Unprefixed `claude-opus-5` still hits Anthropic first and failovers to Cursor on retryable errors. Optional panel toggle maps Grok ↔ Cursor Grok.
+| `HOST` | `127.0.0.1` (Docker: `0.0.0.0`) | Address to listen on |
+| `PORT` | `8317` | Port to listen on |
+| `MAINSPRING_HOME` | `~/.mainspring` | Data directory for the binary |
+| `DATABASE_PATH` | `$MAINSPRING_HOME/mainspring.sqlite` (Docker: `/data/mainspring.sqlite`) | SQLite database |
+| `JWT_SECRET` | generated next to the database | Encrypts stored credentials and signs panel sessions |
+| `MAINSPRING_AUTH` | `webauthn` | `webauthn`: sign in with a security key or passkey. `proxy`: a reverse proxy in front (like Umbrel) signs you in |
+| `MAINSPRING_TRUST_PROXY` | unset | `1` trusts `X-Forwarded-Host` and `X-Forwarded-Proto` |
+| `PUBLIC_URL` | unset | The HTTPS address the panel suggests when opened over plain HTTP |
+| `LOG_LEVEL` | `info` | `debug` also logs successful requests |
 
 ## API
 
-- `GET /health`
-- `GET /v1/models` — OpenAI list plus discovery fields: `name`, `context_length`, `max_output_tokens`, `input` / `input_modalities`, `reasoning`, `efforts`, `cost`. Twin ids (`*-thinking`, `*-reasoning`, `*-fast`) stay siblings; a ladder is only advertised when that id actually takes `reasoning_effort`.
-- `POST /v1/chat/completions`
-- `POST /v1/messages`
-- `POST /v1/messages/count_tokens`
-- `POST /v1/responses`
+- `POST /v1/chat/completions`, `POST /v1/responses` (also over WebSocket), `POST /v1/responses/compact`
+- `POST /v1/messages`, `POST /v1/messages/count_tokens`
+- `GET /v1/models`, `GET /health`
 
-Bearer: a LocalKey (`sk-ms-…`). Meter dollars are **API-equivalent $** from [models.dev](https://models.dev) list prices, not your subscription bill. The panel Sub card is remaining on the subscription (click to load).
+Authenticate with `Authorization: Bearer sk-ms-…` or `x-api-key: sk-ms-…`.
 
-## Dev
+## Development
 
 ```bash
 make test
-go run ./cmd/mainspring
+go run ./cmd/mainspring demo     # the panel with made-up accounts, at http://127.0.0.1:8318
+go run ./cmd/mainspring          # the real thing
 ```
 
-Live HTTP against a real vault (skips unless you ask):
+`mainspring demo -sign-in` tries the security-key screens. The panel is plain HTML, Alpine.js and CSS in `internal/panel/web`, with no build step.
 
-```bash
-make live                         # boots ~/.mainspring, mints a throwaway key
-MAINSPRING_LIVE_URL=https://hub.example.com MAINSPRING_LIVE_KEY=sk-ms-… make live
-```
+## Credits
+
+Mainspring started from ideas in [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI). See [NOTICE.md](NOTICE.md) for third-party code. MIT licensed.

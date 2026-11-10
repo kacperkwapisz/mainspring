@@ -13,7 +13,6 @@ import (
 	"io"
 )
 
-const seedAlphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 func Encrypt(key []byte, plaintext string) (string, error) {
 	if len(key) != 32 {
@@ -99,18 +98,6 @@ func RandomID(n int) string {
 func SHA256Hex(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
-}
-
-func GenerateSeedPassword() string {
-	bytes := make([]byte, 20)
-	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {
-		panic(err)
-	}
-	out := make([]byte, 20)
-	for i := 0; i < 20; i++ {
-		out[i] = seedAlphabet[int(bytes[i])%len(seedAlphabet)]
-	}
-	return string(out)
 }
 
 func SecretToKey(secret string) []byte {

@@ -97,10 +97,6 @@ func Create(source map[string]string) (*Booted, error) {
 	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Gate: authSvc, Auth: authSvc, DB: d}, nil
 }
 
-func isSecure(publicURL string) bool {
-	return len(publicURL) >= 8 && publicURL[:8] == "https://"
-}
-
 // Settings keys owned by the routing engine.
 const (
 	SettingAffinityTTL = "routing.affinityMinutes"

@@ -56,37 +56,3 @@ func TestCryptoGoldens(t *testing.T) {
 		t.Fatalf("nonhex %s", hex.EncodeToString(nonHex))
 	}
 }
-
-func TestArgon2Password(t *testing.T) {
-	hash, err := HashPassword("long-enough")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !VerifyPassword("long-enough", hash) {
-		t.Fatal("verify failed")
-	}
-	if VerifyPassword("nope", hash) {
-		t.Fatal("false positive")
-	}
-}
-
-func TestSeedAlphabet(t *testing.T) {
-	pw := GenerateSeedPassword()
-	if len(pw) != 20 {
-		t.Fatalf("len %d", len(pw))
-	}
-	for _, c := range pw {
-		if !containsRune(seedAlphabet, c) {
-			t.Fatalf("bad rune %q", c)
-		}
-	}
-}
-
-func containsRune(s string, r rune) bool {
-	for _, c := range s {
-		if c == r {
-			return true
-		}
-	}
-	return false
-}

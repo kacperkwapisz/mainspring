@@ -9,7 +9,6 @@ require (
 	github.com/go-webauthn/webauthn v0.17.0
 	github.com/klauspost/compress v1.17.4
 	github.com/refraction-networking/utls v1.7.3
-	golang.org/x/crypto v0.50.0
 	golang.org/x/net v0.52.0
 	google.golang.org/protobuf v1.36.6
 	modernc.org/sqlite v1.38.2
@@ -30,6 +29,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
