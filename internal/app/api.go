@@ -110,8 +110,10 @@ func staleMS(hub *proxy.Hub) int64 {
 func toAPIWindow(w route.Window, now int64) apiWindow {
 	out := apiWindow{ID: w.ID, Label: w.Label, ResetsAt: w.ResetsAt, PeriodMS: w.PeriodMS, Spent: w.Spent(now), Soft: w.Soft}
 	if w.ResetsAt != nil && *w.ResetsAt <= now {
+		// The window reset since we last looked: it's full, and when it next
+		// resets isn't known until the account is read again.
 		full := 100.0
-		out.Left = &full // the window reset since we last looked
+		out.Left, out.ResetsAt = &full, nil
 	} else if l := w.Left(); l >= 0 {
 		out.Left = &l
 	}

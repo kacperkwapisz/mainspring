@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/live"
 	"github.com/kacperkwapisz/mainspring/internal/route"
 	"github.com/kacperkwapisz/mainspring/internal/store"
 	"github.com/kacperkwapisz/mainspring/internal/sub"
@@ -54,5 +55,50 @@ func TestPollUsageReadsOnlyStaleAccountsAndFillsIdentity(t *testing.T) {
 	}
 	if n := PollUsage(context.Background(), hub, 15*time.Minute); n != 0 {
 		t.Fatalf("fresh accounts polled again: %d", n)
+	}
+}
+
+func TestWatchResetsAnnouncesTheResetAndReadsTheNewWindow(t *testing.T) {
+	usagePause, resetSettle, resetRecheck = 0, 50*time.Millisecond, 10*time.Millisecond
+	const p domain.ProviderID = "reset-test"
+	read := make(chan string, 4)
+	sub.Register(p, func(_ context.Context, c domain.Credential) (sub.Snapshot, error) {
+		read <- c.ID
+		used := 3.0
+		return sub.Snapshot{Windows: []sub.Window{{ID: "five-hour", Label: "5 hours", UsedPercent: &used}}}, nil
+	})
+	hub, _ := testHub(t, nil)
+	hub.Live = live.New()
+	hub.Router.Live = hub.Live
+	if _, err := hub.Vault.Save(store.SaveCredential{ID: "a", Provider: p, Label: "a@example.com", Tokens: domain.CredentialTokens{AccessToken: "t"}}); err != nil {
+		t.Fatal(err)
+	}
+	used, reset := 100.0, time.Now().Add(300*time.Millisecond).UnixMilli()
+	hub.Router.ObserveWindows("a", "headers", []route.Window{{ID: "w", Label: "5 hours", UsedPercent: &used, ResetsAt: &reset}})
+
+	panel, drop := hub.Live.Subscribe()
+	defer drop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go WatchResets(ctx, hub)
+
+	deadline := time.After(3 * time.Second)
+	for announced := false; !announced; {
+		select {
+		case <-panel.Wake:
+			for _, topic := range panel.Take() {
+				announced = announced || (topic == live.Pool && time.Now().UnixMilli() >= reset)
+			}
+		case <-deadline:
+			t.Fatal("the reset was never announced")
+		}
+	}
+	select {
+	case id := <-read:
+		if id != "a" {
+			t.Fatalf("read %s", id)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("limits weren't read after the reset")
 	}
 }

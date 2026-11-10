@@ -83,6 +83,7 @@ func main() {
 			tick()
 		}
 	}()
+	go proxy.WatchResets(context.Background(), booted.Hub)
 	addr := net.JoinHostPort(booted.Env.Host, strconv.Itoa(booted.Env.Port))
 	srv := httpx.Server(addr, booted.Handler)
 	fmt.Printf("mainspring %s listening on http://%s\n", version, addr)
