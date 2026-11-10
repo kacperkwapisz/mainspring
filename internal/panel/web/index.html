@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1C1C1C">
+<meta name="color-scheme" content="dark">
+<title>Mainspring</title>
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/app.css?v={{VERSION}}">
+<script defer src="/assets/app.js?v={{VERSION}}"></script>
+<script defer src="/assets/alpine.min.js"></script>
+<script type="module">
+  import { mountToaster, toast } from "/assets/ding.js";
+  mountToaster({ position: "bottom-right", theme: "dark", sound: false });
+  window.dingToast = toast;
+</script>
+</head>
+<body>
+<div x-data="app" x-cloak>
+
+<!-- ================= Sign-in gate ================= -->
+<template x-if="gateView === 'loading'"><div class="gate"><div class="muted">Loading…</div></div></template>
+<template x-if="gateView === 'error'">
+  <div class="gate"><div class="gate-card"><div class="gate-box">
+    <div class="card-title">Couldn't reach Mainspring</div>
+    <div class="subtle" x-text="authError"></div>
+    <div><button class="btn btn-secondary btn-sm" @click="loadAuth()">Retry</button></div>
+  </div></div></div>
+</template>
+
+<template x-if="gateView === 'insecure'">
+  <div class="gate"><div class="gate-card" style="max-width:380px">
+    <div class="wordmark" style="justify-content:center" x-html="'<img src=/assets/mark.svg width=20 height=20 alt=\'\'>Mainspring'"></div>
+    <div class="gate-box">
+      <div><div class="card-title">Open the secure address</div><div class="subtle" style="margin-top:4px">Browsers only allow security keys and passkeys over HTTPS or on localhost</div></div>
+      <template x-if="auth.httpsURL">
+        <a class="btn btn-ink" :href="auth.httpsURL" style="height:40px">Open secure address</a>
+      </template>
+      <div class="help" style="display:flex;gap:8px"><span x-html="icon('info','#A1A1A1')"></span><span>You opened <span class="mono" x-text="location.origin"></span>. Put Mainspring behind HTTPS (for example <span class="mono">tailscale serve</span>), or open it on the hub itself at <span class="mono">http://localhost:8317</span></span></div>
+    </div>
+  </div></div>
+</template>
+
+<template x-if="gateView === 'signin'">
+  <div class="gate"><div class="gate-card" style="max-width:360px">
+    <div class="wordmark" style="justify-content:center" x-html="'<img src=/assets/mark.svg width=20 height=20 alt=\'\'>Mainspring'"></div>
+    <div class="gate-box">
+      <div><div class="card-title">Sign in</div><div class="subtle" style="margin-top:4px">Touch your security key, or use a passkey</div></div>
+      <template x-if="authError">
+        <div style="display:flex;gap:10px"><span x-html="icon('alert','#F87171')"></span><div><div class="strong" x-text="authError"></div><div class="subtle">Try one of the keys you added when you set up sign-in</div></div></div>
+      </template>
+      <button class="btn btn-ink" style="height:40px" @click="signIn()" :disabled="authBusy">
+        <span x-show="!authBusy" x-html="icon('key','#171717')"></span><span x-show="authBusy" x-html="SPINNER"></span>
+        <span x-text="authBusy ? 'Touch your key when it blinks' : (authError ? 'Try again' : 'Sign in with your key')"></span>
+      </button>
+    </div>
+    <div class="help" style="text-align:center">Lost your keys? Run <span class="mono">mainspring auth reset</span> on hub</div>
+  </div></div>
+</template>
+
+<template x-if="gateView === 'setup'">
+  <div class="gate"><div class="gate-card">
+    <div class="wordmark" style="justify-content:center" x-html="'<img src=/assets/mark.svg width=20 height=20 alt=\'\'>Mainspring'"></div>
+    <div class="gate-box" style="gap:20px">
+      <div><div class="card-title">Set up sign-in</div><div class="subtle" style="margin-top:4px">Mainspring signs you in with a security key or a passkey. There's no password</div></div>
+      <div class="hr"></div>
+      <div class="step">
+        <div class="mark" :class="setup.step > 1 ? 'done' : 'on'" x-html="setup.step > 1 ? icon('check','#E5E5E5',12) : '1'"></div>
+        <div class="body">
+          <div class="label-row"><div class="label">Setup code</div><div class="small muted" x-show="setup.step > 1" x-text="setup.code.toUpperCase()"></div></div>
+          <template x-if="setup.step === 1">
+            <form class="field" @submit.prevent="verifySetup()">
+              <input class="input mono" :class="setup.error && 'invalid'" x-model="setup.code" placeholder="XXXX-XXXX" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" autofocus>
+              <template x-if="setup.error"><div class="field-error" x-text="setup.error"></div></template>
+              <div class="help">Mainspring printed it in hub's terminal when it started. On Umbrel, open the app's logs</div>
+              <div><button class="btn btn-ink" type="submit" :disabled="!setup.code.trim()">Continue</button></div>
+            </form>
+          </template>
+        </div>
+      </div>
+      <div class="step" :style="setup.step < 2 && 'opacity:.5'">
+        <div class="mark" :class="setup.step > 2 ? 'done' : setup.step === 2 ? 'on' : 'off'" x-html="setup.step > 2 ? icon('check','#E5E5E5',12) : '2'"></div>
+        <div class="body">
+          <div class="label">Add your first key</div>
+          <template x-if="setup.step === 2">
+            <div class="body">
+              <div class="field">
+                <label class="label" for="k1">Name</label>
+                <input id="k1" class="input" x-model="setup.name" placeholder="YubiKey 5C, keychain">
+                <div class="help">So you can tell your keys apart later</div>
+              </div>
+              <template x-if="setup.error"><div class="field-error" x-text="setup.error"></div></template>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-ink" @click="setupKey('security-key')" :disabled="authBusy"><span x-html="authBusy ? SPINNER : icon('key','#171717')"></span>Add security key</button>
+                <button class="btn btn-ghost" @click="setupKey('passkey')" :disabled="authBusy"><span x-html="icon('passkey')"></span>Use a passkey instead</button>
+              </div>
+              <div class="help">Mainspring adds it without a passkey, so it doesn't use one of your YubiKey's passkey slots</div>
+            </div>
+          </template>
+        </div>
+      </div>
+      <div class="step" :style="setup.step < 3 && 'opacity:.5'">
+        <div class="mark" :class="setup.step === 3 ? 'on' : 'off'">3</div>
+        <div class="body">
+          <div class="label-row"><div class="label">Add a backup key</div><div class="small muted">Recommended</div></div>
+          <template x-if="setup.step === 3">
+            <div class="body">
+              <div class="subtle">Keep a second key somewhere safe. If you lose your only key, you'll have to reset sign-in from hub's terminal</div>
+              <div class="field"><label class="label" for="k2">Name</label><input id="k2" class="input" x-model="setup.backupName" placeholder="YubiKey 5 Nano, desk drawer"></div>
+              <template x-if="setup.error"><div class="field-error" x-text="setup.error"></div></template>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-ink" @click="setupKey('security-key', true)" :disabled="authBusy"><span x-html="authBusy ? SPINNER : icon('key','#171717')"></span>Add backup key</button>
+                <button class="btn btn-ghost" @click="finishSetup()">Skip for now</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</template>
+
+<!-- ================= App ================= -->
+<template x-if="gateView === 'app'">
+<div class="shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div>
+      <a class="wordmark" href="#/pool"><img src="/assets/mark.svg" width="20" height="20" alt="">Mainspring</a>
+      <nav class="nav" aria-label="Main">
+        <template x-for="r in ROUTES" :key="r">
+          <a :href="'#/' + r" :aria-current="route === r ? 'page' : null">
+            <span x-html="icon(r)"></span><span class="grow" x-text="r[0].toUpperCase() + r.slice(1)"></span>
+            <template x-if="r === 'pool' && attention"><span class="dot" title="An account needs you"></span></template>
+            <template x-if="r === 'sessions'"><span class="count" x-text="liveSessions"></span></template>
+          </a>
+        </template>
+      </nav>
+    </div>
+    <div class="sidebar-foot">
+      <button class="endpoint" @click="copy(endpoint, 'the endpoint')" title="Copy the endpoint">
+        <span class="small muted">Endpoint</span>
+        <span class="row"><span class="url mono" x-text="endpoint.replace(/^https?:\/\//, '')"></span><span x-html="icon('copy','#A1A1A1')"></span></span>
+      </button>
+      <template x-if="auth.mode !== 'proxy' || auth.requireKey">
+        <nav class="nav" style="margin:0"><a href="#" @click.prevent="lock()"><span x-html="icon('lock')"></span><span class="grow">Lock</span></a></nav>
+      </template>
+    </div>
+  </aside>
+  <header class="topbar">
+    <nav class="nav" aria-label="Main">
+      <template x-for="r in ROUTES" :key="r">
+        <a :href="'#/' + r" :aria-current="route === r ? 'page' : null"><span x-text="r[0].toUpperCase() + r.slice(1)"></span><template x-if="r === 'pool' && attention"><span class="dot"></span></template></a>
+      </template>
+    </nav>
+  </header>
+
+  <main class="main">
+
+  <!-- ================= Pool ================= -->
+  <template x-if="route === 'pool'">
+    <div>
+      <div class="page-head">
+        <div><h1 class="page-title">Pool</h1><div class="page-meta" x-text="pool ? (pool.empty ? 'No accounts yet' : fmt.plural(pool.sessions, 'live session', 'live sessions') + ' · ' + fmt.plural(pool.requests, 'request', 'requests') + ' today') : ''"></div></div>
+        <template x-if="pool && !pool.empty"><button class="btn btn-ink" @click="addAccount()"><span x-html="icon('plus','#171717')"></span>Add account</button></template>
+      </div>
+      <div class="content">
+        <template x-if="poolError && !pool"><div class="card pane-error"><div><div class="strong">Couldn't load the pool</div><div class="subtle" x-text="poolError"></div></div><button class="btn btn-secondary btn-sm" @click="loadPool()">Retry</button></div></template>
+
+        <!-- First run -->
+        <template x-if="pool && pool.empty">
+          <div class="card guide">
+            <div class="guide-step"><div class="n">1</div><div style="flex:1"><div class="strong">Add an account</div><div class="subtle">Sign in to a Claude or Codex subscription, or connect Grok, Cursor, OpenCode Console or an OpenAI-compatible API</div></div><button class="btn btn-ink btn-sm" @click="addAccount()"><span x-html="icon('plus','#171717')"></span>Add account</button></div>
+            <div class="guide-step"><div class="n">2</div><div style="flex:1"><div class="strong">Create a key</div><div class="subtle">Give each machine its own key, so you can see what it uses and revoke it on its own</div></div><a class="btn btn-secondary btn-sm" href="#/keys">Create key</a></div>
+            <div class="guide-step"><div class="n">3</div><div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:0"><div><div class="strong">Point your tools at the endpoint</div><div class="subtle">Use the key from step 2 wherever a tool asks for an API key</div></div>
+              <div class="secret"><span class="mono" x-text="endpoint"></span><button class="btn-icon" @click="copy(endpoint,'the endpoint')" x-html="icon('copy')" aria-label="Copy"></button></div>
+              <pre class="code" x-text="'export ANTHROPIC_BASE_URL=' + location.origin + '\nexport ANTHROPIC_AUTH_TOKEN=sk-ms-…\nclaude'"></pre>
+              <div class="subtle">Codex, Cursor, OpenCode and other OpenAI-style tools take the endpoint above as their base URL</div></div></div>
+          </div>
+        </template>
+
+        <!-- Everything out notice (service-wide) -->
+        <template x-if="pool">
+          <template x-for="g in pool.groups.filter(g => !g.next_up)" :key="'out'+g.provider">
+            <div class="notice"><span x-html="icon('clock','#FBBF24')"></span><div class="body"><div class="title" x-text="'Every ' + g.name + ' account is out'"></div><div class="subtle" x-text="g.back_at ? ('The first one is back ' + fmt.in(g.back_at, now) + ', at ' + fmt.clock(g.back_at) + '. Until then, new ' + g.name + ' requests get a 429 with a retry time') : ('Sign an account in again or put one back in rotation')"></div></div></div>
+          </template>
+        </template>
+
+        <template x-if="pool">
+          <template x-for="g in pool.groups" :key="g.provider">
+            <section class="card">
+              <div class="card-head">
+                <div style="display:flex;align-items:baseline;gap:10px"><span class="card-title" x-text="g.name"></span><span class="meta" x-text="fmt.plural(g.accounts.length, 'account', 'accounts') + ' · ' + fmt.plural(g.sessions, 'live session', 'live sessions')"></span></div>
+                <div class="reason" x-html="groupReason(g)"></div>
+              </div>
+              <div class="scroll-x">
+              <table class="grid pool">
+                <colgroup><col style="width:226px"><col style="width:166px"><col style="width:204px"><col><col style="width:60px"><col style="width:134px"><col style="width:78px"></colgroup>
+                <thead><tr>
+                  <th>Account</th><th>Status</th><th><div style="padding-left:48px" x-text="shortHeader(g)"></div></th>
+                  <th><div style="padding-left:48px" x-text="longHeader(g) + ', from now to Sunday'"></div><div class="axis" style="margin-left:48px;width:204px"><template x-for="d in axis()" :key="d.label"><span :style="'left:' + d.x + 'px'" x-text="d.label"></span></template></div></th>
+                  <th class="r">Sessions</th><th>Updated</th><th class="r">In rotation</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="a in g.accounts" :key="a.id">
+                    <tr class="clickable" :class="{ next: isAccent(a, g), dim: a.status === 'benched', stale: a.stale && a.status !== 'cooling' }" @click="openDrawer(a.id)">
+                      <td><div class="acct"><span class="acct-name" x-text="a.label"></span><span class="acct-plan" x-text="a.plan"></span></div></td>
+                      <td><span class="status" :class="statusOf(a,g).cls"><span x-html="statusOf(a,g).mark"></span><span x-text="statusOf(a,g).text"></span></span></td>
+                      <template x-if="a.status === 'needs_sign_in' || a.status === 'benched'">
+                        <td colspan="2" class="subtle" x-text="rowMessage(a)"></td>
+                      </template>
+                      <template x-if="a.status !== 'needs_sign_in' && a.status !== 'benched'">
+                        <td><div class="reserve"><span class="pct" x-text="a.short ? fmt.pct(a.short.left) : '—'"></span><span class="bar"><i :style="'width:' + (a.short && a.short.left != null ? a.short.left : 0) + '%'"></i></span><span class="rel ellipsis" style="width:96px" x-text="shortRel(a)"></span></div></td>
+                      </template>
+                      <template x-if="a.status !== 'needs_sign_in' && a.status !== 'benched'">
+                        <td><div class="reserve"><span class="pct" x-text="a.long ? fmt.pct(a.long.left) : '—'"></span>
+                          <span class="lane" style="width:270px"><span x-html="lane(a).svg"></span><span class="rel" :style="'left:' + lane(a).x + 'px'" x-text="lane(a).label"></span></span></div></td>
+                      </template>
+                      <td class="r" :class="a.sessions ? 'strong' : 'muted'" x-text="a.status === 'needs_sign_in' ? '—' : a.sessions"></td>
+                      <td @click.stop>
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <template x-if="a.status === 'needs_sign_in'"><button class="btn btn-secondary btn-sm" @click="startLogin(a.provider)">Sign in again</button></template>
+                          <template x-if="a.status !== 'needs_sign_in' && a.status !== 'benched'"><span :class="a.stale ? 'muted' : 'subtle'" x-text="a.observed_at ? fmt.ago(a.observed_at, now) : 'not read yet'"></span></template>
+                          <template x-if="a.stale && a.can_check && a.status !== 'needs_sign_in' && a.status !== 'benched'">
+                            <button class="btn btn-secondary btn-sm" style="min-width:57px" @click="check(a)" :aria-label="'Check ' + a.label"><span x-show="!checking[a.id]">Check</span><span x-show="checking[a.id]" x-html="SPINNER"></span></button>
+                          </template>
+                        </div>
+                      </td>
+                      <td class="r" @click.stop><template x-if="a.status !== 'needs_sign_in'"><span class="switch-hit"><button class="switch" role="switch" :aria-checked="a.in_rotation ? 'true' : 'false'" :aria-label="'In rotation: ' + a.label" @click="setRotation(a, !a.in_rotation)"></button></span></template></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              </div>
+            </section>
+          </template>
+        </template>
+
+        <template x-if="pool && !pool.empty">
+          <div class="split">
+            <section class="card">
+              <div class="card-head"><div class="title-row"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Other sources</span><span class="meta">No reset windows</span></div><span class="small muted" x-show="pool.others.length">Requests today</span></div></div>
+              <template x-if="!pool.others.length"><div class="list-row subtle" style="padding:12px 15px">Cursor, Grok, OpenCode Console and OpenAI-compatible APIs show up here</div></template>
+              <template x-for="s in pool.others" :key="s.id">
+                <div class="list-row" style="cursor:pointer" @click="openDrawer(s.id)">
+                  <span class="strong" style="width:128px;flex-shrink:0" x-text="PROVIDERS[s.provider]?.name === 'OpenAI-compatible' ? s.label : PROVIDERS[s.provider]?.name"></span>
+                  <span class="subtle ellipsis" style="flex:1" x-text="s.provider === 'openai' ? ('OpenAI-compatible' + (s.detail ? ' · ' + s.detail : '')) : [...new Set([s.label, s.plan || s.detail].filter(Boolean))].join(' · ')"></span>
+                  <span class="num" :class="s.requests_today ? 'strong' : 'muted'" style="width:44px;text-align:right" x-text="fmt.int(s.requests_today)"></span>
+                  <span class="switch-hit" @click.stop><button class="switch" role="switch" :aria-checked="s.in_rotation ? 'true' : 'false'" :aria-label="'In rotation: ' + s.label" @click="setRotation(s, !s.in_rotation)"></button></span>
+                </div>
+              </template>
+            </section>
+            <section class="card">
+              <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Today</span><span class="meta">What Mainspring did on its own</span></div></div>
+              <template x-if="!pool.activity.length"><div class="list-row subtle" style="padding:12px 15px">Nothing yet. Limits hit, sessions moved and sign-ins show up here</div></template>
+              <template x-for="ev in pool.activity.slice(0, 8)" :key="ev.id">
+                <div class="event"><time x-text="fmt.clock(ev.ts)"></time><div x-html="activityText(ev)"></div></div>
+              </template>
+            </section>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ================= Sessions ================= -->
+  <template x-if="route === 'sessions'">
+    <div>
+      <div class="page-head"><div><h1 class="page-title">Sessions</h1><div class="page-meta" x-text="sessions ? fmt.plural(sessions.sessions.length, 'live session', 'live sessions') + ' · ' + Math.round(sessions.cache_share * 100) + '% of input read from cache' : ''"></div></div></div>
+      <div class="content">
+        <template x-if="sessionsError && !sessions"><div class="card pane-error"><div><div class="strong">Couldn't load sessions</div><div class="subtle" x-text="sessionsError"></div></div><button class="btn btn-secondary btn-sm" @click="loadSessions()">Retry</button></div></template>
+        <template x-if="sessions && !sessions.sessions.length">
+          <div class="card" style="padding:16px 15px"><div class="strong">No live sessions</div><div class="subtle">A session shows up here when a tool sends a request to <span class="mono" x-text="endpoint"></span></div></div>
+        </template>
+        <template x-if="sessions && sessions.sessions.length">
+          <section class="card">
+            <div class="card-head"><div class="reason" x-text="'A session stays on its account for ' + sessions.ttl_minutes + ' min after its last request, so its prompt cache stays warm. A session that moves starts cold, which shows as cache read below 75%'"></div></div>
+            <div class="scroll-x"><table class="grid">
+              <thead><tr><th>Session</th><th>Client</th><th>Key</th><th>Account</th><th>Model</th><th>Transport</th><th>Started</th><th>Last request</th><th class="r">Requests</th><th>Cache read</th></tr></thead>
+              <tbody>
+                <template x-for="s in sessions.sessions" :key="s.id + s.account_id">
+                  <tr>
+                    <td class="mono strong" x-text="s.id"></td>
+                    <td x-text="s.client"></td>
+                    <td class="subtle" x-text="s.key || '—'"></td>
+                    <td class="wrap"><div class="strong" x-text="(PROVIDERS[s.provider]?.name || s.provider) + ' · ' + s.account"></div><template x-if="s.moved_from"><div class="small subtle" x-text="'Moved from ' + s.moved_from + ' at ' + fmt.clock(s.moved_at) + (s.moved_reason ? ', ' + s.moved_reason : '')"></div></template></td>
+                    <td class="mono" x-text="s.model"></td>
+                    <td class="subtle" x-text="s.transport === 'websocket' ? 'WebSocket' : 'HTTP'"></td>
+                    <td class="mono subtle" x-text="fmt.clock(s.started_at)"></td>
+                    <td class="subtle" x-text="fmt.ago(s.last_at, now)"></td>
+                    <td class="r strong" x-text="fmt.int(s.requests)"></td>
+                    <td><div class="reserve"><span class="bar" :class="s.cache_share >= 0.75 ? '' : ''" style="width:72px"><i :style="'width:' + Math.round(s.cache_share*100) + '%;' + (s.cache_share < 0.75 ? 'background:#E5E5E5' : '')"></i></span><span :class="s.cache_share < 0.75 ? 'strong' : 'subtle'" x-text="Math.round(s.cache_share*100) + '%'"></span></div></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table></div>
+          </section>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ================= Keys ================= -->
+  <template x-if="route === 'keys'">
+    <div>
+      <div class="page-head">
+        <div><h1 class="page-title">Keys</h1><div class="page-meta" x-text="keys ? fmt.plural(keys.keys.length, 'key', 'keys') + ' · ' + fmt.tokens(keys.used_today) + ' tokens today' : ''"></div></div>
+        <button class="btn btn-ink" @click="newKey()"><span x-html="icon('plus','#171717')"></span>Create key</button>
+      </div>
+      <div class="content">
+        <template x-if="keysError && !keys"><div class="card pane-error"><div><div class="strong">Couldn't load keys</div><div class="subtle" x-text="keysError"></div></div><button class="btn btn-secondary btn-sm" @click="loadKeys()">Retry</button></div></template>
+        <template x-if="keys && !keys.keys.length"><div class="card" style="padding:16px 15px"><div class="strong">No keys yet</div><div class="subtle">Create one for each machine or tool, then paste it where the tool asks for an API key</div></div></template>
+        <template x-if="keys && keys.keys.length">
+          <section class="card"><div class="scroll-x"><table class="grid">
+            <thead><tr><th>Name</th><th>Key</th><th>Scope</th><th>Used today</th><th class="r">Sessions</th><th>Last used</th><th>Created</th><th></th></tr></thead>
+            <tbody><template x-for="k in keys.keys" :key="k.id"><tr>
+              <td class="strong" x-text="k.name"></td>
+              <td class="mono subtle" x-text="k.prefix + '…'"></td>
+              <td x-text="k.providers && k.providers.length ? k.providers.map(p => PROVIDERS[p]?.name || p).join(', ') : 'All providers'"></td>
+              <td><div class="reserve"><span class="strong" x-text="fmt.tokens(k.used_today)"></span><template x-if="k.daily_cap"><span class="reserve"><span class="bar"><i :style="'width:' + Math.min(100, k.used_today / k.daily_cap * 100) + '%'"></i></span><span class="subtle" x-text="'of ' + fmt.tokens(k.daily_cap)"></span></span></template><template x-if="!k.daily_cap"><span class="muted">No cap</span></template></div></td>
+              <td class="r" :class="k.sessions ? 'strong' : 'muted'" x-text="k.sessions"></td>
+              <td class="subtle" x-text="fmt.ago(k.last_used_at, now)"></td>
+              <td class="subtle" x-text="fmt.day(k.created_at)"></td>
+              <td class="r"><button class="btn btn-secondary btn-sm" @click="revokeKey(k)">Revoke</button></td>
+            </tr></template></tbody>
+          </table></div></section>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ================= Meter ================= -->
+  <template x-if="route === 'meter'">
+    <div>
+      <div class="page-head">
+        <div><h1 class="page-title">Meter</h1><div class="page-meta" x-text="meter ? (meterRange === 'today' ? 'Today up to ' + fmt.clock(now) : 'Since ' + fmt.day(meter.from)) : ''"></div></div>
+        <div class="segmented" role="group" aria-label="Range">
+          <template x-for="r in [['today','Today'],['7d','7 days'],['14d','14 days']]" :key="r[0]"><button :aria-pressed="meterRange === r[0]" @click="meterRange = r[0]; loadMeter()" x-text="r[1]"></button></template>
+        </div>
+      </div>
+      <template x-if="meterError && !meter"><div class="content"><div class="card pane-error"><div><div class="strong">Couldn't load the meter</div><div class="subtle" x-text="meterError"></div></div><button class="btn btn-secondary btn-sm" @click="loadMeter()">Retry</button></div></div></template>
+      <template x-if="meter">
+        <div>
+          <div class="stats">
+            <div class="stat"><div class="k">Tokens</div><div class="v" x-text="fmt.tokens(meter.tokens)"></div><div class="s" x-text="fmt.tokens(meter.input) + ' input · ' + fmt.tokens(meter.output) + ' output'"></div></div>
+            <div class="stat"><div class="k">Requests</div><div class="v" x-text="fmt.int(meter.requests)"></div><div class="s" x-text="fmt.plural(meter.keys, 'key', 'keys') + ' · ' + fmt.plural(meter.accounts, 'account', 'accounts')"></div></div>
+            <div class="stat"><div class="k">API-equivalent cost</div><div class="v" x-text="fmt.usd(meter.usd)"></div><div class="s">At API list price, not what you pay</div></div>
+          </div>
+          <div class="content" style="padding-top:16px">
+            <div class="split" style="grid-template-columns:2fr 1fr">
+              <section class="card">
+                <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Tokens per day</span><span class="meta">Last 14 days</span></div></div>
+                <div class="chart" x-html="chartSVG()"></div>
+              </section>
+              <section class="card">
+                <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Cache</span><span class="meta" x-text="fmt.tokens(meter.input) + ' input tokens'"></span></div><div class="reason">A high share means sessions stay on their accounts</div></div>
+                <div style="padding:4px 15px 12px"><span class="stat"><span class="v" x-text="meter.input ? Math.round(meter.cache_read / meter.input * 100) + '%' : '—'"></span></span> <span class="subtle">read from cache</span>
+                  <div class="bar" style="width:100%;margin-top:10px"><i :style="'width:' + (meter.input ? meter.cache_read / meter.input * 100 : 0) + '%'"></i></div></div>
+                <div class="list-row"><span class="legend-dot" style="background:#A1A1A1"></span><span style="flex:1">Cache reads</span><span class="strong num" x-text="fmt.tokens(meter.cache_read)"></span></div>
+                <div class="list-row"><span class="legend-dot" style="background:#6B6B6B"></span><span style="flex:1">Cache writes</span><span class="strong num" x-text="fmt.tokens(meter.cache_write)"></span></div>
+                <div class="list-row"><span class="legend-dot" style="border:1px solid #737373"></span><span style="flex:1">Uncached input</span><span class="strong num" x-text="fmt.tokens(meter.uncached)"></span></div>
+              </section>
+            </div>
+            <div class="split" style="grid-template-columns:2fr 1fr">
+              <section class="card">
+                <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Cost by model</span><span class="meta" x-text="fmt.plural(meter.costs.reduce((n,p)=>n+p.models.length,0), 'model', 'models')"></span></div><div class="reason">Priced per model at each provider's API list price</div></div>
+                <template x-if="!meter.costs.length"><div class="list-row subtle">No traffic yet. Point a tool at <span class="mono" x-text="endpoint"></span></div></template>
+                <template x-for="p in meter.costs" :key="p.provider"><div>
+                  <div class="list-row"><span class="strong" style="flex:1" x-text="p.name"></span><span class="strong num" x-text="fmt.usd(p.usd)"></span></div>
+                  <template x-for="m in p.models" :key="m.model"><div class="list-row" style="padding-left:39px"><span class="mono ellipsis" style="flex:1" x-text="m.model"></span><span class="bar hide-sm" style="width:180px"><i :style="'width:' + (meter.usd ? m.usd / meter.usd * 100 : 0) + '%'"></i></span><span class="num" style="width:80px;text-align:right" x-text="fmt.usd(m.usd)"></span></div></template>
+                </div></template>
+              </section>
+              <section class="card">
+                <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Requests by account</span></div></div>
+                <template x-for="g in meter.by_account" :key="g.provider"><div>
+                  <div class="list-row"><span class="strong" style="flex:1" x-text="g.name"></span><span class="strong num" x-text="fmt.int(g.requests)"></span></div>
+                  <template x-for="a in g.accounts" :key="a.id"><div class="list-row" style="padding-left:39px"><span class="ellipsis" style="flex:1" x-text="a.label"></span><span class="num" x-text="fmt.int(a.requests)"></span></div></template>
+                </div></template>
+              </section>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <!-- ================= Sources ================= -->
+  <template x-if="route === 'sources'">
+    <div>
+      <div class="page-head">
+        <div><h1 class="page-title">Sources</h1><div class="page-meta" x-text="models ? fmt.plural(models.models.length, 'model ID', 'model IDs') : ''"></div></div>
+        <button class="btn btn-secondary" @click="startLogin('openai')"><span x-html="icon('plus')"></span>Add OpenAI-compatible source</button>
+      </div>
+      <div class="content">
+        <template x-if="pool">
+          <section class="card">
+            <div class="card-head"><span class="card-title">Connected</span></div>
+            <div class="scroll-x"><table class="grid"><thead><tr><th>Source</th><th>Connection</th><th class="r">Accounts</th></tr></thead><tbody>
+              <template x-for="g in pool.groups" :key="g.provider"><tr><td class="strong" x-text="g.name"></td><td class="subtle" x-text="fmt.plural(g.accounts.length, 'account', 'accounts')"></td><td class="r" x-text="g.accounts.length"></td></tr></template>
+              <template x-for="s in pool.others" :key="s.id"><tr class="clickable" @click="openDrawer(s.id)"><td class="strong" x-text="s.provider === 'openai' ? s.label : PROVIDERS[s.provider]?.name"></td><td class="subtle" x-text="s.provider === 'openai' ? (s.base_url || s.detail) : [...new Set([s.label, s.plan || s.detail].filter(Boolean))].join(' · ')"></td><td class="r">1</td></tr></template>
+            </tbody></table></div>
+          </section>
+        </template>
+        <section class="card">
+          <div class="card-head">
+            <div class="title-row" style="align-items:center;flex-wrap:wrap">
+              <div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Models</span><span class="meta">Exactly as your tools should send them</span></div>
+              <div style="display:flex;gap:8px"><input class="input" style="width:220px;height:32px" placeholder="Search model IDs" x-model="modelSearch" aria-label="Search model IDs">
+                <select class="input" style="width:160px;height:32px" x-model="modelSource" aria-label="Source"><option value="">All sources</option><template x-for="s in modelSources()" :key="s"><option :value="s" x-text="s"></option></template></select></div>
+            </div>
+            <div class="reason">Plain IDs go to their own provider first and fall back to Cursor on retryable errors. <span class="mono">cursor/…</span> always uses Cursor</div>
+          </div>
+          <template x-if="modelsError && !models"><div class="pane-error"><div class="subtle" x-text="modelsError"></div><button class="btn btn-secondary btn-sm" @click="loadSources()">Retry</button></div></template>
+          <template x-if="models && !models.models.length"><div class="list-row subtle">Add an account to see the models it serves</div></template>
+          <template x-if="models && models.models.length">
+            <div class="scroll-x"><table class="grid"><thead><tr><th>Model ID</th><th>Served by</th><th class="r">Context</th><th>Reasoning effort</th><th>Input</th><th></th></tr></thead><tbody>
+              <template x-for="m in filteredModels().slice(0, 400)" :key="m.id"><tr>
+                <td class="mono strong" x-text="m.id"></td>
+                <td><span x-text="m.served_by"></span><template x-if="m.fallback"><span class="muted" x-text="', then ' + m.fallback"></span></template></td>
+                <td class="r subtle" x-text="m.context_length ? fmt.tokens(m.context_length) : '—'"></td>
+                <td class="subtle" x-text="m.efforts && m.efforts.length ? m.efforts.join(' · ') : '—'"></td>
+                <td class="subtle" x-text="m.input && m.input.length ? m.input.map(s => s[0].toUpperCase()+s.slice(1)).join(', ') : 'Text'"></td>
+                <td class="r"><button class="btn-icon" @click="copy(m.id, m.id)" x-html="icon('copy')" :aria-label="'Copy ' + m.id"></button></td>
+              </tr></template>
+            </tbody></table></div>
+          </template>
+        </section>
+      </div>
+    </div>
+  </template>
+
+  <!-- ================= Settings ================= -->
+  <template x-if="route === 'settings'">
+    <div>
+      <div class="page-head"><div><h1 class="page-title">Settings</h1><div class="page-meta">Changes save as you make them</div></div></div>
+      <div class="content">
+        <template x-if="settingsError && !settings"><div class="card pane-error"><div class="subtle" x-text="settingsError"></div><button class="btn btn-secondary btn-sm" @click="loadSettings()">Retry</button></div></template>
+        <template x-if="settings">
+          <div class="settings">
+            <div class="setting-section">
+              <div class="head"><div class="t">Routing</div><div class="d">New sessions go to the account whose limit resets soonest while it still has reserve left</div></div>
+              <div class="card">
+                <div class="setting-row"><div class="name">Keep sessions on their account</div><div class="desc">For this long after the last request, so prompt caches stay warm</div>
+                  <select class="input" style="width:96px;height:32px" :value="settings.affinity_minutes" @change="saveSetting({affinity_minutes: +$event.target.value})"><template x-for="m in [15,30,60,120,240]" :key="m"><option :value="m" x-text="m < 60 ? m + ' min' : (m/60) + ' h'" :selected="settings.affinity_minutes === m"></option></template></select></div>
+                <div class="setting-row"><div class="name">Mark limits stale</div><div class="desc">When Mainspring hasn't read an account's limits for this long</div>
+                  <select class="input" style="width:96px;height:32px" @change="saveSetting({stale_minutes: +$event.target.value})"><template x-for="m in [30,60,180,720]" :key="m"><option :value="m" x-text="m < 60 ? m + ' min' : (m/60) + ' h'" :selected="settings.stale_minutes === m"></option></template></select></div>
+                <div class="setting-row"><div class="name">Codex over WebSockets</div><div class="desc">Faster Codex turns when its config sets <span class="mono">supports_websockets = true</span></div>
+                  <span class="switch-hit"><button class="switch" role="switch" :aria-checked="settings.websockets ? 'true' : 'false'" aria-label="Codex over WebSockets" @click="saveSetting({websockets: !settings.websockets})"></button></span></div>
+              </div>
+            </div>
+            <div class="setting-section">
+              <div class="head"><div class="t">Cursor</div><div class="d">How Cursor's models sit next to your other sources</div></div>
+              <div class="card">
+                <div class="setting-row"><div class="name">Prefix models with <span class="mono">cursor/</span></div><div class="desc">Cursor answers only to <span class="mono">cursor/</span> IDs and stops backing up Claude and Codex</div><span class="switch-hit"><button class="switch" role="switch" :aria-checked="settings.cursor_prefix ? 'true' : 'false'" aria-label="Prefix models" @click="saveSetting({cursor_prefix: !settings.cursor_prefix})"></button></span></div>
+                <div class="setting-row"><div class="name">List fast twins as <span class="mono">…-fast</span></div><div class="desc"><span class="mono">composer-2.5-fast</span> and other fast versions get their own IDs</div><span class="switch-hit"><button class="switch" role="switch" :aria-checked="settings.cursor_list_fast ? 'true' : 'false'" aria-label="List fast twins" @click="saveSetting({cursor_list_fast: !settings.cursor_list_fast})"></button></span></div>
+                <div class="setting-row"><div class="name">Fall back between Grok and Cursor</div><div class="desc">Grok models try Cursor's Grok on retryable errors, and the other way round</div><span class="switch-hit"><button class="switch" role="switch" :aria-checked="settings.grok_failover ? 'true' : 'false'" aria-label="Grok fallback" @click="saveSetting({grok_failover: !settings.grok_failover})"></button></span></div>
+              </div>
+            </div>
+            <div class="setting-section">
+              <div class="head"><div class="t">Request trace</div><div class="d">Traces go to the server log. They never contain tokens or keys</div></div>
+              <div class="card"><div class="setting-row"><div class="name">Trace requests</div><div class="desc">Shows how a request was routed and what came back</div>
+                <div class="segmented"><template x-for="t in [['off','Off'],['errors','On failure'],['always','Always']]" :key="t[0]"><button :aria-pressed="settings.trace === t[0]" @click="saveSetting({trace: t[0]})" x-text="t[1]"></button></template></div></div></div>
+            </div>
+            <div class="setting-section">
+              <div class="head"><div class="t">Usage hub</div><div class="d">Lets T3 Code and other dashboards read pooled limits with a management key</div></div>
+              <div class="card">
+                <div class="setting-row"><div class="name">Share limits with dashboards</div><div class="desc" x-text="settings.hub_key ? 'Dashboards connect with the management key to ' + location.origin : 'Create a management key first'"></div><span class="switch-hit"><button class="switch" role="switch" :disabled="!settings.hub_key" :aria-checked="settings.hub_enabled ? 'true' : 'false'" aria-label="Share limits" @click="saveSetting({hub_enabled: !settings.hub_enabled})"></button></span></div>
+                <div class="setting-row"><div class="name">Management key</div><div class="desc" x-text="settings.hub_key ? 'Created ' + fmt.day(settings.hub_key_created_at) + '. It can only read usage' : 'None yet. A management key can only read usage'"></div>
+                  <div style="display:flex;gap:8px"><button class="btn btn-secondary btn-sm" @click="createHubKey()" x-text="settings.hub_key ? 'Replace key' : 'Create management key'"></button><template x-if="settings.hub_key"><button class="btn btn-ghost btn-sm" @click="removeHubKey()">Delete</button></template></div></div>
+              </div>
+            </div>
+            <div class="setting-section">
+              <div class="head"><div class="t">Sign-in</div><div class="d" x-text="auth.mode === 'proxy' ? 'Umbrel\'s login protects this panel. Your keys can add a second lock' : 'Who can open this panel'"></div></div>
+              <div class="card">
+                <template x-if="auth.mode === 'proxy'">
+                  <div class="setting-row"><div class="name">Also require a key</div><div class="desc" x-text="!auth.secureContext ? 'Needs HTTPS. Open the panel over HTTPS to turn this on' : (auth.hostKeys ? 'Ask for a security key or passkey after Umbrel\'s login' : 'Add a key for this address first')"></div>
+                    <span class="switch-hit"><button class="switch" role="switch" :disabled="!auth.secureContext || (!auth.hostKeys && !auth.requireKey)" :aria-checked="auth.requireKey ? 'true' : 'false'" aria-label="Require a key" @click="setRequireKey(!auth.requireKey)"></button></span></div>
+                </template>
+                <template x-if="authKeys.length === 1 && (auth.mode !== 'proxy' || auth.requireKey)">
+                  <div class="setting-row"><span x-html="icon('info','#A1A1A1')"></span><div class="desc"><div class="strong">Add a backup key</div>You have one key. If you lose it, you'll have to reset sign-in from hub's terminal</div></div>
+                </template>
+                <div class="setting-row"><div class="desc"><span class="strong">Sign-in keys</span> <span class="muted" x-text="fmt.plural(authKeys.length, 'key', 'keys')"></span></div>
+                  <div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" :disabled="!auth.secureContext" @click="addSignInKey('security-key')"><span x-html="icon('key')"></span>Add security key</button><button class="btn btn-ghost btn-sm" :disabled="!auth.secureContext" @click="addSignInKey('passkey')"><span x-html="icon('passkey')"></span>Add passkey</button></div></div>
+                <template x-for="k in authKeys" :key="k.id">
+                  <div class="setting-row"><div class="name" style="display:flex;gap:10px;align-items:center"><span x-html="icon(k.kind === 'passkey' ? 'passkey' : 'key', '#A1A1A1')"></span><span class="ellipsis" x-text="k.name"></span></div>
+                    <div class="desc" style="display:flex;gap:16px;flex-wrap:wrap"><span x-text="k.kind === 'passkey' ? 'Passkey' : 'Security key'"></span><span class="muted mono" x-text="k.rpID"></span><span class="muted" x-text="'Added ' + fmt.day(k.createdAt)"></span><span x-text="k.lastUsedAt ? 'Used ' + fmt.ago(k.lastUsedAt, now) : 'Never used'"></span></div>
+                    <div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" @click="renameSignInKey(k)">Rename</button><button class="btn btn-ghost btn-sm" @click="removeSignInKey(k)">Remove</button></div></div>
+                </template>
+                <div class="setting-row"><div class="desc help">Security keys are added without a passkey, so they don't use your YubiKey's passkey slots. Keys work on the address you add them from. Lost every key? Run <span class="mono">mainspring auth reset</span> on hub for a new setup code</div></div>
+                <template x-if="auth.mode !== 'proxy' || auth.requireKey"><div class="setting-row"><div class="name">Lock</div><div class="desc">Signs this browser out</div><button class="btn btn-secondary btn-sm" @click="lock()">Lock</button></div></template>
+              </div>
+            </div>
+            <div class="setting-section">
+              <div class="head"><div class="t">About</div></div>
+              <div class="card"><div class="setting-row"><div class="name">Version</div><div class="desc">Mainspring <span class="mono" x-text="settings.version"></span></div><a class="btn btn-ghost btn-sm" href="https://github.com/kacperkwapisz/mainspring" target="_blank" rel="noopener">Source<span x-html="icon('external')"></span></a></div></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  </main>
+</div>
+</template>
+
+<!-- ================= Account drawer ================= -->
+<template x-if="drawer && drawerData">
+  <div>
+    <div class="drawer-scrim" @click="closeDrawer()" x-transition:enter="scrim-enter" x-transition:enter-start="scrim-from"></div>
+    <aside class="drawer" role="dialog" aria-modal="true" :aria-label="drawerData.account.label" x-transition:enter="slide-enter" x-transition:enter-start="slide-from">
+      <section style="display:flex;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0"><div class="acct"><span class="acct-name" style="font-size:15px" x-text="drawerData.account.label"></span><span class="acct-plan" x-text="drawerData.account.plan"></span></div><div class="subtle" x-text="PROVIDERS[drawerData.account.provider]?.name"></div></div>
+        <button class="btn-icon" @click="closeDrawer()" aria-label="Close" x-html="icon('close')"></button>
+      </section>
+      <section>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span class="status" :class="statusOf(drawerData.account, {provider: drawerData.account.provider}).cls"><span x-html="statusOf(drawerData.account, {provider: drawerData.account.provider}).mark"></span><span x-text="statusOf(drawerData.account, {provider: drawerData.account.provider}).text"></span></span>
+          <template x-if="drawerData.account.status !== 'needs_sign_in'"><span style="display:flex;gap:8px;align-items:center" class="subtle">In rotation<button class="switch" role="switch" :aria-checked="drawerData.account.in_rotation ? 'true' : 'false'" aria-label="In rotation" @click="setRotation(drawerData.account, !drawerData.account.in_rotation)"></button></span></template>
+        </div>
+        <div class="subtle" style="margin-top:6px" x-show="drawerData.account.status === 'next'">New sessions come here first</div>
+        <div class="subtle" style="margin-top:6px" x-show="drawerData.account.status === 'cooling'" x-text="(drawerData.account.cool_window ? 'Its ' + noun(drawerData.account.cool_window) + ' limit ran out. ' : '') + (drawerData.account.cool_until ? 'Back ' + fmt.in(drawerData.account.cool_until, now) + ', at ' + fmt.clock(drawerData.account.cool_until) : '')"></div>
+        <template x-if="drawerData.account.status === 'needs_sign_in'"><div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start"><div class="subtle" x-text="rowMessage(drawerData.account)"></div><button class="btn btn-ink btn-sm" @click="closeDrawer(); startLogin(drawerData.account.provider)">Sign in again</button></div></template>
+        <template x-if="drawerData.account.status === 'cooling'"><div style="margin-top:10px"><button class="btn btn-secondary btn-sm" @click="api('POST','/api/accounts/' + drawerData.account.id + '/reset-cooldown').then(() => { T.ok('Cleared the cooldown'); loadPool(); openDrawer(drawerData.account.id, true) })">Try it now anyway</button></div></template>
+      </section>
+      <template x-if="drawerData.account.can_check">
+        <section>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <h3 style="margin:0">Limits <span class="muted small" style="font-weight:400" x-text="drawerData.account.observed_at ? 'From ' + (drawerData.account.source === 'usage' ? 'the usage API ' : 'response headers ') + fmt.ago(drawerData.account.observed_at, now) : 'Not read yet'"></span></h3>
+            <button class="btn btn-secondary btn-sm" @click="check(drawerData.account)" :disabled="checking[drawerData.account.id]"><span x-show="checking[drawerData.account.id]" x-html="SPINNER"></span>Check now</button>
+          </div>
+          <template x-if="!drawerData.account.windows.length"><div class="subtle">Mainspring reads limits from each response. Check now to read them straight away</div></template>
+          <template x-for="w in drawerData.account.windows" :key="w.id">
+            <div style="display:flex;align-items:center;gap:10px;min-height:32px">
+              <span style="width:132px;flex-shrink:0" class="ellipsis" x-text="w.label"></span>
+              <span class="pct num strong" style="width:40px;text-align:right" x-text="w.soft && w.left == null ? '—' : fmt.pct(w.left)"></span>
+              <span class="bar" :class="drawerData.account.status === 'next' && drawerData.account.provider === 'claude' ? 'accent' : ''"><i :style="'width:' + (w.left || 0) + '%'"></i></span>
+              <span class="mono muted" style="width:68px" x-text="w.resets_at ? fmt.clock(w.resets_at) : ''"></span>
+              <span class="subtle nowrap" x-text="w.resets_at ? fmt.in(w.resets_at, now) : ''"></span>
+            </div>
+          </template>
+        </section>
+      </template>
+      <template x-if="drawerData.sessions.length">
+        <section><h3>Live sessions <span class="muted small" style="font-weight:400" x-text="drawerData.sessions.length"></span></h3>
+          <template x-for="s in drawerData.sessions" :key="s.id"><div style="display:flex;gap:10px;min-height:28px;align-items:center"><span class="mono strong" style="width:56px" x-text="s.id"></span><span class="mono ellipsis" style="flex:1" x-text="s.model"></span><span class="subtle" x-text="s.key"></span><span class="subtle num" style="width:72px;text-align:right" x-text="fmt.ago(s.last_at, now)"></span></div></template>
+        </section>
+      </template>
+      <section><h3>Today</h3><dl class="kv"><dt>Requests</dt><dd class="num" x-text="fmt.int(drawerData.account.requests_today)"></dd><dt>API-equivalent</dt><dd><span class="num" x-text="fmt.usd(drawerData.account.usd_today)"></span> <span class="small muted">at list price, not what you pay</span></dd></dl></section>
+      <section><h3>Sign-in</h3><dl class="kv"><dt>Method</dt><dd x-text="drawerData.sign_in.method"></dd><dt>Token refreshed</dt><dd x-text="fmt.clock(drawerData.sign_in.updated_at)"></dd><template x-if="drawerData.sign_in.expires_at"><dt>Token valid until</dt></template><template x-if="drawerData.sign_in.expires_at"><dd x-text="fmt.clock(drawerData.sign_in.expires_at)"></dd></template></dl></section>
+      <section style="margin-top:auto;display:flex;justify-content:space-between">
+        <button class="btn btn-secondary btn-sm" @click="renameAccount(drawerData.account)">Rename</button>
+        <button class="btn btn-ghost btn-sm danger-text" @click="removeAccount(drawerData.account)">Disconnect</button>
+      </section>
+    </aside>
+  </div>
+</template>
+
+<!-- ================= Dialogs ================= -->
+<template x-if="dialog">
+  <div class="scrim" @click.self="dialog.kind !== 'keycreated' && dialog.kind !== 'hubkey' && closeDialog()" x-transition:enter="scrim-enter" x-transition:enter-start="scrim-from">
+    <div class="dialog" role="dialog" aria-modal="true" x-transition:enter="fade-enter" x-transition:enter-start="fade-from">
+
+      <!-- confirm -->
+      <template x-if="dialog.kind === 'confirm'"><div style="display:flex;flex-direction:column;gap:20px">
+        <div><div class="dialog-head"><h2 x-text="dialog.title"></h2></div><div class="subtle" style="margin-top:4px" x-html="dialog.body"></div></div>
+        <div class="dialog-foot"><button class="btn btn-secondary" @click="answer(false)" x-init="$nextTick(() => $el.focus())">Cancel</button><button class="btn" :class="dialog.danger ? 'btn-danger' : 'btn-ink'" @click="answer(true)" x-text="dialog.action"></button></div>
+      </div></template>
+
+      <!-- rename -->
+      <template x-if="dialog.kind === 'rename'"><form style="display:flex;flex-direction:column;gap:20px" @submit.prevent="saveRename()">
+        <div class="dialog-head"><h2 x-text="dialog.title"></h2></div>
+        <div class="field"><label class="label" for="rn">Name</label><input id="rn" class="input" x-model="dialog.value" x-init="$nextTick(() => $el.select())" maxlength="80"></div>
+        <template x-if="dialog.error"><div class="dialog-error" x-text="dialog.error"></div></template>
+        <div class="dialog-foot"><button type="button" class="btn btn-secondary" @click="closeDialog()">Cancel</button><button class="btn btn-ink" :disabled="dialog.busy || !dialog.value.trim()">Save</button></div>
+      </form></template>
+
+      <!-- choose provider -->
+      <template x-if="dialog.kind === 'choose'"><div style="display:flex;flex-direction:column;gap:12px">
+        <div class="dialog-head"><h2>Add account</h2></div>
+        <div style="display:flex;flex-direction:column;margin:0 -12px">
+          <template x-for="(p, id) in PROVIDERS" :key="id">
+            <button class="option" @click="startLogin(id)"><span x-html="icon(p.icon, '#E5E5E5', 20)"></span><span style="flex:1"><div class="t" x-text="p.name"></div><div class="d" x-text="p.how"></div></span><span x-html="icon('chevron', '#737373')"></span></button>
+          </template>
+        </div>
+        <div class="dialog-foot"><button class="btn btn-secondary" @click="closeDialog()">Cancel</button></div>
+      </div></template>
+
+      <!-- OAuth / device login -->
+      <template x-if="dialog.kind === 'login'"><div style="display:flex;flex-direction:column;gap:20px">
+        <div class="dialog-head"><button class="btn-icon" @click="closeDialog(); addAccount()" aria-label="Back" x-html="icon('back')"></button><h2 x-text="dialogTitle()"></h2></div>
+
+        <template x-if="dialog.provider === 'cursor'">
+          <div class="segmented" style="align-self:flex-start"><button :aria-pressed="dialog.mode === 'browser'" @click="dialog.mode = 'browser'; dialog.error = ''">Sign in with Cursor</button><button :aria-pressed="dialog.mode === 'key'" @click="dialog.mode = 'key'; dialog.error = ''">Paste API key</button></div>
+        </template>
+
+        <template x-if="dialog.provider === 'cursor' && dialog.mode === 'key'">
+          <form class="field" @submit.prevent="submitSecret()" id="cursorkey">
+            <label class="label" for="ck">API key</label>
+            <input id="ck" class="input mono" :class="dialog.error && 'invalid'" x-model="dialog.secret" placeholder="crsr_…" autocomplete="off" spellcheck="false">
+            <template x-if="dialog.error"><div class="field-error"><span x-html="icon('alert','#F87171',14)"></span><span x-text="dialog.error"></span></div></template>
+            <div class="help">Create one in Cursor's dashboard under Integrations</div>
+          </form>
+        </template>
+        <template x-if="dialog.provider === 'cursor' && dialog.mode === 'browser' && !dialog.start && !dialog.busy">
+          <div class="subtle">Mainspring opens Cursor's sign-in in a new tab and waits for you to approve it</div>
+        </template>
+
+        <template x-if="dialog.start && (dialog.start.kind === 'callback' || dialog.start.kind === 'redirect')">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="waiting"><span x-html="SPINNER"></span><div><div class="strong">Finish signing in in the browser tab we opened</div><div class="small subtle" x-show="dialog.start.listening">Mainspring is listening on <span class="mono" x-text="dialog.start.callback.replace(/^https?:\/\//,'').replace(/\/.*$/,'')"></span> for the callback</div><div class="small subtle">If the account is already in the pool, it's updated, not added twice</div></div></div>
+            <div class="hr"></div>
+            <form class="field" @submit.prevent="finishCallback()">
+              <div class="label">The tab ends on a page that can't load?</div>
+              <div class="subtle">That's normal when Mainspring runs on another machine. Copy the tab's whole address and paste it here</div>
+              <input class="input mono" x-model="dialog.callback" :placeholder="dialog.start.callback + '?code=…'" autocomplete="off" spellcheck="false">
+              <div class="help"><a :href="dialog.start.url" target="_blank" rel="noopener">Open the sign-in page again</a></div>
+            </form>
+          </div>
+        </template>
+
+        <template x-if="dialog.start && dialog.start.kind === 'device'">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <template x-if="dialog.start.user_code">
+              <div><div class="subtle" style="margin-bottom:8px">Enter this code at <span class="mono" x-text="(dialog.start.url || '').replace(/^https?:\/\//,'').replace(/\?.*$/,'')"></span></div>
+              <div class="devicecode"><span class="mono" x-text="dialog.start.user_code"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.start.user_code, 'the code')"><span x-html="icon('copy')"></span>Copy</button></div></div>
+            </template>
+            <div class="waiting" style="justify-content:space-between"><span style="display:flex;gap:10px;align-items:center"><span x-html="SPINNER"></span><span x-text="'Waiting for you to approve it' + (dialog.provider === 'grok' ? ' on x.ai' : ' in Cursor')"></span></span><span class="small muted" x-show="dialog.start.expires_at" x-text="'Expires ' + fmt.in(dialog.start.expires_at, now)"></span></div>
+          </div>
+        </template>
+
+        <template x-if="dialog.error && !(dialog.provider === 'cursor' && dialog.mode === 'key')"><div class="dialog-error"><span x-html="icon('alert','#F87171')"></span><div x-text="dialog.error"></div></div></template>
+
+        <div class="dialog-foot">
+          <button class="btn btn-secondary" @click="closeDialog()">Cancel</button>
+          <template x-if="dialog.provider === 'cursor' && dialog.mode === 'key'"><button class="btn btn-ink" form="cursorkey" :disabled="dialog.busy || !dialog.secret.trim()">Connect</button></template>
+          <template x-if="dialog.provider === 'cursor' && dialog.mode === 'browser' && !dialog.start"><button class="btn btn-ink" @click="beginLogin()" :disabled="dialog.busy">Open Cursor<span x-html="icon('external','#171717')"></span></button></template>
+          <template x-if="dialog.start && (dialog.start.kind === 'callback' || dialog.start.kind === 'redirect')"><button class="btn btn-ink" @click="finishCallback()" :disabled="dialog.busy || !dialog.callback.trim()">Connect</button></template>
+          <template x-if="dialog.start && dialog.start.kind === 'device' && dialog.start.url && dialog.provider === 'grok'"><a class="btn btn-ink" :href="dialog.start.url" target="_blank" rel="noopener">Open x.ai/device<span x-html="icon('external','#171717')"></span></a></template>
+        </div>
+      </div></template>
+
+      <!-- OpenCode secret -->
+      <template x-if="dialog.kind === 'secret'"><form style="display:flex;flex-direction:column;gap:20px" @submit.prevent="submitSecret()">
+        <div class="dialog-head"><button type="button" class="btn-icon" @click="closeDialog(); addAccount()" aria-label="Back" x-html="icon('back')"></button><h2>Add OpenCode Console</h2></div>
+        <div class="subtle">Its models show up here as <span class="mono">opencode/&lt;id&gt;</span>, like <span class="mono">opencode/kimi-k3</span></div>
+        <div class="field"><label class="label" for="oc">Service account key</label><input id="oc" class="input mono" :class="dialog.error && 'invalid'" x-model="dialog.secret" placeholder="oc_sk_…" autocomplete="off" spellcheck="false">
+          <template x-if="dialog.error"><div class="field-error" x-text="dialog.error"></div></template>
+          <div class="help">Create one in OpenCode Console → Settings → Service accounts</div></div>
+        <div class="dialog-foot"><button type="button" class="btn btn-secondary" @click="closeDialog()">Cancel</button><button class="btn btn-ink" :disabled="dialog.busy || !dialog.secret.trim()">Connect</button></div>
+      </form></template>
+
+      <!-- OpenAI-compatible -->
+      <template x-if="dialog.kind === 'openai'"><form style="display:flex;flex-direction:column;gap:20px" @submit.prevent="submitOpenAI()">
+        <div class="dialog-head"><button type="button" class="btn-icon" @click="closeDialog(); addAccount()" aria-label="Back" x-html="icon('back')"></button><h2>Add OpenAI-compatible API</h2></div>
+        <div>
+          <div class="field"><label class="label" for="on">Name</label><input id="on" class="input" x-model="dialog.name" placeholder="Groq"><div class="help">Models will be named <span class="mono" x-text="slugPreview(dialog.name) + '/<model-id>'"></span></div></div>
+          <div class="field" style="margin-top:20px"><label class="label" for="ou">Base URL</label><input id="ou" class="input mono" x-model="dialog.base_url" placeholder="https://api.groq.com/openai/v1" inputmode="url" autocomplete="off"></div>
+          <div class="field" style="margin-top:20px"><div class="label-row"><label class="label" for="ok">API key</label><span class="small muted">Optional for local servers</span></div><input id="ok" class="input mono" type="password" x-model="dialog.key" placeholder="sk-…" autocomplete="off"></div>
+        </div>
+        <template x-if="dialog.error"><div class="dialog-error"><span x-html="icon('alert','#F87171')"></span><div><div x-text="dialog.error"></div><div class="subtle">Check the base URL and try again</div></div></div></template>
+        <div class="dialog-foot"><button type="button" class="btn btn-secondary" @click="closeDialog()">Cancel</button><button class="btn btn-ink" :disabled="dialog.busy || !dialog.base_url.trim()"><span x-show="dialog.busy" x-html="SPINNER"></span>Connect</button></div>
+      </form></template>
+
+      <!-- Create key -->
+      <template x-if="dialog.kind === 'newkey'"><form style="display:flex;flex-direction:column;gap:20px" @submit.prevent="createKey()">
+        <div class="dialog-head"><h2>Create key</h2></div>
+        <div class="field"><label class="label" for="kn">Name</label><input id="kn" class="input" :class="dialog.fieldError && 'invalid'" x-model="dialog.name" placeholder="laptop" x-init="$nextTick(() => $el.focus())" maxlength="64">
+          <template x-if="dialog.fieldError"><div class="field-error" x-text="dialog.fieldError"></div></template>
+          <div class="help">Name it after the machine or tool that will use it</div></div>
+        <div class="field"><div class="label">Scope</div>
+          <div class="chips"><button type="button" class="chip" :aria-pressed="!dialog.scope.length" @click="dialog.scope.splice(0)">All providers</button>
+            <template x-for="(p, id) in PROVIDERS" :key="id"><button type="button" class="chip" :aria-pressed="dialog.scope.includes(id)" @click="toggleScope(id)" x-text="p.name"></button></template></div>
+          <div class="help">Pick one or more providers to restrict the key</div></div>
+        <div class="field"><div class="label-row" style="justify-content:flex-start"><label class="label" for="km">Models</label><span class="small muted">Optional</span></div><input id="km" class="input mono" x-model="dialog.models" placeholder="claude-sonnet-5, gpt-5.5"><div class="help">Comma-separated. Leave empty to allow every model in scope</div></div>
+        <div class="field"><div class="label-row" style="justify-content:flex-start"><label class="label" for="kc">Daily token cap</label><span class="small muted">Optional</span></div><div style="display:flex;align-items:center;gap:8px"><input id="kc" class="input" :class="dialog.capError && 'invalid'" style="width:160px" x-model="dialog.cap" placeholder="20M"><span class="subtle">tokens</span></div>
+          <template x-if="dialog.capError"><div class="field-error" x-text="dialog.capError"></div></template>
+          <div class="help">Resets at midnight UTC. Leave empty for no cap</div></div>
+        <template x-if="dialog.error"><div class="dialog-error" x-text="dialog.error"></div></template>
+        <div class="dialog-foot"><button type="button" class="btn btn-secondary" @click="closeDialog()">Cancel</button><button class="btn btn-ink" :disabled="dialog.busy || !dialog.name.trim()">Create key</button></div>
+      </form></template>
+
+      <!-- Key created -->
+      <template x-if="dialog.kind === 'keycreated'"><div style="display:flex;flex-direction:column;gap:20px">
+        <div><div class="dialog-head"><h2>Key created</h2></div><div class="subtle" x-text="dialog.key.name + ' · ' + (dialog.key.providers && dialog.key.providers.length ? dialog.key.providers.map(p => PROVIDERS[p]?.name).join(', ') : 'All providers') + ' · ' + (dialog.key.daily_cap ? fmt.tokens(dialog.key.daily_cap) + ' a day' : 'No cap')"></div></div>
+        <div><div class="secret"><span class="mono" x-text="dialog.secret"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.secret, 'the key')"><span x-html="icon('copy')"></span>Copy</button></div><div class="help" style="margin-top:6px">Copy it now. Mainspring won't show it again</div></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="label-row" style="align-items:center"><div class="label">Set up a tool</div><div class="segmented"><template x-for="t in [['claude','Claude Code'],['codex','Codex'],['other','Other tools']]" :key="t[0]"><button :aria-pressed="dialog.tab === t[0]" @click="dialog.tab = t[0]" x-text="t[1]"></button></template></div></div>
+          <div class="label-row" style="align-items:center"><span class="small subtle mono" x-text="snippetPath(dialog.tab)"></span><button class="btn btn-ghost btn-sm" @click="copy(snippet(dialog.tab, dialog.secret), 'the snippet')"><span x-html="icon('copy')"></span>Copy</button></div>
+          <pre class="code" x-text="snippet(dialog.tab, dialog.secret)"></pre>
+        </div>
+        <div class="dialog-foot"><button class="btn btn-ink" @click="closeDialog()">Done</button></div>
+      </div></template>
+
+      <!-- Management key created -->
+      <template x-if="dialog.kind === 'hubkey'"><div style="display:flex;flex-direction:column;gap:20px">
+        <div><div class="dialog-head"><h2>Management key</h2></div><div class="subtle">In T3 Code, open Settings → Providers → Usage providers → Add hub, then paste the address and this key</div></div>
+        <div class="field"><div class="label">Hub URL</div><div class="secret"><span class="mono" x-text="location.origin"></span><button class="btn btn-secondary btn-sm" @click="copy(location.origin, 'the address')"><span x-html="icon('copy')"></span>Copy</button></div></div>
+        <div class="field"><div class="label">Key</div><div class="secret"><span class="mono" x-text="dialog.secret"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.secret, 'the key')"><span x-html="icon('copy')"></span>Copy</button></div><div class="help">Copy it now. Mainspring won't show it again. It can only read usage</div></div>
+        <div class="dialog-foot"><button class="btn btn-ink" @click="closeDialog()">Done</button></div>
+      </div></template>
+
+      <!-- Add sign-in key -->
+      <template x-if="dialog.kind === 'addkey'"><form style="display:flex;flex-direction:column;gap:20px" @submit.prevent="submitSignInKey()">
+        <div><div class="dialog-head"><h2 x-text="dialog.keyKind === 'passkey' ? 'Add passkey' : 'Add security key'"></h2></div><div class="subtle" style="margin-top:4px" x-text="dialog.keyKind === 'passkey' ? 'Your browser asks how to save it' : 'Your browser may ask for the key\'s PIN first'"></div></div>
+        <div class="field"><label class="label" for="skn">Name</label><input id="skn" class="input" x-model="dialog.name" :placeholder="dialog.keyKind === 'passkey' ? 'MacBook Touch ID' : 'YubiKey 5C NFC, travel'" x-init="$nextTick(() => $el.focus())" maxlength="64"></div>
+        <template x-if="dialog.waiting"><div class="waiting"><span x-html="SPINNER"></span><span x-text="dialog.keyKind === 'passkey' ? 'Confirm the passkey in your browser' : 'Insert your key and touch it when it blinks'"></span></div></template>
+        <div class="help" x-text="dialog.keyKind === 'passkey' ? 'Your browser or phone stores the passkey' : 'Added without a passkey, so it doesn\'t use one of the key\'s passkey slots'"></div>
+        <template x-if="dialog.error"><div class="dialog-error" x-text="dialog.error"></div></template>
+        <div class="dialog-foot"><button type="button" class="btn btn-secondary" @click="closeDialog()">Cancel</button><button class="btn btn-ink" :disabled="dialog.waiting || !dialog.name.trim()">Add key</button></div>
+      </form></template>
+
+    </div>
+  </div>
+</template>
+
+</div>
+</body>
+</html>

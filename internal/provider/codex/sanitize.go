@@ -29,6 +29,7 @@ var idPrefix = map[string]string{
 var codexHeaders = []string{
 	"Version", "X-Codex-Turn-Metadata", "X-Client-Request-Id", "X-Codex-Window-Id",
 	"Thread-Id", "Session-Id", "X-Openai-Internal-Codex-Responses-Lite", "X-Codex-Beta-Features",
+	"X-Codex-Parent-Thread-Id", "X-Openai-Subagent", "X-Codex-Turn-State",
 }
 
 func SanitizeBody(body any, inbound map[string]string) map[string]any {

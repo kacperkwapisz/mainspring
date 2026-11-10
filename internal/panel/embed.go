@@ -1,12 +1,14 @@
+// Package panel holds the operator panel: one HTML page, its script and styles,
+// vendored Alpine.js and Ding, and self-hosted fonts. Nothing loads from a CDN.
 package panel
 
-import _ "embed"
+import (
+	"embed"
+	"io/fs"
+)
 
-//go:embed design.css
-var DesignCSS []byte
+//go:embed web
+var files embed.FS
 
-//go:embed panel.js
-var PanelJS []byte
-
-//go:embed alpine.min.js
-var AlpineJS []byte
+// Web is the panel's static file tree (index.html, app.js, app.css, fonts/…).
+var Web, _ = fs.Sub(files, "web")

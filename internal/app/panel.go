@@ -1,395 +1,78 @@
 package app
 
 import (
-	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io/fs"
+	"mime"
 	"net/http"
+	"path"
 	"strings"
-	"time"
 
-	"github.com/kacperkwapisz/mainspring/internal/domain"
-	"github.com/kacperkwapisz/mainspring/internal/env"
 	"github.com/kacperkwapisz/mainspring/internal/httpx"
-	"github.com/kacperkwapisz/mainspring/internal/oauth"
 	"github.com/kacperkwapisz/mainspring/internal/panel"
-	"github.com/kacperkwapisz/mainspring/internal/provider/openai"
-	"github.com/kacperkwapisz/mainspring/internal/provider/opencode"
-	"github.com/kacperkwapisz/mainspring/internal/proxy"
-	"github.com/kacperkwapisz/mainspring/internal/session"
-	"github.com/kacperkwapisz/mainspring/internal/store"
-	"github.com/kacperkwapisz/mainspring/internal/sub"
 )
 
-const (
-	dayMS     = 24 * 60 * 60 * 1000
-	trendDays = 14
-)
-
-func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, gate Gate, settings *store.SettingsStore, logins map[domain.ProviderID]oauth.ProviderLogin) {
-	mux.Handle(http.MethodGet, "/design.css", func(w http.ResponseWriter, _ *http.Request) {
-		httpx.Static(w, "text/css; charset=utf-8", panel.DesignCSS)
-	})
-	mux.Handle(http.MethodGet, "/panel.js", func(w http.ResponseWriter, _ *http.Request) {
-		httpx.Static(w, "text/javascript; charset=utf-8", panel.PanelJS)
-	})
-	mux.Handle(http.MethodGet, "/alpine.min.js", func(w http.ResponseWriter, _ *http.Request) {
-		httpx.Bytes(w, 200, "text/javascript; charset=utf-8", panel.AlpineJS)
-	})
-	mux.Handle(http.MethodGet, "/", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			page(w, panel.LoginView(""), "Mainspring — unlock", "")
-			return
-		}
-		meta := e.PublicURL
-		if meta == "" {
-			meta = "local"
-		}
-		page(w, dashboard(hub, settings), "Mainspring", meta)
-	})
-	mux.Handle(http.MethodPost, "/logout", func(w http.ResponseWriter, _ *http.Request) {
-		httpx.SeeOther(w, "/", session.Clear(isSecure(e.PublicURL)))
-	})
-	mux.Handle(http.MethodPost, "/login/{provider}", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		providerID := domain.ProviderID(httpx.Param(r, "provider"))
-		if !domain.IsOAuthProvider(string(providerID)) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		mode := r.URL.Query().Get("mode")
-		start, err := logins[providerID].Start(r.Context(), "", mode)
-		if err != nil {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		if start.Kind == "secret" {
-			page(w, panel.SecretView(string(providerID), start.URL, ""), "Mainspring — "+string(providerID), "")
-			return
-		}
-		if start.Kind == "device" {
-			page(w, panel.DeviceView(string(providerID), start.URL, start.UserCode, or(start.State, ""), ""), "Mainspring — "+string(providerID), "")
-			return
-		}
-		hint := oauth.ClaudeRedirectURI
-		if providerID == domain.ProviderCodex {
-			hint = oauth.CodexRedirectURI
-		}
-		note := ""
-		danger := false
-		if providerID == domain.ProviderClaude || providerID == domain.ProviderCodex {
-			login := logins[providerID]
-			bind, _ := oauth.BindCallback(providerID, func(code, state string) {
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				result, err := login.Complete(ctx, code, state, "", "")
-				if err != nil {
-					return
-				}
-				_, _ = hub.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
-			})
-			if bind.Busy {
-				note = oauth.BindErrorNote(true)
-				danger = true
-			} else {
-				note = "Listening on " + hint + " — finish sign-in and this page will connect. Paste remains a fallback."
-			}
-		}
-		view := panel.PasteCallbackViewNote(string(providerID), start.URL, hint, note, danger)
-		page(w, view, "Mainspring — "+string(providerID), "")
-	})
-	mux.Handle(http.MethodPost, "/login/{provider}/finish", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		providerID := domain.ProviderID(httpx.Param(r, "provider"))
-		if providerID != domain.ProviderClaude && providerID != domain.ProviderCodex {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		hint := oauth.ClaudeRedirectURI
-		if providerID == domain.ProviderCodex {
-			hint = oauth.CodexRedirectURI
-		}
-		body, _ := httpx.ParseBody(r)
-		parsed := oauth.ParseCallback(httpx.FormString(body, "callback"))
-		fail := func(err string) {
-			page(w, panel.PasteCallbackView(string(providerID), "", hint, err), "Mainspring — "+string(providerID), "")
-		}
-		if parsed.Error != "" {
-			msg := parsed.ErrorDescription
-			if msg == "" {
-				msg = parsed.Error
-			}
-			fail(msg)
-			return
-		}
-		if parsed.Code == "" {
-			fail("paste the whole callback URL")
-			return
-		}
-		result, err := logins[providerID].Complete(r.Context(), parsed.Code, parsed.State, "", "")
-		if err != nil {
-			fail(err.Error())
-			return
-		}
-		oauth.UnbindCallback(providerID)
-		_, _ = hub.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
-		httpx.SeeOther(w, "/", "")
-	})
-	mux.Handle(http.MethodPost, "/login/{provider}/secret", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		providerID := domain.ProviderID(httpx.Param(r, "provider"))
-		body, _ := httpx.ParseBody(r)
-		secret := httpx.FormString(body, "secret")
-		switch providerID {
-		case domain.ProviderCursor:
-			result, err := logins[providerID].Complete(r.Context(), "", "", "", secret)
-			if err != nil {
-				page(w, panel.SecretView("cursor", "https://cursor.com/dashboard?tab=integrations", err.Error()), "Mainspring — cursor", "")
-				return
-			}
-			_, _ = hub.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
-		case domain.ProviderOpenCode:
-			label, err := opencode.ValidateKey(r.Context(), secret)
-			if err != nil {
-				page(w, panel.OpenCodeSecretView(err.Error()), "Mainspring — opencode", "")
-				return
-			}
-			_, _ = hub.Vault.Save(store.SaveCredential{
-				Provider: domain.ProviderOpenCode,
-				Label:    label,
-				Tokens: domain.CredentialTokens{
-					AccessToken: strings.TrimSpace(secret),
-					Extra:       opencode.CredentialExtra(),
-				},
-			})
-		default:
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		httpx.SeeOther(w, "/", "")
-	})
-	mux.Handle(http.MethodPost, "/login/opencode", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		page(w, panel.OpenCodeSecretView(""), "Mainspring — opencode", "")
-	})
-	mux.Handle(http.MethodPost, "/device/{provider}", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		providerID := domain.ProviderID(httpx.Param(r, "provider"))
-		if !domain.IsOAuthProvider(string(providerID)) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		body, _ := httpx.ParseBody(r)
-		deviceCode := httpx.FormString(body, "device_code")
-		ctx := r.Context()
-		if providerID == domain.ProviderGrok || providerID == domain.ProviderCursor {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, 16*time.Minute)
-			defer cancel()
-		}
-		result, err := logins[providerID].Complete(ctx, "", "", deviceCode, "")
-		if err != nil {
-			page(w, panel.DeviceView(string(providerID), "", "", deviceCode, err.Error()), "Mainspring — "+string(providerID), "")
-			return
-		}
-		_, _ = hub.Vault.Save(store.SaveCredential{Provider: result.Provider, Label: result.Label, Tokens: result.Tokens, ExpiresAt: result.ExpiresAt})
-		httpx.SeeOther(w, "/", "")
-	})
-	mux.Handle(http.MethodPost, "/sources/openai", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		body, _ := httpx.ParseBody(r)
-		label := strings.TrimSpace(httpx.FormString(body, "label"))
-		baseURL := strings.TrimSpace(httpx.FormString(body, "base_url"))
-		secret := strings.TrimSpace(httpx.FormString(body, "secret"))
-		fail := func(msg string) {
-			page(w, panel.SourceView(label, baseURL, msg), "Mainspring — openai", "")
-		}
-		base, err := openai.NormalizeBaseURL(baseURL)
-		if err != nil {
-			fail(err.Error())
-			return
-		}
-		host, _, err := openai.Discover(r.Context(), base, secret)
-		if err != nil {
-			fail(err.Error())
-			return
-		}
-		if label == "" {
-			label = host
-		}
-		existing, _ := hub.Vault.List(domain.ProviderOpenAI)
-		slug := openai.UniqueSlug(existing, label)
-		_, err = hub.Vault.Save(store.SaveCredential{
-			Provider: domain.ProviderOpenAI,
-			Label:    label,
-			Tokens: domain.CredentialTokens{
-				AccessToken: secret,
-				Extra:       map[string]any{"base_url": base, "slug": slug, "kind": "openai"},
-			},
-		})
-		if err != nil {
-			fail(err.Error())
-			return
-		}
-		httpx.SeeOther(w, "/", "")
-	})
-	mux.Handle(http.MethodPost, "/settings/cursor", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		body, _ := httpx.ParseBody(r)
-		prefix := "0"
-		if httpx.FormString(body, "prefix") == "1" {
-			prefix = "1"
-		}
-		listFast := "0"
-		if httpx.FormString(body, "list_fast") == "1" {
-			listFast = "1"
-		}
-		grok := "0"
-		if httpx.FormString(body, "grok_failover") == "1" {
-			grok = "1"
-		}
-		trace := httpx.FormString(body, "log_trace")
-		switch trace {
-		case httpx.TraceAlways, httpx.TraceErrors, httpx.TraceOff:
-		default:
-			trace = httpx.TraceOff
-		}
-		_ = settings.Set(proxy.SettingCursorPrefix, prefix)
-		_ = settings.Set(proxy.SettingCursorListFast, listFast)
-		_ = settings.Set(proxy.SettingCursorGrokFailover, grok)
-		_ = settings.Set(proxy.SettingLogTrace, trace)
-		httpx.SetTraceMode(trace)
-		httpx.SeeOther(w, "/", "")
-	})
-	mux.Handle(http.MethodPost, "/credentials/{id}/delete", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		_, _ = hub.Vault.Remove(httpx.Param(r, "id"))
-		httpx.SeeOther(w, "/", "")
-	})
-	mux.Handle(http.MethodPost, "/keys", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		body, _ := httpx.ParseBody(r)
-		name := strings.TrimSpace(httpx.FormString(body, "name"))
-		if name == "" {
-			name = "tool"
-		}
-		_, _ = hub.Keys.Create(name, nil, nil, nil)
-		httpx.SeeOther(w, "/", "")
-	})
-	mux.Handle(http.MethodPost, "/keys/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.SeeOther(w, "/", "")
-			return
-		}
-		_, _ = hub.Keys.Revoke(httpx.Param(r, "id"))
-		httpx.SeeOther(w, "/", "")
-	})
-	mux.Handle(http.MethodGet, "/api/panel/sub", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.PanelUnauthorized(w, "")
-			return
-		}
-		httpx.JSON(w, 200, map[string]any{"credentials": sub.Collect(r.Context(), hub.Vault, hub.Executors)})
-	})
-	mux.Handle(http.MethodPost, "/api/panel/keys", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, gate) {
-			httpx.PanelUnauthorized(w, "")
-			return
-		}
-		body, _ := httpx.ParseBody(r)
-		name := strings.TrimSpace(httpx.JSONField(body, "name"))
-		if name == "" {
-			name = "tool"
-		}
-		created, err := hub.Keys.Create(name, nil, nil, nil)
-		if err != nil {
-			httpx.JSON(w, 500, map[string]any{"error": err.Error()})
-			return
-		}
-		httpx.JSON(w, 200, map[string]any{
-			"secret": created.Secret,
-			"id":     created.Key.ID,
-			"name":   created.Key.Name,
-			"prefix": created.Key.Prefix,
-		})
-	})
-}
-
-func dashboard(hub *proxy.Hub, settings *store.SettingsStore) string {
-	creds, _ := hub.Vault.List()
-	keys, _ := hub.Keys.List()
-	today, _ := hub.Usage.Since(dayMS)
-	d7, _ := hub.Usage.Since(7 * dayMS)
-	byProvider, _ := hub.Usage.GroupBy(7*dayMS, "provider")
-	byModel, _ := hub.Usage.GroupBy(7*dayMS, "model")
-	daily, _ := hub.Usage.Daily(7)
-	trends, _ := hub.Usage.Daily(trendDays)
-	prefix, _ := settings.Get(proxy.SettingCursorPrefix)
-	listFast, listFastSet := settings.Get(proxy.SettingCursorListFast)
-	grok, _ := settings.Get(proxy.SettingCursorGrokFailover)
-	trace, _ := settings.Get(proxy.SettingLogTrace)
-	subN := 0
-	var sources []panel.SourceProps
-	for _, c := range creds {
-		switch c.Provider {
-		case domain.ProviderClaude, domain.ProviderCodex, domain.ProviderGrok, domain.ProviderCursor:
-			subN++
-		case domain.ProviderOpenAI:
-			sources = append(sources, panel.SourceProps{
-				ID:    c.ID,
-				Label: c.Label,
-				Host:  openai.SourceHost(c),
-				Slug:  openai.SourceSlug(c),
-			})
-		case domain.ProviderOpenCode:
-			// counted with credentials list in the OpenCode login row
-		}
+// registerPanel serves the single-page panel. The page itself is public; every
+// piece of data it shows comes from /api/*, which the Gate protects.
+func registerPanel(mux *httpx.Mux) {
+	index, _ := fs.ReadFile(panel.Web, "index.html")
+	// Cache-bust by content, so a rebuilt binary never serves yesterday's script.
+	sum := sha256.New()
+	for _, name := range []string{"app.js", "app.css"} {
+		b, _ := fs.ReadFile(panel.Web, name)
+		sum.Write(b)
 	}
-	return panel.Dashboard(panel.DashboardProps{
-		Credentials: creds,
-		Keys:        keys,
-		Usage: panel.UsageProps{
-			Today: today, D7: d7, ByProvider: byProvider, ByModel: byModel, Daily: daily, Trends: trends,
-		},
-		SubCount: subN,
-		Settings: panel.SettingsProps{CursorPrefix: prefix == "1", CursorListFast: !listFastSet || listFast != "0", GrokFailover: grok == "1", LogTrace: trace},
-		Sources:  sources,
+	page := []byte(strings.ReplaceAll(string(index), "{{VERSION}}", hex.EncodeToString(sum.Sum(nil))[:12]))
+	serveIndex := func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("Content-Type", "text/html; charset=utf-8")
+		h.Set("Cache-Control", "no-cache")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "same-origin")
+		h.Set("X-Frame-Options", "SAMEORIGIN")
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(page)
+	}
+	mux.Handle(http.MethodGet, "/", serveIndex)
+	mux.Handle(http.MethodGet, "/assets/{file}", func(w http.ResponseWriter, r *http.Request) {
+		serveAsset(w, httpx.Param(r, "file"))
+	})
+	mux.Handle(http.MethodGet, "/assets/fonts/{file}", func(w http.ResponseWriter, r *http.Request) {
+		serveAsset(w, "fonts/"+httpx.Param(r, "file"))
 	})
 }
 
-// panelAuthed keeps the old server-rendered panel compiling; it delegates to the Gate.
-func panelAuthed(r *http.Request, gate Gate) bool {
-	return gate != nil && gate.Authed(r)
-}
-
-func or(a, b string) string {
-	if a != "" {
-		return a
+func serveAsset(w http.ResponseWriter, name string) {
+	name = path.Clean("/" + name)[1:]
+	if name == "index.html" || strings.HasPrefix(name, ".") {
+		http.NotFound(w, nil)
+		return
 	}
-	return b
+	data, err := fs.ReadFile(panel.Web, name)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("not found"))
+		return
+	}
+	ctype := mime.TypeByExtension(path.Ext(name))
+	switch path.Ext(name) {
+	case ".js":
+		ctype = "text/javascript; charset=utf-8"
+	case ".woff2":
+		ctype = "font/woff2"
+	case ".svg":
+		ctype = "image/svg+xml"
+	}
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if strings.HasPrefix(name, "fonts/") || name == "alpine.min.js" || name == "ding.js" {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }

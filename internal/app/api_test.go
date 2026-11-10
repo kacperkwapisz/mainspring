@@ -199,3 +199,34 @@ func TestManagementAPIForUsageDashboards(t *testing.T) {
 		t.Fatalf("non-usage URLs must be refused: %d", res.Code)
 	}
 }
+
+func TestPanelServesAppAndAssets(t *testing.T) {
+	b := bootAPI(t)
+	get := func(path string) *httptest.ResponseRecorder {
+		res := httptest.NewRecorder()
+		b.Handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, path, nil))
+		return res
+	}
+	if res := get("/"); res.Code != 200 || !strings.Contains(res.Body.String(), `x-data="app"`) || strings.Contains(res.Body.String(), "{{VERSION}}") {
+		t.Fatalf("index %d", res.Code)
+	}
+	for path, ctype := range map[string]string{
+		"/assets/app.js":            "text/javascript",
+		"/assets/app.css":           "text/css",
+		"/assets/ding.js":           "text/javascript",
+		"/assets/alpine.min.js":     "text/javascript",
+		"/assets/mark.svg":          "image/svg+xml",
+		"/assets/fonts/inter.woff2": "font/woff2",
+	} {
+		res := get(path)
+		if res.Code != 200 || !strings.HasPrefix(res.Header().Get("Content-Type"), ctype) {
+			t.Fatalf("%s: %d %s", path, res.Code, res.Header().Get("Content-Type"))
+		}
+	}
+	if res := get("/assets/index.html"); res.Code != 404 {
+		t.Fatalf("index via assets: %d", res.Code)
+	}
+	if res := get("/assets/nope.js"); res.Code != 404 {
+		t.Fatalf("missing asset: %d", res.Code)
+	}
+}

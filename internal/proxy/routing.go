@@ -154,7 +154,7 @@ func movedReason(hub *Hub, fromID string) string {
 	case st.Benched:
 		return "taken out of rotation"
 	case st.CoolWindow != "":
-		return st.CoolWindow + " limit hit"
+		return windowNoun(st.CoolWindow) + " limit hit"
 	case st.CoolUntil > time.Now().UnixMilli():
 		return "rate limited"
 	}
@@ -261,4 +261,23 @@ func ServedBy(hub *Hub, model string) (served []domain.ProviderID, fallback doma
 		}
 	}
 	return served, fallback
+}
+
+// windowNoun turns a window label into its adjective form: "7 days" becomes
+// "7-day", "5 hours" becomes "5-hour". Other labels stay as they are.
+func windowNoun(label string) string {
+	parts := strings.SplitN(label, " ", 2)
+	if len(parts) != 2 {
+		return label
+	}
+	if _, err := strconv.Atoi(parts[0]); err != nil {
+		return label
+	}
+	rest := parts[1]
+	for _, unit := range []string{"days", "hours", "minutes", "day", "hour", "minute"} {
+		if strings.HasPrefix(rest, unit) {
+			return parts[0] + "-" + strings.TrimSuffix(unit, "s") + rest[len(unit):]
+		}
+	}
+	return label
 }

@@ -377,7 +377,7 @@ func TestRegisterLoginRoundTrip(t *testing.T) {
 	expect(t, res, 401, "panel_signed_out")
 
 	// Old panel routes follow the same gate.
-	res, _ = c.do(http.MethodGet, "/api/panel/sub", "")
+	res, _ = c.do(http.MethodGet, "/api/pool", "")
 	expect(t, res, 200, "")
 }
 

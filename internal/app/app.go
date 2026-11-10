@@ -11,7 +11,6 @@ import (
 	"github.com/kacperkwapisz/mainspring/internal/env"
 	"github.com/kacperkwapisz/mainspring/internal/httpx"
 	"github.com/kacperkwapisz/mainspring/internal/oauth"
-	"github.com/kacperkwapisz/mainspring/internal/panel"
 	"github.com/kacperkwapisz/mainspring/internal/provider"
 	claudeexec "github.com/kacperkwapisz/mainspring/internal/provider/claude"
 	codexexec "github.com/kacperkwapisz/mainspring/internal/provider/codex"
@@ -91,15 +90,11 @@ func Create(source map[string]string) (*Booted, error) {
 	registerResponses(mux, hub)
 	registerResponsesWS(mux, hub)
 	registerAuth(mux, authSvc)
-	registerPanel(mux, hub, e, authSvc, settings, logins)
+	registerPanel(mux)
 	registerAPI(mux, hub, authSvc)
 	registerLoginAPI(mux, hub, authSvc, logins)
 	registerManagement(mux, hub)
 	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Gate: authSvc, Auth: authSvc, DB: d}, nil
-}
-
-func page(w http.ResponseWriter, body, title, meta string) {
-	httpx.HTML(w, http.StatusOK, panel.Layout(title, meta, body))
 }
 
 func isSecure(publicURL string) bool {

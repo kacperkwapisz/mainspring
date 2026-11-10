@@ -105,3 +105,15 @@ func scanActivity(scan func(...any) error) (ActivityEvent, error) {
 	_ = json.Unmarshal([]byte(raw), &ev.Data)
 	return ev, nil
 }
+
+// AddAt records an event with an explicit timestamp (demo data and imports).
+func (s *ActivityStore) AddAt(ts int64, kind, provider, credID string, data map[string]any) int64 {
+	raw, _ := json.Marshal(data)
+	res, err := s.db.SQL.Exec(`INSERT INTO activity(ts, kind, provider, credential_id, data) VALUES (?, ?, ?, ?, ?)`,
+		ts, kind, provider, credID, string(raw))
+	if err != nil {
+		return 0
+	}
+	id, _ := res.LastInsertId()
+	return id
+}

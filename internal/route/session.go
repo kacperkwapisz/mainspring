@@ -227,3 +227,10 @@ func shortID(key string) string {
 	}
 	return key
 }
+
+// SeedSession adds a live session as-is (demo data).
+func (e *Engine) SeedSession(s Session) {
+	e.mu.Lock()
+	e.sessions[s.Key] = &s
+	e.mu.Unlock()
+}

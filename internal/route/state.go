@@ -487,3 +487,11 @@ func (e *Engine) SetPlan(id, plan string) {
 	e.persist(id, true)
 	e.mu.Unlock()
 }
+
+// Backdate pretends the credential's windows were read at ts (demo data).
+func (e *Engine) Backdate(id string, ts int64) {
+	e.mu.Lock()
+	e.state(id).ObservedAt = ts
+	e.persist(id, true)
+	e.mu.Unlock()
+}

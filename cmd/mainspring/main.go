@@ -19,8 +19,17 @@ import (
 var version = "dev"
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "auth" {
-		os.Exit(runAuth(os.Args[2:], nil, os.Stdout, os.Stderr))
+	app.Version = version
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "auth":
+			os.Exit(runAuth(os.Args[2:], nil, os.Stdout, os.Stderr))
+		case "demo":
+			os.Exit(runDemo(os.Args[2:], os.Stdout, os.Stderr))
+		case "version", "--version", "-v":
+			fmt.Println("mainspring " + version)
+			os.Exit(0)
+		}
 	}
 	healthcheck := flag.Bool("healthcheck", false, "exit 0 if GET /health succeeds")
 	flag.Parse()
