@@ -58,3 +58,9 @@ func TestParseCallbackCopyCode(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestRandomStateMatchesClaudeCode(t *testing.T) {
+	if n := len(RandomState()); n != 43 {
+		t.Fatalf("state length %d, Claude Code sends 43", n)
+	}
+}

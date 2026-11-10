@@ -50,8 +50,10 @@ func PKCE() (verifier, challenge string) {
 	return
 }
 
+// RandomState returns a 43-character state, as Claude Code sends. Anthropic's
+// authorize page rejects shorter ones with "Invalid request format".
 func RandomState() string {
-	buf := make([]byte, 16)
+	buf := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, buf); err != nil {
 		panic(err)
 	}
