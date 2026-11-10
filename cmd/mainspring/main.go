@@ -19,6 +19,9 @@ import (
 var version = "dev"
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "auth" {
+		os.Exit(runAuth(os.Args[2:], nil, os.Stdout, os.Stderr))
+	}
 	healthcheck := flag.Bool("healthcheck", false, "exit 0 if GET /health succeeds")
 	flag.Parse()
 	if *healthcheck {
@@ -38,13 +41,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	seed, _, err := booted.Panel.EnsureSeed()
+	code, err := booted.Auth.EnsureSetupCode()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if seed != "" {
-		fmt.Printf("panel seed password: %s — change it on first login\n", seed)
+	if code != "" {
+		printSetupCode(os.Stdout, code)
 	}
 	go func() {
 		_ = booted.Hub.Prices.Refresh(false)

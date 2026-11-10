@@ -13,7 +13,9 @@ chmod +x fob
 ./fob
 ```
 
-On first boot without `JWT_SECRET`, Fob writes `~/.mainspring/jwt_secret` (`0600`) and `~/.mainspring/mainspring.sqlite`. The seed panel password is printed once. Open http://localhost:8317, change it, login to a provider, mint a `sk-ms-…` key.
+On first boot without `JWT_SECRET`, Fob writes `~/.mainspring/jwt_secret` (`0600`) and `~/.mainspring/mainspring.sqlite`. While no security key is added, every boot prints a one-time setup code (`mainspring setup code: XXXX-XXXX`). Open http://localhost:8317, enter the code, add a security key (a passkey works too), login to a provider, mint a `sk-ms-…` key.
+
+Panel sign-in uses WebAuthn, so it needs HTTPS or `localhost`. Lost every key? Run `mainspring auth reset` on the hub: it removes all keys, signs out every panel session and prints a new setup code. `mainspring auth status` lists the mode and keys.
 
 ## Run (Docker)
 
@@ -35,6 +37,8 @@ Claude and Codex OAuth apps only allow their CLI callbacks (`http://localhost:54
 | `JWT_SECRET` | binary: `~/.mainspring/jwt_secret` (auto); Docker: required | Encrypts credentials and signs the panel cookie |
 | `MAINSPRING_HOME` | `~/.mainspring` | Binary data dir (`mainspring.sqlite`, `jwt_secret`) |
 | `DATABASE_PATH` | binary: `$MAINSPRING_HOME/mainspring.sqlite`; image: `/data/mainspring.sqlite` | SQLite |
+| `MAINSPRING_AUTH` | `webauthn` | `webauthn`: panel sign-in with a security key or passkey. `proxy`: the reverse proxy in front (e.g. Umbrel) signs the operator in; the panel can still require a key |
+| `MAINSPRING_TRUST_PROXY` | unset | `1` honours `X-Forwarded-Host` / `X-Forwarded-Proto` for the sign-in origin (always on in `proxy` mode) |
 | `HOST` | `0.0.0.0` | Bind |
 | `PORT` | `8317` | Listen |
 | `LOG_LEVEL` | `info` | Failures always log one line to stderr. `debug` also logs successful hops. Optional panel **Request trace** (`off` / `errors` / `always`) dumps hop breadcrumbs on failure or always. No tokens. |

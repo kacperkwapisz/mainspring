@@ -30,6 +30,14 @@ const (
 	LogError LogLevel = "error"
 )
 
+// Panel sign-in modes (MAINSPRING_AUTH).
+const (
+	// AuthWebAuthn requires a session issued after a WebAuthn assertion.
+	AuthWebAuthn = "webauthn"
+	// AuthProxy trusts the reverse proxy in front to authenticate the operator.
+	AuthProxy = "proxy"
+)
+
 type Env struct {
 	JWTSecret          string
 	JWTKey             []byte
@@ -46,6 +54,10 @@ type Env struct {
 	GrokClientSecret   string
 	Home               string
 	JWTGenerated       bool
+	// AuthMode is AuthWebAuthn (default) or AuthProxy.
+	AuthMode string
+	// TrustProxy honours X-Forwarded-Host/Proto (MAINSPRING_TRUST_PROXY=1).
+	TrustProxy bool
 }
 
 type Error struct {
@@ -136,6 +148,14 @@ func Load(source map[string]string) (*Env, error) {
 		}
 	}
 
+	authMode := strings.TrimSpace(get("MAINSPRING_AUTH"))
+	if authMode == "" {
+		authMode = AuthWebAuthn
+	}
+	if authMode != AuthWebAuthn && authMode != AuthProxy {
+		return nil, &Error{Msg: "MAINSPRING_AUTH must be webauthn or proxy"}
+	}
+
 	host := strings.TrimSpace(get("HOST"))
 	if host == "" {
 		host = DefaultHost
@@ -157,6 +177,8 @@ func Load(source map[string]string) (*Env, error) {
 		GrokClientSecret:   emptyToUndef(get("GROK_CLIENT_SECRET")),
 		Home:               home,
 		JWTGenerated:       generated,
+		AuthMode:           authMode,
+		TrustProxy:         strings.TrimSpace(get("MAINSPRING_TRUST_PROXY")) == "1",
 	}, nil
 }
 

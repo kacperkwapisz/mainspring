@@ -3,6 +3,7 @@ package app
 import (
 	"net/http"
 
+	"github.com/kacperkwapisz/mainspring/internal/auth"
 	"github.com/kacperkwapisz/mainspring/internal/db"
 	"github.com/kacperkwapisz/mainspring/internal/domain"
 	"github.com/kacperkwapisz/mainspring/internal/env"
@@ -24,8 +25,11 @@ type Booted struct {
 	Handler http.Handler
 	Env     *env.Env
 	Hub     *proxy.Hub
-	Panel   *store.PanelAuth
-	DB      *db.DB
+	// Gate decides who may use the panel and its JSON API.
+	Gate Gate
+	// Auth is the panel sign-in service behind Gate.
+	Auth *auth.Service
+	DB   *db.DB
 }
 
 func Create(source map[string]string) (*Booted, error) {
@@ -45,8 +49,8 @@ func Create(source map[string]string) (*Booted, error) {
 		d.Close()
 		return nil, err
 	}
-	panelAuth := store.NewPanelAuth(d)
 	settings := store.NewSettingsStore(d)
+	authSvc := auth.New(e, store.NewWebAuthnStore(d), settings)
 	hub := &proxy.Hub{
 		Env:      e,
 		Vault:    vault,
@@ -73,8 +77,9 @@ func Create(source map[string]string) (*Booted, error) {
 	registerOpenAI(mux, hub)
 	registerAnthropic(mux, hub)
 	registerResponses(mux, hub)
-	registerPanel(mux, hub, e, panelAuth, settings, logins)
-	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Panel: panelAuth, DB: d}, nil
+	registerAuth(mux, authSvc)
+	registerPanel(mux, hub, e, authSvc, settings, logins)
+	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Gate: authSvc, Auth: authSvc, DB: d}, nil
 }
 
 func page(w http.ResponseWriter, body, title, meta string) {

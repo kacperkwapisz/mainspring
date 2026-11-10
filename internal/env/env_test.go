@@ -81,3 +81,18 @@ func TestLoadWritesJWTFileWhenUnset(t *testing.T) {
 		t.Fatalf("db path %s", e.DatabasePath)
 	}
 }
+
+func TestLoadAuthMode(t *testing.T) {
+	e, err := Load(map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:", "MAINSPRING_AUTH": ""})
+	if err != nil || e.AuthMode != AuthWebAuthn || e.TrustProxy {
+		t.Fatalf("%+v %v", e, err)
+	}
+	e, err = Load(map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:", "MAINSPRING_AUTH": "proxy", "MAINSPRING_TRUST_PROXY": "1"})
+	if err != nil || e.AuthMode != AuthProxy || !e.TrustProxy {
+		t.Fatalf("%+v %v", e, err)
+	}
+	_, err = Load(map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:", "MAINSPRING_AUTH": "password"})
+	if err == nil || !strings.Contains(err.Error(), "MAINSPRING_AUTH") {
+		t.Fatalf("got %v", err)
+	}
+}

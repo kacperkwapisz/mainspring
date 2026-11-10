@@ -24,7 +24,7 @@ const (
 	trendDays = 14
 )
 
-func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.PanelAuth, settings *store.SettingsStore, logins map[domain.ProviderID]oauth.ProviderLogin) {
+func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, gate Gate, settings *store.SettingsStore, logins map[domain.ProviderID]oauth.ProviderLogin) {
 	mux.Handle(http.MethodGet, "/design.css", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.Static(w, "text/css; charset=utf-8", panel.DesignCSS)
 	})
@@ -35,11 +35,7 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.Bytes(w, 200, "text/javascript; charset=utf-8", panel.AlpineJS)
 	})
 	mux.Handle(http.MethodGet, "/", func(w http.ResponseWriter, r *http.Request) {
-		if panelAuth.State().MustReset {
-			page(w, panel.ResetView(""), "Mainspring — set password", "")
-			return
-		}
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			page(w, panel.LoginView(""), "Mainspring — unlock", "")
 			return
 		}
@@ -49,34 +45,11 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		}
 		page(w, dashboard(hub, settings), "Mainspring", meta)
 	})
-	mux.Handle(http.MethodPost, "/login", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := httpx.ParseBody(r)
-		password := httpx.FormString(body, "password")
-		ok, mustReset := panelAuth.Verify(password)
-		if !ok {
-			page(w, panel.LoginView("wrong password"), "Mainspring — unlock", "")
-			return
-		}
-		if mustReset {
-			page(w, panel.ResetView("reset required"), "Mainspring — set password", "")
-			return
-		}
-		httpx.SeeOther(w, "/", session.Issue(e.JWTKey, isSecure(e.PublicURL)))
-	})
-	mux.Handle(http.MethodPost, "/password", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := httpx.ParseBody(r)
-		ok, reason := panelAuth.Reset(httpx.FormString(body, "old_password"), httpx.FormString(body, "new_password"))
-		if !ok {
-			page(w, panel.ResetView(reason), "Mainspring — set password", "")
-			return
-		}
-		httpx.SeeOther(w, "/", session.Issue(e.JWTKey, isSecure(e.PublicURL)))
-	})
 	mux.Handle(http.MethodPost, "/logout", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.SeeOther(w, "/", session.Clear(isSecure(e.PublicURL)))
 	})
 	mux.Handle(http.MethodPost, "/login/{provider}", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -127,7 +100,7 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		page(w, view, "Mainspring — "+string(providerID), "")
 	})
 	mux.Handle(http.MethodPost, "/login/{provider}/finish", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -167,7 +140,7 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/login/{provider}/secret", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -203,14 +176,14 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/login/opencode", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
 		page(w, panel.OpenCodeSecretView(""), "Mainspring — opencode", "")
 	})
 	mux.Handle(http.MethodPost, "/device/{provider}", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -236,7 +209,7 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/sources/openai", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -277,7 +250,7 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/settings/cursor", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -308,7 +281,7 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/credentials/{id}/delete", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -316,7 +289,7 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/keys", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -329,7 +302,7 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodPost, "/keys/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.SeeOther(w, "/", "")
 			return
 		}
@@ -337,14 +310,14 @@ func registerPanel(mux *httpx.Mux, hub *proxy.Hub, e *env.Env, panelAuth *store.
 		httpx.SeeOther(w, "/", "")
 	})
 	mux.Handle(http.MethodGet, "/api/panel/sub", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.PanelUnauthorized(w, "")
 			return
 		}
 		httpx.JSON(w, 200, map[string]any{"credentials": sub.Collect(r.Context(), hub.Vault, hub.Executors)})
 	})
 	mux.Handle(http.MethodPost, "/api/panel/keys", func(w http.ResponseWriter, r *http.Request) {
-		if !panelAuthed(r, e, panelAuth) {
+		if !panelAuthed(r, gate) {
 			httpx.PanelUnauthorized(w, "")
 			return
 		}
@@ -409,16 +382,9 @@ func dashboard(hub *proxy.Hub, settings *store.SettingsStore) string {
 	})
 }
 
-func panelAuthed(r *http.Request, e *env.Env, panelAuth *store.PanelAuth) bool {
-	if session.Read(r, e.JWTKey) {
-		return true
-	}
-	password := session.BearerPassword(r)
-	if password == "" {
-		return false
-	}
-	ok, _ := panelAuth.Verify(password)
-	return ok
+// panelAuthed keeps the old server-rendered panel compiling; it delegates to the Gate.
+func panelAuthed(r *http.Request, gate Gate) bool {
+	return gate != nil && gate.Authed(r)
 }
 
 func or(a, b string) string {

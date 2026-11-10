@@ -10,21 +10,67 @@ import (
 )
 
 const (
+	// CookieName holds the panel session.
 	CookieName = "ms_session"
-	ttl        = 7 * 24 * time.Hour
+	// SetupCookieName lets the bearer register the first key after entering the setup code.
+	SetupCookieName = "ms_setup"
+	ttl             = 7 * 24 * time.Hour
+	setupTTL        = 15 * time.Minute
+	setupPurpose    = "setup:"
 )
 
-func Issue(key []byte, secure bool) string {
-	exp := time.Now().Add(ttl).UnixMilli()
-	payload := strconv.FormatInt(exp, 10)
-	sig := fcrypto.HMACSign(key, payload)
-	value := payload + "." + sig
+// Issue returns a Set-Cookie value for a panel session bound to epoch.
+// The signed payload is "exp.epoch", so rotating the epoch invalidates every
+// cookie issued before.
+func Issue(key []byte, epoch string, secure bool) string {
+	return issue(CookieName, "", key, epoch, ttl, secure)
+}
+
+// Read reports whether r carries a valid, unexpired session cookie for epoch.
+func Read(r *http.Request, key []byte, epoch string) bool {
+	return read(r, CookieName, "", key, epoch)
+}
+
+// IssueSetup returns a Set-Cookie value for a short-lived setup cookie bound to
+// bind (the current setup code's identity), so it dies with the code.
+func IssueSetup(key []byte, bind string, secure bool) string {
+	return issue(SetupCookieName, setupPurpose, key, bind, setupTTL, secure)
+}
+
+// ReadSetup reports whether r carries a valid setup cookie for bind.
+func ReadSetup(r *http.Request, key []byte, bind string) bool {
+	return read(r, SetupCookieName, setupPurpose, key, bind)
+}
+
+// Clear expires the session cookie.
+func Clear(secure bool) string { return ClearNamed(CookieName, secure) }
+
+// ClearNamed expires the named cookie.
+func ClearNamed(name string, secure bool) string {
+	parts := []string{name + "=", "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"}
+	if secure {
+		parts = append(parts, "Secure")
+	}
+	return strings.Join(parts, "; ")
+}
+
+// Cookie returns the raw value of the named cookie on r, or "".
+func Cookie(r *http.Request, name string) string {
+	c, err := r.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	return c.Value
+}
+
+// Set returns a Set-Cookie value for an opaque value with the given TTL.
+func Set(name, value string, maxAge time.Duration, secure bool) string {
 	parts := []string{
-		CookieName + "=" + value,
+		name + "=" + value,
 		"Path=/",
 		"HttpOnly",
 		"SameSite=Lax",
-		"Max-Age=" + strconv.Itoa(int(ttl.Seconds())),
+		"Max-Age=" + strconv.Itoa(int(maxAge.Seconds())),
 	}
 	if secure {
 		parts = append(parts, "Secure")
@@ -32,50 +78,38 @@ func Issue(key []byte, secure bool) string {
 	return strings.Join(parts, "; ")
 }
 
-func Clear(secure bool) string {
-	parts := []string{CookieName + "=", "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"}
-	if secure {
-		parts = append(parts, "Secure")
-	}
-	return strings.Join(parts, "; ")
+func issue(name, purpose string, key []byte, epoch string, life time.Duration, secure bool) string {
+	exp := time.Now().Add(life).UnixMilli()
+	payload := strconv.FormatInt(exp, 10) + "." + epoch
+	sig := fcrypto.HMACSign(key, purpose+payload)
+	return Set(name, payload+"."+sig, life, secure)
 }
 
-func Read(r *http.Request, key []byte) bool {
-	cookie := r.Header.Get("Cookie")
-	var value string
-	for _, part := range strings.Split(cookie, ";") {
-		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, CookieName+"=") {
-			value = part[len(CookieName)+1:]
-			break
-		}
+func read(r *http.Request, name, purpose string, key []byte, epoch string) bool {
+	if epoch == "" {
+		return false
 	}
+	value := Cookie(r, name)
 	if value == "" {
 		return false
 	}
-	dot := strings.IndexByte(value, '.')
+	last := strings.LastIndexByte(value, '.')
+	if last < 0 {
+		return false
+	}
+	payload, sig := value[:last], value[last+1:]
+	dot := strings.IndexByte(payload, '.')
 	if dot < 0 {
 		return false
 	}
-	payload := value[:dot]
-	sig := value[dot+1:]
-	exp, err := strconv.ParseInt(payload, 10, 64)
+	exp, err := strconv.ParseInt(payload[:dot], 10, 64)
 	if err != nil || exp < time.Now().UnixMilli() {
 		return false
 	}
-	return fcrypto.HMACVerify(key, payload, sig)
-}
-
-func BearerPassword(r *http.Request) string {
-	h := r.Header.Get("Authorization")
-	if !strings.HasPrefix(strings.ToLower(h), "bearer ") {
-		return ""
+	if payload[dot+1:] != epoch {
+		return false
 	}
-	token := strings.TrimSpace(h[7:])
-	if strings.HasPrefix(token, "sk-ms-") {
-		return ""
-	}
-	return token
+	return fcrypto.HMACVerify(key, purpose+payload, sig)
 }
 
 func BearerLocalKey(r *http.Request) string {
