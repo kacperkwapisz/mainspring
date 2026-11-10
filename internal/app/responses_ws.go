@@ -319,7 +319,7 @@ func (s *wsSession) runTurn(t *wsTurn, body map[string]any, used []any, headers 
 
 	result, err := proxy.Proxy(t.ctx, s.hub, proxy.Request{
 		Inbound: domain.InboundOpenAIResponses, Body: body, Key: s.key,
-		Stream: true, InboundHeaders: headers,
+		Stream: true, InboundHeaders: headers, Transport: "websocket",
 	})
 	if err != nil {
 		status, kind, msg := httpx.ClassifyErr(err)

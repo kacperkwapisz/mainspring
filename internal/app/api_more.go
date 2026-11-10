@@ -341,16 +341,13 @@ func settingsView(hub *proxy.Hub) map[string]any {
 		"cursor_list_fast":   settingOn(hub, proxy.SettingCursorListFast, true),
 		"grok_failover":      settingOn(hub, proxy.SettingCursorGrokFailover, false),
 		"trace":              trace,
-		"websockets":         settingOn(hub, SettingWSEnabledKey, true),
+		"websockets":         settingOn(hub, SettingWSEnabled, true),
 		"hub_enabled":        settingOn(hub, SettingHubEnabled, false),
 		"hub_key":            hash != "",
 		"hub_key_created_at": createdAt,
 		"version":            Version,
 	}
 }
-
-// SettingWSEnabledKey mirrors the WebSocket bridge's setting key.
-const SettingWSEnabledKey = "ws.enabled"
 
 func updateSettings(hub *proxy.Hub, body any) error {
 	m, _ := body.(map[string]any)
@@ -384,7 +381,7 @@ func updateSettings(hub *proxy.Hub, body any) error {
 	setBool("cursor_prefix", proxy.SettingCursorPrefix)
 	setBool("cursor_list_fast", proxy.SettingCursorListFast)
 	setBool("grok_failover", proxy.SettingCursorGrokFailover)
-	setBool("websockets", SettingWSEnabledKey)
+	setBool("websockets", SettingWSEnabled)
 	if _, ok := m["hub_enabled"]; ok {
 		if jsonBool(m, "hub_enabled") {
 			if h, _ := hub.Settings.Get(SettingHubKeyHash); h == "" {
