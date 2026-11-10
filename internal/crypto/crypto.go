@@ -13,7 +13,6 @@ import (
 	"io"
 )
 
-
 func Encrypt(key []byte, plaintext string) (string, error) {
 	if len(key) != 32 {
 		return "", fmt.Errorf("aes key must be 32 bytes")

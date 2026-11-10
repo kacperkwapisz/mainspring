@@ -320,7 +320,7 @@ func TestRegisterLoginRoundTrip(t *testing.T) {
 
 	// Keys under another host are not offered.
 	other := newClient(t, b)
-	other.host = "127.0.0.1:8317"
+	other.host = "hub.localhost:8317"
 	res, _ = other.do(http.MethodPost, "/api/auth/login/begin", "")
 	expect(t, res, 409, "no_keys_for_host")
 

@@ -172,9 +172,12 @@ func TestRelyingParty(t *testing.T) {
 	}
 
 	r = httptest.NewRequest(http.MethodGet, "/", nil)
-	r.Host = "[::1]:8317"
-	if rp := s.RelyingParty(r); rp.ID != "::1" || !rp.SecureContext {
-		t.Fatalf("%+v", rp)
+	// Browsers refuse IP addresses as a relying party, loopback included.
+	for _, host := range []string{"[::1]:8317", "127.0.0.1:8317", "192.168.1.20:8317"} {
+		r.Host = host
+		if rp := s.RelyingParty(r); rp.SecureContext {
+			t.Fatalf("%s must not offer security keys: %+v", host, rp)
+		}
 	}
 
 	proxy := newService(t, map[string]string{"MAINSPRING_AUTH": "proxy"})

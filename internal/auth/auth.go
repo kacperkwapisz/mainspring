@@ -228,12 +228,16 @@ func (s *Service) RelyingParty(r *http.Request) RelyingParty {
 		hostname = strings.TrimSuffix(strings.TrimPrefix(hostname, "["), "]")
 	}
 	secure := scheme == "https"
-	local := hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1"
+	local := hostname == "localhost" || strings.HasSuffix(hostname, ".localhost")
+	// Browsers refuse an IP address as a relying party ID, so an IP is never
+	// a place security keys work, even on loopback. The panel then points to
+	// localhost or HTTPS instead of offering a sign-in that can't succeed.
+	isIP := net.ParseIP(hostname) != nil
 	return RelyingParty{
 		ID:            hostname,
 		Origin:        scheme + "://" + host,
 		Secure:        secure,
-		SecureContext: hostname != "" && (secure || local),
+		SecureContext: hostname != "" && !isIP && (secure || local),
 	}
 }
 

@@ -48,7 +48,7 @@ func runDemo(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(*port))
-	fmt.Fprintf(stdout, "mainspring demo on http://%s (made-up data, in memory)\n", addr)
+	fmt.Fprintf(stdout, "mainspring demo on http://localhost:%d (made-up data, in memory)\n", *port)
 	if err := httpx.Server(addr, booted.Handler).ListenAndServe(); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1

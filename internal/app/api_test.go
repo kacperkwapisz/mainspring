@@ -230,3 +230,45 @@ func TestPanelServesAppAndAssets(t *testing.T) {
 		t.Fatalf("missing asset: %d", res.Code)
 	}
 }
+
+func TestPanelAPIRefusesCrossSiteWrites(t *testing.T) {
+	booted, err := Create(map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:", "MAINSPRING_AUTH": "proxy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer booted.DB.Close()
+	send := func(origin, ctype, body string) int {
+		req := httptest.NewRequest(http.MethodPost, "http://umbrel.local:8317/api/keys", strings.NewReader(body))
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		if ctype != "" {
+			req.Header.Set("Content-Type", ctype)
+		}
+		res := httptest.NewRecorder()
+		booted.Handler.ServeHTTP(res, req)
+		return res.Code
+	}
+	// A form on another site, and JSON from another origin, are both refused.
+	if code := send("https://evil.example", "application/x-www-form-urlencoded", "name=x"); code != 403 {
+		t.Fatalf("cross-site form: %d", code)
+	}
+	if code := send("", "text/plain", `{"name":"x"}`); code != 403 {
+		t.Fatalf("text/plain body: %d", code)
+	}
+	if code := send("https://evil.example", "application/json", `{"name":"x"}`); code != 403 {
+		t.Fatalf("foreign origin: %d", code)
+	}
+	// The panel itself, same origin, works without signing in behind a proxy.
+	if code := send("http://umbrel.local:8317", "application/json", `{"name":"laptop"}`); code != 200 {
+		t.Fatalf("same origin: %d", code)
+	}
+	// Reads stay allowed so the page can load.
+	req := httptest.NewRequest(http.MethodGet, "/api/pool", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	res := httptest.NewRecorder()
+	booted.Handler.ServeHTTP(res, req)
+	if res.Code != 200 {
+		t.Fatalf("GET pool: %d", res.Code)
+	}
+}
