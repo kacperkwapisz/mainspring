@@ -33,17 +33,41 @@ type UsageStore struct {
 	db *db.DB
 }
 
-func NewUsageStore(d *db.DB) *UsageStore { return &UsageStore{db: d} }
+func NewUsageStore(d *db.DB) *UsageStore {
+	ensureColumn(d, "usage_events", "credential_id", "TEXT")
+	return &UsageStore{db: d}
+}
+
+// ensureColumn adds a column to an existing table once. SQLite has no
+// ADD COLUMN IF NOT EXISTS, so check table_info first.
+func ensureColumn(d *db.DB, table, column, typ string) {
+	rows, err := d.SQL.Query("SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		return
+	}
+	for rows.Next() {
+		var name string
+		if rows.Scan(&name) == nil && name == column {
+			rows.Close()
+			return
+		}
+	}
+	rows.Close()
+	_, _ = d.SQL.Exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + typ)
+}
 
 func (s *UsageStore) Record(event domain.UsageEvent) error {
-	var keyID any
+	var keyID, credID any
 	if event.KeyID != "" {
 		keyID = event.KeyID
 	}
+	if event.CredentialID != "" {
+		credID = event.CredentialID
+	}
 	_, err := s.db.SQL.Exec(
-		`INSERT INTO usage_events(ts, key_id, provider, model, inbound, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, latency_ms, status, usd)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		event.TS, keyID, string(event.Provider), event.Model, string(event.Inbound),
+		`INSERT INTO usage_events(ts, key_id, credential_id, provider, model, inbound, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, latency_ms, status, usd)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		event.TS, keyID, credID, string(event.Provider), event.Model, string(event.Inbound),
 		event.PromptTokens, event.CompletionTokens, event.CacheReadTokens, event.CacheWriteTokens,
 		event.LatencyMs, event.Status, event.USD,
 	)

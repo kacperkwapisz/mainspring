@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
 )
@@ -21,6 +22,10 @@ type ExecuteResult struct {
 	Stream    <-chan any
 	Retryable bool
 	Message   string
+	// Header holds the upstream response headers (rate-limit state lives here).
+	Header http.Header
+	// Raw is the upstream error body, unsanitised, for limit parsing.
+	Raw []byte
 }
 
 type Executor interface {
@@ -51,4 +56,42 @@ func IsRetryableStatus(status int) bool {
 	default:
 		return false
 	}
+}
+
+// RefreshError is returned when a provider's token endpoint refuses a refresh.
+type RefreshError struct {
+	Provider domain.ProviderID
+	Status   int
+}
+
+func (e *RefreshError) Error() string {
+	return string(e.Provider) + " refresh failed: " + itoa(e.Status)
+}
+
+// Permanent reports whether the refresh token itself was rejected, so the
+// account needs a fresh sign-in (as opposed to a network or server hiccup).
+func (e *RefreshError) Permanent() bool {
+	return e.Status == 400 || e.Status == 401 || e.Status == 403
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	var b [20]byte
+	i := len(b)
+	for n > 0 {
+		i--
+		b[i] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		i--
+		b[i] = '-'
+	}
+	return string(b[i:])
 }

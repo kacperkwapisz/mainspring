@@ -2,6 +2,8 @@ package app
 
 import (
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/db"
 	"github.com/kacperkwapisz/mainspring/internal/domain"
@@ -17,6 +19,7 @@ import (
 	openaiexec "github.com/kacperkwapisz/mainspring/internal/provider/openai"
 	opencodeexec "github.com/kacperkwapisz/mainspring/internal/provider/opencode"
 	"github.com/kacperkwapisz/mainspring/internal/proxy"
+	"github.com/kacperkwapisz/mainspring/internal/route"
 	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
@@ -47,6 +50,13 @@ func Create(source map[string]string) (*Booted, error) {
 	}
 	panelAuth := store.NewPanelAuth(d)
 	settings := store.NewSettingsStore(d)
+	router, err := route.New(d)
+	if err != nil {
+		d.Close()
+		return nil, err
+	}
+	applyRoutingSettings(router, settings)
+	activity := store.NewActivityStore(d)
 	hub := &proxy.Hub{
 		Env:      e,
 		Vault:    vault,
@@ -54,6 +64,8 @@ func Create(source map[string]string) (*Booted, error) {
 		Usage:    usage,
 		Prices:   prices,
 		Settings: settings,
+		Router:   router,
+		Activity: activity,
 		Executors: map[domain.ProviderID]provider.Executor{
 			domain.ProviderClaude:   claudeexec.Executor{ClientID: e.ClaudeClientID},
 			domain.ProviderCodex:    codexexec.Executor{ClientID: e.CodexClientID},
@@ -83,4 +95,18 @@ func page(w http.ResponseWriter, body, title, meta string) {
 
 func isSecure(publicURL string) bool {
 	return len(publicURL) >= 8 && publicURL[:8] == "https://"
+}
+
+// Settings keys owned by the routing engine.
+const (
+	SettingAffinityTTL = "routing.affinityMinutes"
+	SettingStaleAfter  = "routing.staleMinutes"
+)
+
+func applyRoutingSettings(r *route.Engine, settings *store.SettingsStore) {
+	if v, ok := settings.Get(SettingAffinityTTL); ok {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			r.SetAffinityTTL(time.Duration(n) * time.Minute)
+		}
+	}
 }

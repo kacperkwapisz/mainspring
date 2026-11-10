@@ -198,3 +198,69 @@ func (w tokenWire) toTokens() domain.CredentialTokens {
 	}
 	return t
 }
+
+// SaveLogin stores a fresh sign-in. Signing in to an account that is already in
+// the pool updates that credential (same id, same label) instead of adding a
+// duplicate. Accounts are matched by email, then provider account id, then label.
+func (v *Vault) SaveLogin(input SaveCredential) (cred domain.Credential, existed bool, err error) {
+	if input.ID == "" {
+		if same := v.findSame(input); same != nil {
+			input.ID = same.ID
+			input.Label = same.Label
+			existed = true
+		}
+	}
+	cred, err = v.Save(input)
+	return cred, existed, err
+}
+
+func (v *Vault) findSame(input SaveCredential) *domain.Credential {
+	list, err := v.List(input.Provider)
+	if err != nil {
+		return nil
+	}
+	for _, match := range []func(domain.Credential) bool{
+		func(c domain.Credential) bool {
+			return input.Tokens.Email != "" && equalFold(c.Tokens.Email, input.Tokens.Email)
+		},
+		func(c domain.Credential) bool {
+			return input.Tokens.Email == "" && input.Tokens.AccountID != "" && c.Tokens.AccountID == input.Tokens.AccountID
+		},
+		func(c domain.Credential) bool {
+			return input.Tokens.Email == "" && input.Tokens.AccountID == "" && input.Label != "" && c.Label == input.Label
+		},
+	} {
+		for _, c := range list {
+			if match(c) {
+				cp := c
+				return &cp
+			}
+		}
+	}
+	return nil
+}
+
+// Rename changes a credential's label.
+func (v *Vault) Rename(id, label string) error {
+	_, err := v.db.SQL.Exec(`UPDATE credentials SET label = ?, updated_at = ? WHERE id = ?`, label, nowMs(), id)
+	return err
+}
+
+func equalFold(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		x, y := a[i], b[i]
+		if 'A' <= x && x <= 'Z' {
+			x += 'a' - 'A'
+		}
+		if 'A' <= y && y <= 'Z' {
+			y += 'a' - 'A'
+		}
+		if x != y {
+			return false
+		}
+	}
+	return true
+}

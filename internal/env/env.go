@@ -19,7 +19,7 @@ const (
 	EmbeddedCodexClientID  = "app_EMoamEEZ73f0CkXaXp7hrann"
 	EmbeddedGrokClientID   = "b1a00492-073a-47ea-816f-4c329264a828"
 	DefaultPort            = 8317
-	DefaultHost            = "0.0.0.0"
+	DefaultHost            = "127.0.0.1"
 )
 
 type LogLevel string
@@ -73,10 +73,14 @@ func Load(source map[string]string) (*Env, error) {
 	jwtSecret := strings.TrimSpace(get("JWT_SECRET"))
 	generated := false
 	if jwtSecret == "" {
-		if inDocker {
-			return nil, &Error{Msg: "JWT_SECRET is required. Generate one with: openssl rand -hex 32"}
+		// No secret given: keep one next to the database (the data dir in Docker,
+		// ~/.mainspring for the binary) so restarts can still decrypt credentials.
+		secretDir := home
+		if p := strings.TrimSpace(get("DATABASE_PATH")); p != "" && p != ":memory:" {
+			secretDir = filepath.Dir(p)
 		}
-		secretPath := filepath.Join(home, "jwt_secret")
+		_ = inDocker
+		secretPath := filepath.Join(secretDir, "jwt_secret")
 		if existing, readErr := os.ReadFile(secretPath); readErr == nil {
 			jwtSecret = strings.TrimSpace(string(existing))
 		}
@@ -86,7 +90,7 @@ func Load(source map[string]string) (*Env, error) {
 				return nil, err
 			}
 			jwtSecret = hex.EncodeToString(buf)
-			if err := os.MkdirAll(home, 0o700); err != nil {
+			if err := os.MkdirAll(secretDir, 0o700); err != nil {
 				return nil, err
 			}
 			if err := os.WriteFile(secretPath, []byte(jwtSecret+"\n"), 0o600); err != nil {

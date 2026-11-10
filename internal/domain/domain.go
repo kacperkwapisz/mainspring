@@ -81,6 +81,7 @@ type Credential struct {
 type UsageEvent struct {
 	TS               int64
 	KeyID            string
+	CredentialID     string
 	Provider         ProviderID
 	Model            string
 	Inbound          InboundFormat

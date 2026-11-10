@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/kacperkwapisz/mainspring/internal/provider"
 	"github.com/kacperkwapisz/mainspring/internal/provider/cursor"
 	"github.com/kacperkwapisz/mainspring/internal/provider/openai"
+	"github.com/kacperkwapisz/mainspring/internal/route"
 	"github.com/kacperkwapisz/mainspring/internal/store"
 	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
@@ -36,6 +38,8 @@ type Hub struct {
 	Prices    *store.PriceStore
 	Executors map[domain.ProviderID]provider.Executor
 	Settings  *store.SettingsStore
+	Router    *route.Engine
+	Activity  *store.ActivityStore
 }
 
 type Request struct {
@@ -45,8 +49,9 @@ type Request struct {
 	Stream         bool
 	CountTokens    bool
 	Compact        bool
-	StickyID       string
 	InboundHeaders map[string]string
+	// Transport is "http" or "websocket", shown on the Sessions screen.
+	Transport string
 }
 
 type Result struct {
@@ -54,9 +59,9 @@ type Result struct {
 	Status int
 	Body   any
 	Stream <-chan string
+	// Header carries response headers for the client (Retry-After, Codex turn state).
+	Header http.Header
 }
-
-var sticky sync.Map
 
 func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 	started := time.Now().UnixMilli()
@@ -88,11 +93,22 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 		}
 	}
 
+	router := hub.router()
+	bodyMap, _ := req.Body.(map[string]any)
+	sessionKey := route.SessionKey(req.InboundHeaders, bodyMap, req.Key.ID)
+	client := route.ClientName(req.InboundHeaders)
+	transport := req.Transport
+	if transport == "" {
+		transport = "http"
+	}
+
 	var last provider.ExecuteResult
 	var lastHop hop
+	var restingUntil int64
+	restingProvider := domain.ProviderID("")
 	attempted := false
 	firstByte := false
-	route := string(req.Inbound)
+	routeName := string(req.Inbound)
 
 	for hopIndex, hop := range chain {
 		if err := hub.Keys.Allows(req.Key, hop.Provider, hop.Model); err != nil {
@@ -112,54 +128,69 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 			inboundBody = translate.FlattenCodexMultiAgent(req.Body)
 		}
 		translated := translate.TranslateRequest(req.Inbound, execFormat, hop.Model, req.Stream, inboundBody)
-		creds, err := pickCredentials(hub, hop.Provider, hop.Model, req.Key.ID, req.StickyID)
+		all, err := hopCredentials(hub, hop.Provider, hop.Model)
 		if err != nil {
 			return Result{}, err
 		}
-		if len(creds) == 0 {
+		if len(all) == 0 {
 			last = provider.ExecuteResult{OK: false, Status: 503, Message: "no " + string(hop.Provider) + " credential is connected"}
 			lastHop = hop
 			continue
 		}
+		candidates, backAt := router.Order(hop.Provider, all, sessionKey)
+		if len(candidates) == 0 {
+			tr.Add("%s: every account is resting", hop.Provider)
+			if restingUntil == 0 || (backAt > 0 && backAt < restingUntil) {
+				restingUntil, restingProvider = backAt, hop.Provider
+			}
+			if restingProvider == "" {
+				restingProvider = hop.Provider
+			}
+			noteAllOut(hub, hop.Provider, backAt)
+			last = provider.ExecuteResult{OK: false, Status: 429, Retryable: true, Message: "every " + providerName(hop.Provider) + " account is resting"}
+			lastHop = hop
+			continue
+		}
 		attempted = true
-		for i, cred := range creds {
+		for i, cand := range candidates {
+			cred := cand.Credential
 			if nearExpiry(cred) {
 				if refreshed, err := executor.Refresh(ctx, cred); err == nil {
 					cred = refreshed
-					_, _ = hub.Vault.Save(store.SaveCredential{
-						ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Tokens: cred.Tokens, ExpiresAt: cred.ExpiresAt,
-					})
+					saveRefreshed(hub, cred)
 				} else {
-					logRefresh(hop.Provider, cred.Label, route, err)
+					logRefresh(hop.Provider, cred.Label, routeName, err)
+					if signInRejected(hub, cred, err) {
+						last, lastHop = provider.ExecuteResult{OK: false, Status: 401, Retryable: true, Message: "sign-in rejected"}, hop
+						continue
+					}
 				}
 			}
-			result, err := executor.Execute(ctx, cred, translated.Body, provider.ExecuteOptions{
+			opts := provider.ExecuteOptions{
 				Stream: req.Stream, CountTokens: req.CountTokens, Compact: req.Compact,
 				InboundHeaders: req.InboundHeaders, CallerKey: req.Key.ID,
-			})
+			}
+			result, err := executor.Execute(ctx, cred, translated.Body, opts)
 			if err != nil {
 				result = provider.FailFromErr(err)
 			}
 			if !result.OK && result.Status == 401 {
 				if refreshed, err := executor.Refresh(ctx, cred); err == nil {
 					cred = refreshed
-					_, _ = hub.Vault.Save(store.SaveCredential{
-						ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Tokens: cred.Tokens, ExpiresAt: cred.ExpiresAt,
-					})
-					result, err = executor.Execute(ctx, cred, translated.Body, provider.ExecuteOptions{
-						Stream: req.Stream, CountTokens: req.CountTokens, Compact: req.Compact,
-						InboundHeaders: req.InboundHeaders, CallerKey: req.Key.ID,
-					})
+					saveRefreshed(hub, cred)
+					result, err = executor.Execute(ctx, cred, translated.Body, opts)
 					if err != nil {
 						result = provider.FailFromErr(err)
 					}
 				} else {
-					logRefresh(hop.Provider, cred.Label, route, err)
+					logRefresh(hop.Provider, cred.Label, routeName, err)
+					signInRejected(hub, cred, err)
 				}
 			}
+			observe(hub, cred, result)
 			if !result.OK {
 				last, lastHop = result, hop
-				moreCreds := result.Retryable && i < len(creds)-1 && !firstByte
+				moreCreds := result.Retryable && i < len(candidates)-1 && !firstByte
 				moreHops := result.Retryable && hopIndex < len(chain)-1 && !firstByte
 				if moreCreds {
 					continue
@@ -167,11 +198,23 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 				if moreHops {
 					break
 				}
-				record(hub, req, hop.Provider, hop.Model, started, "error", 0, 0, 0, 0, "")
+				record(hub, req, hop.Provider, hop.Model, cred.ID, started, "error", usageCounts{}, "")
 				httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s status=%d", hop.Provider, hop.Model, result.Status))
 				return failFromExec(req, hop.Provider, hop.Model, result), nil
 			}
-			sticky.Store(req.Key.ID, cred.ID)
+			router.Succeeded(cred.ID)
+			movedFrom := router.Bind(hop.Provider, sessionKey, cred.ID)
+			if movedFrom != "" {
+				noteMoved(hub, hop.Provider, movedFrom, cred)
+			}
+			touch := route.Touch{
+				Provider: hop.Provider, SessionKey: sessionKey, CredID: cred.ID, LocalKeyID: req.Key.ID,
+				Client: client, Model: hop.Model, Transport: transport, MovedFrom: movedFrom,
+			}
+			if movedFrom != "" {
+				touch.MovedReason = movedReason(hub, movedFrom)
+			}
+			passthrough := passthroughHeaders(result.Header)
 			if req.Stream && result.Stream != nil {
 				out := make(chan string)
 				go func() {
@@ -197,41 +240,49 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 					status := "ok"
 					if state.Error != "" || !state.Finished {
 						status = "error"
-						logIncompleteStream(string(hop.Provider), hop.Model, route, state.Error)
+						logIncompleteStream(string(hop.Provider), hop.Model, routeName, state.Error)
 						httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s unfinished stream", hop.Provider, hop.Model))
 					} else {
-						httpx.LogOK(string(hop.Provider), hop.Model, route)
+						httpx.LogOK(string(hop.Provider), hop.Model, routeName)
 						httpx.DumpTrace(ctx, false, fmt.Sprintf("%s/%s ok", hop.Provider, hop.Model))
 					}
-					record(hub, req, hop.Provider, hop.Model, started, status, state.PromptTokens, state.CompletionTokens, state.CacheRead, state.CacheWrite, state.RoutedModel)
+					u := usageCounts{state.PromptTokens, state.CompletionTokens, state.CacheRead, state.CacheWrite}
+					touch.InputTokens, touch.CacheRead = u.prompt+u.cacheRead+u.cacheWrite, u.cacheRead
+					router.Touch(touch)
+					record(hub, req, hop.Provider, hop.Model, cred.ID, started, status, u, state.RoutedModel)
 				}()
-				return Result{OK: true, Status: 200, Stream: out}, nil
+				return Result{OK: true, Status: 200, Stream: out, Header: passthrough}, nil
 			}
 			body := translate.TranslateResponse(req.Inbound, execFormat, hop.Model, req.Body, result.Body)
 			pt, ct, cr, cw := usageFrom(body, result.Body)
-			httpx.LogOK(string(hop.Provider), hop.Model, route)
+			httpx.LogOK(string(hop.Provider), hop.Model, routeName)
 			httpx.DumpTrace(ctx, false, fmt.Sprintf("%s/%s ok", hop.Provider, hop.Model))
-			record(hub, req, hop.Provider, hop.Model, started, "ok", pt, ct, cr, cw, routedModel(body, result.Body))
-			return Result{OK: true, Status: 200, Body: body}, nil
+			touch.InputTokens, touch.CacheRead = pt+cr+cw, cr
+			if !req.CountTokens {
+				router.Touch(touch)
+			}
+			record(hub, req, hop.Provider, hop.Model, cred.ID, started, "ok", usageCounts{pt, ct, cr, cw}, routedModel(body, result.Body))
+			return Result{OK: true, Status: 200, Body: body, Header: passthrough}, nil
 		}
 	}
 	if lastHop.Provider == "" {
 		lastHop = chain[0]
 	}
+	if restingProvider != "" && (last.Status == 429 || !attempted) {
+		record(hub, req, lastHop.Provider, lastHop.Model, "", started, "error", usageCounts{}, "")
+		return allResting(req, restingProvider, lastHop.Model, restingUntil), nil
+	}
 	if last.Status == 0 {
 		if attempted {
 			last.Status = 502
-			if last.Message == "" {
-				last.Message = "all credentials failed"
-			}
 		} else {
 			last.Status = 503
-			if last.Message == "" {
-				last.Message = "all credentials failed"
-			}
+		}
+		if last.Message == "" {
+			last.Message = "all credentials failed"
 		}
 	}
-	record(hub, req, lastHop.Provider, lastHop.Model, started, "error", 0, 0, 0, 0, "")
+	record(hub, req, lastHop.Provider, lastHop.Model, "", started, "error", usageCounts{}, "")
 	httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s status=%d", lastHop.Provider, lastHop.Model, last.Status))
 	return failFromExec(req, lastHop.Provider, lastHop.Model, last), nil
 }
@@ -351,61 +402,6 @@ func cursorModelsForList(ex provider.Executor, prefix, listFast bool) []domain.M
 type hop struct {
 	Provider domain.ProviderID
 	Model    string
-}
-
-func pickCredentials(hub *Hub, providerID domain.ProviderID, model, keyID, stickyID string) ([]domain.Credential, error) {
-	all, err := hub.Vault.List(providerID)
-	if err != nil {
-		return nil, err
-	}
-	if providerID == domain.ProviderOpenAI {
-		matched := []domain.Credential{}
-		for _, c := range all {
-			slug := openai.SourceSlug(c)
-			if slug != "" && strings.HasPrefix(model, slug+"/") {
-				matched = append(matched, c)
-			}
-		}
-		all = matched
-	}
-	if providerID == domain.ProviderCursor {
-		oauth := []domain.Credential{}
-		keys := []domain.Credential{}
-		for _, c := range all {
-			if kind, _ := c.Tokens.Extra["kind"].(string); kind == "api_key" {
-				keys = append(keys, c)
-			} else {
-				oauth = append(oauth, c)
-			}
-		}
-		all = append(oauth, keys...)
-	}
-	if len(all) == 0 {
-		return nil, nil
-	}
-	preferred := stickyID
-	if preferred == "" {
-		if v, ok := sticky.Load(keyID); ok {
-			preferred, _ = v.(string)
-		}
-	}
-	if preferred == "" {
-		return all, nil
-	}
-	var hit *domain.Credential
-	rest := []domain.Credential{}
-	for _, c := range all {
-		if c.ID == preferred {
-			cp := c
-			hit = &cp
-		} else {
-			rest = append(rest, c)
-		}
-	}
-	if hit == nil {
-		return all, nil
-	}
-	return append([]domain.Credential{*hit}, rest...), nil
 }
 
 func resolveProviderChain(hub *Hub, rawModel string) []hop {
@@ -618,7 +614,8 @@ func usageFrom(translated, upstream any) (pt, ct, cr, cw int64) {
 	return
 }
 
-func record(hub *Hub, req Request, providerID domain.ProviderID, model string, started int64, status string, pt, ct, cr, cw int64, routed string) {
+func record(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, status string, u usageCounts, routed string) {
+	pt, ct, cr, cw := u.prompt, u.completion, u.cacheRead, u.cacheWrite
 	priceProvider := map[domain.ProviderID]string{
 		domain.ProviderClaude:   "anthropic",
 		domain.ProviderCodex:    "openai",
@@ -638,7 +635,7 @@ func record(hub *Hub, req Request, providerID domain.ProviderID, model string, s
 		}
 	}
 	_ = hub.Usage.Record(domain.UsageEvent{
-		TS: time.Now().UnixMilli(), KeyID: req.Key.ID, Provider: providerID, Model: meterModel, Inbound: req.Inbound,
+		TS: time.Now().UnixMilli(), KeyID: req.Key.ID, CredentialID: credID, Provider: providerID, Model: meterModel, Inbound: req.Inbound,
 		PromptTokens: pt, CompletionTokens: ct, CacheReadTokens: cr, CacheWriteTokens: cw,
 		LatencyMs: time.Now().UnixMilli() - started, Status: status, USD: usd,
 	})

@@ -13,6 +13,7 @@ import (
 	"github.com/kacperkwapisz/mainspring/internal/httpx"
 	"github.com/kacperkwapisz/mainspring/internal/provider"
 	"github.com/kacperkwapisz/mainspring/internal/provider/cursor"
+	"github.com/kacperkwapisz/mainspring/internal/route"
 	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
@@ -51,9 +52,14 @@ func testHub(t *testing.T, execs map[domain.ProviderID]provider.Executor) (*Hub,
 	if err != nil {
 		t.Fatal(err)
 	}
+	router, err := route.New(d)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &Hub{
 		Env: e, Vault: store.NewVault(d, e.JWTKey), Keys: store.NewKeyStore(d),
 		Usage: store.NewUsageStore(d), Prices: prices, Executors: execs, Settings: store.NewSettingsStore(d),
+		Router: router, Activity: store.NewActivityStore(d),
 	}, d
 }
 

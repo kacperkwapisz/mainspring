@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -66,7 +65,7 @@ func (e Executor) Refresh(ctx context.Context, credential domain.Credential) (do
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return credential, fmt.Errorf("codex refresh failed: %d", res.StatusCode)
+		return credential, &provider.RefreshError{Provider: domain.ProviderCodex, Status: res.StatusCode}
 	}
 	var jsonMap map[string]any
 	_ = json.Unmarshal(raw, &jsonMap)
@@ -104,13 +103,13 @@ func wrap(res *http.Response, stream bool) (provider.ExecuteResult, error) {
 	if stream {
 		ch := make(chan any, 16)
 		go provider.ParseSSE(res.Body, ch)
-		return provider.ExecuteResult{OK: true, Status: res.StatusCode, Stream: ch}, nil
+		return provider.ExecuteResult{OK: true, Status: res.StatusCode, Stream: ch, Header: res.Header}, nil
 	}
 	defer res.Body.Close()
 	ch := make(chan any, 16)
 	go provider.ParseSSE(res.Body, ch)
 	body := collectCodexResponse(ch)
-	return provider.ExecuteResult{OK: true, Status: res.StatusCode, Body: body}, nil
+	return provider.ExecuteResult{OK: true, Status: res.StatusCode, Body: body, Header: res.Header}, nil
 }
 
 func collectCodexResponse(ch <-chan any) any {

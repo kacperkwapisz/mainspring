@@ -78,7 +78,12 @@ func BearerPassword(r *http.Request) string {
 	return token
 }
 
+// BearerLocalKey returns the LocalKey from Authorization: Bearer, or from the
+// x-api-key header Anthropic SDKs send when ANTHROPIC_API_KEY is set.
 func BearerLocalKey(r *http.Request) string {
+	if k := strings.TrimSpace(r.Header.Get("x-api-key")); strings.HasPrefix(k, "sk-ms-") {
+		return k
+	}
 	h := r.Header.Get("Authorization")
 	if !strings.HasPrefix(strings.ToLower(h), "bearer ") {
 		return ""

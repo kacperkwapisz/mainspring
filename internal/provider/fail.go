@@ -16,7 +16,7 @@ func FailFromResponse(res *http.Response) ExecuteResult {
 	}
 	return ExecuteResult{
 		OK: false, Status: res.StatusCode, Retryable: IsRetryableStatus(res.StatusCode),
-		Body: body, Message: msg,
+		Body: body, Message: msg, Header: res.Header, Raw: raw,
 	}
 }
 

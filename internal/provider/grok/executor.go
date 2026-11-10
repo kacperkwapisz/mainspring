@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -78,7 +77,7 @@ func (e Executor) Refresh(ctx context.Context, credential domain.Credential) (do
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return credential, fmt.Errorf("grok refresh failed: %d", res.StatusCode)
+		return credential, &provider.RefreshError{Provider: domain.ProviderGrok, Status: res.StatusCode}
 	}
 	var jsonMap map[string]any
 	_ = json.Unmarshal(raw, &jsonMap)

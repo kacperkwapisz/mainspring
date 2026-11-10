@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -57,7 +56,7 @@ func (e Executor) Refresh(ctx context.Context, credential domain.Credential) (do
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return credential, fmt.Errorf("claude refresh failed: %d", res.StatusCode)
+		return credential, &provider.RefreshError{Provider: domain.ProviderClaude, Status: res.StatusCode}
 	}
 	var jsonMap map[string]any
 	_ = json.Unmarshal(raw, &jsonMap)
@@ -90,7 +89,7 @@ func wrap(res *http.Response, stream bool, reverse map[string]string) (provider.
 				out <- RestoreStreamChunk(chunk, reverse)
 			}
 		}()
-		return provider.ExecuteResult{OK: true, Status: res.StatusCode, Stream: out}, nil
+		return provider.ExecuteResult{OK: true, Status: res.StatusCode, Stream: out, Header: res.Header}, nil
 	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
@@ -99,5 +98,5 @@ func wrap(res *http.Response, stream bool, reverse map[string]string) (provider.
 	if reverse != nil {
 		body = RestoreClaudeToolNames(body, reverse)
 	}
-	return provider.ExecuteResult{OK: true, Status: res.StatusCode, Body: body}, nil
+	return provider.ExecuteResult{OK: true, Status: res.StatusCode, Body: body, Header: res.Header}, nil
 }

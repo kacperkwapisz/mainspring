@@ -9,10 +9,20 @@ import (
 
 const secret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-func TestLoadRefusesMissingSecretInDocker(t *testing.T) {
-	_, err := Load(map[string]string{"DATABASE_PATH": "/data/mainspring.sqlite"})
-	if err == nil || !strings.Contains(err.Error(), "JWT_SECRET") {
-		t.Fatalf("got %v", err)
+func TestLoadKeepsGeneratedSecretNextToDatabase(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "data", "mainspring.sqlite")
+	first, err := Load(map[string]string{"DATABASE_PATH": dbPath, "MAINSPRING_HOME": filepath.Join(dir, "home")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "data", "jwt_secret"))
+	if err != nil || strings.TrimSpace(string(raw)) != first.JWTSecret {
+		t.Fatalf("secret file: %v", err)
+	}
+	again, err := Load(map[string]string{"DATABASE_PATH": dbPath, "MAINSPRING_HOME": filepath.Join(dir, "home")})
+	if err != nil || again.JWTSecret != first.JWTSecret {
+		t.Fatal("restart must reuse the secret")
 	}
 }
 
@@ -28,7 +38,7 @@ func TestLoadParsesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.Port != 8317 || e.Host != "0.0.0.0" || e.LogLevel != LogInfo {
+	if e.Port != 8317 || e.Host != "127.0.0.1" || e.LogLevel != LogInfo {
 		t.Fatalf("%+v", e)
 	}
 	if len(e.JWTKey) != 32 {

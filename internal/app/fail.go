@@ -40,6 +40,11 @@ func writeProxyErr(w http.ResponseWriter, r *http.Request, inbound string, err e
 }
 
 func writeProxy(w http.ResponseWriter, r *http.Request, result proxy.Result) {
+	for k, vs := range result.Header {
+		for _, v := range vs {
+			w.Header().Add(k, v)
+		}
+	}
 	if !result.OK {
 		httpx.JSON(w, result.Status, result.Body)
 		return
