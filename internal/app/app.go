@@ -86,6 +86,10 @@ func Create(source map[string]string) (*Booted, error) {
 	registerAnthropic(mux, hub)
 	registerResponses(mux, hub)
 	registerPanel(mux, hub, e, panelAuth, settings, logins)
+	gate := Gate(cookieGate{e: e})
+	registerAPI(mux, hub, gate)
+	registerLoginAPI(mux, hub, gate, logins)
+	registerManagement(mux, hub)
 	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Panel: panelAuth, DB: d}, nil
 }
 

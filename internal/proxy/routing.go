@@ -240,3 +240,25 @@ func providerName(p domain.ProviderID) string {
 	}
 	return string(p)
 }
+
+// InputTokens returns all input tokens of a request, cached or not. Claude
+// reports cache reads and writes separately from input_tokens; OpenAI-style
+// providers include cached tokens in prompt_tokens already.
+func InputTokens(p domain.ProviderID, prompt, cacheRead, cacheWrite int64) int64 {
+	if p == domain.ProviderClaude {
+		return prompt + cacheRead + cacheWrite
+	}
+	return prompt + cacheWrite
+}
+
+// ServedBy returns which providers would serve a model id, in order, and the
+// provider it falls back to on retryable errors (or "").
+func ServedBy(hub *Hub, model string) (served []domain.ProviderID, fallback domain.ProviderID) {
+	for i, h := range resolveProviderChain(hub, model) {
+		served = append(served, h.Provider)
+		if i == 1 {
+			fallback = h.Provider
+		}
+	}
+	return served, fallback
+}

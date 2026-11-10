@@ -247,7 +247,7 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 						httpx.DumpTrace(ctx, false, fmt.Sprintf("%s/%s ok", hop.Provider, hop.Model))
 					}
 					u := usageCounts{state.PromptTokens, state.CompletionTokens, state.CacheRead, state.CacheWrite}
-					touch.InputTokens, touch.CacheRead = u.prompt+u.cacheRead+u.cacheWrite, u.cacheRead
+					touch.InputTokens, touch.CacheRead = InputTokens(hop.Provider, u.prompt, u.cacheRead, u.cacheWrite), u.cacheRead
 					router.Touch(touch)
 					record(hub, req, hop.Provider, hop.Model, cred.ID, started, status, u, state.RoutedModel)
 				}()
@@ -257,7 +257,7 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 			pt, ct, cr, cw := usageFrom(body, result.Body)
 			httpx.LogOK(string(hop.Provider), hop.Model, routeName)
 			httpx.DumpTrace(ctx, false, fmt.Sprintf("%s/%s ok", hop.Provider, hop.Model))
-			touch.InputTokens, touch.CacheRead = pt+cr+cw, cr
+			touch.InputTokens, touch.CacheRead = InputTokens(hop.Provider, pt, cr, cw), cr
 			if !req.CountTokens {
 				router.Touch(touch)
 			}

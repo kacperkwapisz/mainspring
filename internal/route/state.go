@@ -24,6 +24,7 @@ type State struct {
 	SignInAt    int64    `json:"sign_in_at,omitempty"`
 	Benched     bool     `json:"benched,omitempty"`
 	BenchedAt   int64    `json:"benched_at,omitempty"`
+	Plan        string   `json:"plan,omitempty"`
 }
 
 // Cooling reports whether the credential rests at time now.
@@ -475,3 +476,14 @@ func (e *Engine) BoundTo(provider domain.ProviderID, sessionKey string) string {
 }
 
 func bindKey(p domain.ProviderID, sessionKey string) string { return string(p) + "|" + sessionKey }
+
+// SetPlan remembers the subscription plan the provider reported.
+func (e *Engine) SetPlan(id, plan string) {
+	if plan == "" {
+		return
+	}
+	e.mu.Lock()
+	e.state(id).Plan = plan
+	e.persist(id, true)
+	e.mu.Unlock()
+}

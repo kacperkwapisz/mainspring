@@ -196,3 +196,73 @@ func startOfUTCDay(ts int64) int64 {
 	t := time.UnixMilli(ts).UTC()
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).UnixMilli()
 }
+
+var groupColumns = map[string]string{
+	"provider":       "provider",
+	"model":          "model",
+	"key_id":         "COALESCE(key_id, '')",
+	"credential_id":  "COALESCE(credential_id, '')",
+	"provider_model": "provider || '|' || model",
+}
+
+// GroupFrom groups usage since a unix-ms timestamp by an allowed field.
+func (s *UsageStore) GroupFrom(from int64, field string) ([]UsageBreakdown, error) {
+	col, ok := groupColumns[field]
+	if !ok {
+		return nil, nil
+	}
+	rows, err := s.db.SQL.Query(
+		`SELECT `+col+` AS key,
+		        COUNT(*), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0),
+		        COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_write_tokens),0),
+		        COALESCE(SUM(usd),0), COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END),0)
+		 FROM usage_events WHERE ts >= ? GROUP BY key ORDER BY 7 DESC, 2 DESC`, from)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []UsageBreakdown{}
+	for rows.Next() {
+		var b UsageBreakdown
+		if err := rows.Scan(&b.Key, &b.Requests, &b.PromptTokens, &b.CompletionTokens, &b.CacheReadTokens, &b.CacheWriteTokens, &b.USD, &b.Errors); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// TotalsFrom sums usage since a unix-ms timestamp.
+func (s *UsageStore) TotalsFrom(from int64) (UsageTotals, error) {
+	row := s.db.SQL.QueryRow(
+		`SELECT COUNT(*), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0),
+		        COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_write_tokens),0),
+		        COALESCE(SUM(usd),0), COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END),0)
+		 FROM usage_events WHERE ts >= ?`, from)
+	return scanTotals(row)
+}
+
+// LastUsed returns the newest request time per LocalKey id.
+func (s *UsageStore) LastUsed() (map[string]int64, error) {
+	rows, err := s.db.SQL.Query(`SELECT key_id, MAX(ts) FROM usage_events WHERE key_id IS NOT NULL GROUP BY key_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var k string
+		var ts int64
+		if rows.Scan(&k, &ts) == nil {
+			out[k] = ts
+		}
+	}
+	return out, rows.Err()
+}
+
+// FirstEvent returns the oldest recorded request time, or 0.
+func (s *UsageStore) FirstEvent() int64 {
+	var ts int64
+	_ = s.db.SQL.QueryRow(`SELECT COALESCE(MIN(ts),0) FROM usage_events`).Scan(&ts)
+	return ts
+}

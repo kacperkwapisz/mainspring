@@ -195,3 +195,11 @@ func FirstMap(m map[string]any, keys ...string) any {
 	}
 	return nil
 }
+
+// Fetch reads one credential's live usage from its provider.
+func Fetch(ctx context.Context, vault *store.Vault, executors map[domain.ProviderID]provider.Executor, cred domain.Credential) Snapshot {
+	return fetchOne(ctx, vault, executors, cred)
+}
+
+// Supported reports whether the provider has a usage endpoint.
+func Supported(p domain.ProviderID) bool { return fetchers[p] != nil }
