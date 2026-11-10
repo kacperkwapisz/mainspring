@@ -77,7 +77,7 @@ func catalogPack(packID string) ([]catalogModel, bool) {
 }
 
 func packJSON(packID string) (json.RawMessage, bool) {
-	src := prices.APIJSON
+	src := prices.API()
 	if packID == "cursor" {
 		src = prices.CursorJSON
 	}

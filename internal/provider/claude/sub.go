@@ -121,7 +121,8 @@ func fableWindow(u map[string]any) *sub.Window {
 		m := sub.AsMap(raw)
 		kind := strings.ToLower(sub.AsStr(m["kind"]))
 		model := strings.ToLower(sub.AsStr(sub.AsMap(sub.AsMap(m["scope"])["model"])["display_name"]))
-		if kind != "weekly_scoped" || (model != "fable" && model != "fable 5") {
+		// "Fable", "Fable 5", "Fable 5.2": every Fable version shares the weekly Fable limit.
+		if kind != "weekly_scoped" || !strings.HasPrefix(model, "fable") {
 			continue
 		}
 		if _, ok := sub.Num(m["percent"]); !ok {

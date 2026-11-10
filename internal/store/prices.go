@@ -45,6 +45,14 @@ func NewPriceStore(d *db.DB) (*PriceStore, error) {
 	if err := s.seedFromSnapshot(); err != nil {
 		return nil, err
 	}
+	// Start from the last downloaded model list, if there is one.
+	if _, err := d.SQL.Exec(`CREATE TABLE IF NOT EXISTS catalog_snapshot (id INTEGER PRIMARY KEY, body TEXT NOT NULL, fetched_at INTEGER NOT NULL)`); err != nil {
+		return nil, err
+	}
+	var body string
+	if d.SQL.QueryRow(`SELECT body FROM catalog_snapshot WHERE id = 1`).Scan(&body) == nil {
+		prices.SetLive([]byte(body))
+	}
 	return s, nil
 }
 
@@ -163,6 +171,12 @@ func (s *PriceStore) Refresh(force bool) string {
 	var data map[string]PriceCatalog
 	if err := json.Unmarshal(body, &data); err != nil {
 		return "failed"
+	}
+	// The same download keeps the model list current.
+	if trimmed, err := prices.Trim(body); err == nil {
+		prices.SetLive(trimmed)
+		_, _ = s.db.SQL.Exec(`INSERT INTO catalog_snapshot(id, body, fetched_at) VALUES (1, ?, ?)
+		  ON CONFLICT(id) DO UPDATE SET body = excluded.body, fetched_at = excluded.fetched_at`, string(trimmed), now)
 	}
 	if err := s.upsertCatalog(data, now); err != nil {
 		return "failed"

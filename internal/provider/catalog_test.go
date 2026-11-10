@@ -4,23 +4,37 @@ import (
 	"testing"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/prices"
 )
 
 func TestCatalogModelsPreserveJSONOrder(t *testing.T) {
 	models := CatalogModels(domain.ProviderClaude)
-	if len(models) < 2 {
-		t.Fatalf("len %d", len(models))
+	rows, _ := catalogPack("anthropic")
+	if len(models) < 2 || len(models) != len(rows) {
+		t.Fatalf("len %d, catalog %d", len(models), len(rows))
 	}
-	if models[0].ID != "claude-opus-4-7" {
-		t.Fatalf("first %s", models[0].ID)
-	}
-	if models[1].ID != "claude-opus-4-8" {
-		t.Fatalf("second %s", models[1].ID)
-	}
-	for _, m := range models {
+	for i, m := range models {
+		if m.ID != rows[i].ID {
+			t.Fatalf("position %d: %s, catalog has %s", i, m.ID, rows[i].ID)
+		}
 		if m.Object != "model" || m.OwnedBy != "claude" {
 			t.Fatalf("%+v", m)
 		}
+	}
+}
+
+func TestCatalogFollowsTheDownloadedCopy(t *testing.T) {
+	defer prices.SetLive(prices.APIJSON)
+	trimmed, err := prices.Trim([]byte(`{"anthropic":{"id":"anthropic","name":"Anthropic","models":{
+		"claude-old-1":{"id":"claude-old-1","name":"Old","release_date":"2025-01-01","limit":{"context":200000,"output":8000}},
+		"claude-new-9":{"id":"claude-new-9","name":"New","release_date":"2026-12-01","limit":{"context":1000000,"output":128000},"cost":{"input":1,"output":2}}}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	prices.SetLive(trimmed)
+	models := CatalogModels(domain.ProviderClaude)
+	if len(models) != 2 || models[0].ID != "claude-new-9" || models[0].ContextLength != 1000000 {
+		t.Fatalf("want the download, newest first: %+v", models)
 	}
 }
 
@@ -69,7 +83,12 @@ func TestCatalogExposesDiscoveryFields(t *testing.T) {
 		t.Fatalf("reasoning twin %+v", reasoning)
 	}
 
-	claude := CatalogModels(domain.ProviderClaude)[0]
+	var claude domain.ModelInfo
+	for _, m := range CatalogModels(domain.ProviderClaude) {
+		if m.ID == "claude-opus-4-7" {
+			claude = m
+		}
+	}
 	if claude.ID != "claude-opus-4-7" || claude.ContextLength != 1000000 || claude.MaxOutputTokens != 128000 {
 		t.Fatalf("claude %+v", claude)
 	}
