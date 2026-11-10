@@ -200,8 +200,6 @@ func TestChatNoCredentialHumanJSON(t *testing.T) {
 	}
 }
 
-
-
 func TestPasswordRoutesGone(t *testing.T) {
 	booted, err := Create(map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:"})
 	if err != nil {
@@ -219,21 +217,6 @@ func TestPasswordRoutesGone(t *testing.T) {
 		}
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 func unlocked(t *testing.T) (*Booted, string) {
 	t.Helper()
@@ -266,4 +249,3 @@ func jsonResp(status int, body any) *http.Response {
 	res.Body = io.NopCloser(strings.NewReader(string(raw)))
 	return res
 }
-
