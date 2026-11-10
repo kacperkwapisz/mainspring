@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/kacperkwapisz/mainspring/internal/live"
 	"net/http"
 	"strconv"
 	"time"
@@ -60,6 +61,8 @@ func Create(source map[string]string) (*Booted, error) {
 	applyRoutingSettings(router, settings)
 	activity := store.NewActivityStore(d)
 	authSvc := auth.New(e, store.NewWebAuthnStore(d), settings)
+	bus := live.New()
+	vault.Live, keys.Live, usage.Live, settings.Live, router.Live, activity.Live = bus, bus, bus, bus, bus, bus
 	hub := &proxy.Hub{
 		Env:      e,
 		Vault:    vault,
@@ -69,6 +72,7 @@ func Create(source map[string]string) (*Booted, error) {
 		Settings: settings,
 		Router:   router,
 		Activity: activity,
+		Live:     bus,
 		Executors: map[domain.ProviderID]provider.Executor{
 			domain.ProviderClaude:   claudeexec.Executor{ClientID: e.ClaudeClientID},
 			domain.ProviderCodex:    codexexec.Executor{ClientID: e.CodexClientID},

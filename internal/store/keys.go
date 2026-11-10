@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/kacperkwapisz/mainspring/internal/live"
 	"io"
 	"strings"
 
@@ -23,7 +24,8 @@ type CreatedKey struct {
 const KeyPrefix = "sk-ms-"
 
 type KeyStore struct {
-	db *db.DB
+	Live *live.Bus // told when keys change
+	db   *db.DB
 }
 
 func NewKeyStore(d *db.DB) *KeyStore { return &KeyStore{db: d} }
@@ -55,6 +57,7 @@ func (s *KeyStore) Create(name string, providers []domain.ProviderID, models []s
 	if err != nil {
 		return CreatedKey{}, err
 	}
+	s.Live.Publish(live.Keys)
 	return CreatedKey{
 		Secret: secret,
 		Key: domain.LocalKey{
@@ -123,6 +126,7 @@ func (s *KeyStore) Revoke(id string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	s.Live.Publish(live.Keys)
 	n, _ := res.RowsAffected()
 	return n > 0, nil
 }

@@ -3,12 +3,14 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"github.com/kacperkwapisz/mainspring/internal/live"
 
 	"github.com/kacperkwapisz/mainspring/internal/db"
 )
 
 type SettingsStore struct {
-	db *db.DB
+	Live *live.Bus // told when settings change
+	db   *db.DB
 }
 
 func NewSettingsStore(d *db.DB) *SettingsStore { return &SettingsStore{db: d} }
@@ -27,6 +29,9 @@ func (s *SettingsStore) Set(key, value string) error {
 		`INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, value,
 	)
+	if err == nil {
+		s.Live.Publish(live.Settings, live.Pool)
+	}
 	return err
 }
 

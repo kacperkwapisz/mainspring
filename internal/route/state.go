@@ -2,6 +2,7 @@ package route
 
 import (
 	"encoding/json"
+	"github.com/kacperkwapisz/mainspring/internal/live"
 	"sort"
 	"sync"
 	"time"
@@ -102,6 +103,7 @@ type Engine struct {
 	ttl      time.Duration
 	now      func() int64
 	lastSave map[string]int64
+	Live     *live.Bus // told whenever an account's state changes
 }
 
 type binding struct {
@@ -186,6 +188,7 @@ func (e *Engine) state(id string) *State {
 
 // persist writes the state; force skips the write throttle.
 func (e *Engine) persist(id string, force bool) {
+	e.Live.Publish(live.Pool)
 	if e.db == nil {
 		return
 	}

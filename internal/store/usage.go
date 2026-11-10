@@ -1,6 +1,7 @@
 package store
 
 import (
+	"github.com/kacperkwapisz/mainspring/internal/live"
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/db"
@@ -30,7 +31,8 @@ type UsagePoint struct {
 }
 
 type UsageStore struct {
-	db *db.DB
+	Live *live.Bus // told when a request is recorded
+	db   *db.DB
 }
 
 func NewUsageStore(d *db.DB) *UsageStore {
@@ -71,6 +73,9 @@ func (s *UsageStore) Record(event domain.UsageEvent) error {
 		event.PromptTokens, event.CompletionTokens, event.CacheReadTokens, event.CacheWriteTokens,
 		event.LatencyMs, event.Status, event.USD,
 	)
+	if err == nil {
+		s.Live.Publish(live.Meter, live.Pool, live.Keys, live.Sessions)
+	}
 	return err
 }
 

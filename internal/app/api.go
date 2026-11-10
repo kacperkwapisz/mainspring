@@ -395,6 +395,9 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		hub.Activity.Add(store.ActivityRemoved, string(c.Provider), c.ID, map[string]any{"account": c.Label})
 		httpx.JSON(w, 200, map[string]any{"ok": true})
 	}))
+	mux.Handle(http.MethodGet, "/api/events", authed(func(w http.ResponseWriter, r *http.Request) {
+		streamChanges(w, r, hub.Live)
+	}))
 	mux.Handle(http.MethodGet, "/api/sessions", authed(func(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, 200, sessionsView(hub))
 	}))

@@ -230,10 +230,13 @@
       dialog: null,        // { kind, ...state }
       checking: {},
       timers: [],
+      // Live updates: /api/events names what changed and the panel reloads that.
+      es: null, live: false, lastEvent: 0, lastSafety: 0, dirty: {},
 
       async init() {
         window.addEventListener("hashchange", () => this.go());
-        window.addEventListener("ms:signed-out", () => this.loadAuth());
+        window.addEventListener("ms:signed-out", () => { this.stopLive(); this.loadAuth(); });
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) { this.startLive(); this.flush(); } });
         setInterval(() => { this.now = Date.now(); }, 1000);
         await this.loadAuth();
         this.go();
@@ -251,18 +254,78 @@
         const h = location.hash.replace(/^#\/?/, "") || "pool";
         this.route = ROUTES.includes(h) ? h : "pool";
         this.closeDrawer();
-        if (this.signedIn) this.load(this.route);
+        this.dirty = {};
+        if (this.signedIn) { this.startLive(); this.load(this.route); }
       },
       load(r) {
         const map = { pool: this.loadPool, sessions: this.loadSessions, keys: this.loadKeys, meter: this.loadMeter, sources: this.loadSources, settings: this.loadSettings };
         (map[r] || (() => {})).call(this);
         if (r !== "pool" && !this.pool) this.loadPool();
       },
+      // With a live stream, polling only catches what changes with time alone
+      // (sessions ageing out, cooldowns ending), once a minute. Without one, or
+      // when the stream has gone quiet, it polls every 10 s as before.
       poll() {
         if (!this.signedIn || document.hidden || this.dialog) return;
+        const now = Date.now();
+        if (this.live && now - this.lastEvent < 45000) {
+          if (now - this.lastSafety < 60000) return;
+        } else if (this.es && this.live) {
+          this.stopLive(); this.startLive();
+        }
+        this.lastSafety = now;
         if (this.route === "pool") this.loadPool();
         if (this.route === "sessions") this.loadSessions();
         if (this.drawer) this.openDrawer(this.drawer, true);
+      },
+
+      startLive() {
+        if (this.es || !this.signedIn || !window.EventSource) return;
+        const es = new EventSource("/api/events");
+        let opened = false;
+        this.es = es;
+        const alive = () => { this.live = true; this.lastEvent = Date.now(); };
+        es.addEventListener("hello", () => {
+          alive();
+          // After a reconnect, catch up on whatever changed while disconnected.
+          if (opened) this.changed(["pool", "sessions", "meter", "keys", "settings"]);
+          opened = true;
+        });
+        es.addEventListener("ping", alive);
+        es.addEventListener("change", (e) => {
+          alive();
+          let topics = [];
+          try { topics = JSON.parse(e.data).topics || []; } catch { /* ignore */ }
+          this.changed(topics);
+        });
+        es.onerror = () => {
+          this.live = false;
+          // A closed stream (signed out, server gone) isn't retried by the
+          // browser; check the sign-in and try again later.
+          if (es.readyState === EventSource.CLOSED && this.es === es) {
+            this.es = null;
+            setTimeout(async () => { await this.loadAuth(); this.startLive(); }, 15000);
+          }
+        };
+      },
+      stopLive() {
+        if (this.es) this.es.close();
+        this.es = null; this.live = false;
+      },
+      changed(topics) {
+        for (const t of topics) this.dirty[t] = true;
+        this.flush();
+      },
+      // Reload what's on screen if it changed. Waits while the tab is hidden or
+      // a dialog is open, so nothing shifts under a form.
+      flush() {
+        if (!this.signedIn || document.hidden || this.dialog) return;
+        const d = this.dirty;
+        this.dirty = {};
+        if (d.pool) this.loadPool();
+        const need = { sessions: "sessions", keys: "keys", meter: "meter", settings: "settings", sources: "pool" }[this.route];
+        if (need && d[need]) this.load(this.route);
+        if (this.drawer && (d.pool || d.sessions)) this.openDrawer(this.drawer, true);
       },
 
       // ----- data -----
@@ -377,11 +440,12 @@
         if (d && d.kind === "login" && d.provider && (d.provider === "claude" || d.provider === "codex") && !d.done) api("POST", `/api/login/${d.provider}/cancel`).catch(() => {});
         if (d && d.pollTimer) clearInterval(d.pollTimer);
         this.dialog = null;
+        setTimeout(() => this.flush(), 0);
       },
       async confirm(title, body, action, danger = true) {
         return new Promise((resolve) => { this.openDialog("confirm", { title, body, action, danger, resolve }); });
       },
-      answer(ok) { const r = this.dialog && this.dialog.resolve; this.dialog = null; if (r) r(ok); },
+      answer(ok) { const r = this.dialog && this.dialog.resolve; this.dialog = null; if (r) r(ok); setTimeout(() => this.flush(), 0); },
 
       // Add account
       addAccount() { this.openDialog("choose"); },

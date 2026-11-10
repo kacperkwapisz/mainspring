@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"github.com/kacperkwapisz/mainspring/internal/live"
 
 	fcrypto "github.com/kacperkwapisz/mainspring/internal/crypto"
 	"github.com/kacperkwapisz/mainspring/internal/db"
@@ -10,8 +11,9 @@ import (
 )
 
 type Vault struct {
-	db  *db.DB
-	key []byte
+	Live *live.Bus // told when accounts change
+	db   *db.DB
+	key  []byte
 }
 
 func NewVault(d *db.DB, key []byte) *Vault { return &Vault{db: d, key: key} }
@@ -60,6 +62,7 @@ func (v *Vault) Save(input SaveCredential) (domain.Credential, error) {
 	if err != nil {
 		return domain.Credential{}, err
 	}
+	v.Live.Publish(live.Pool)
 	return domain.Credential{
 		ID:        id,
 		Provider:  input.Provider,
@@ -113,6 +116,7 @@ func (v *Vault) Remove(id string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	v.Live.Publish(live.Pool)
 	n, _ := res.RowsAffected()
 	return n > 0, nil
 }
@@ -277,12 +281,17 @@ func (v *Vault) FillIdentity(id, email, accountID string, isDefaultLabel func(st
 	if _, err := tx.Exec(`UPDATE credentials SET label = ?, blob = ?, updated_at = ? WHERE id = ?`, c.Label, blob, nowMs(), id); err != nil {
 		return false, err
 	}
-	return true, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	v.Live.Publish(live.Pool)
+	return true, nil
 }
 
 // Rename changes a credential's label.
 func (v *Vault) Rename(id, label string) error {
 	_, err := v.db.SQL.Exec(`UPDATE credentials SET label = ?, updated_at = ? WHERE id = ?`, label, nowMs(), id)
+	v.Live.Publish(live.Pool)
 	return err
 }
 

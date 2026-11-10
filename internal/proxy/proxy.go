@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"github.com/kacperkwapisz/mainspring/internal/live"
 	"net/http"
 	"strings"
 	"sync"
@@ -40,6 +41,7 @@ type Hub struct {
 	Settings  *store.SettingsStore
 	Router    *route.Engine
 	Activity  *store.ActivityStore
+	Live      *live.Bus // tells open panels what changed
 }
 
 type Request struct {

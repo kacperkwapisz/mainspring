@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"github.com/kacperkwapisz/mainspring/internal/live"
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/db"
@@ -30,7 +31,10 @@ type ActivityEvent struct {
 	Data     map[string]any `json:"data,omitempty"`
 }
 
-type ActivityStore struct{ db *db.DB }
+type ActivityStore struct {
+	db   *db.DB
+	Live *live.Bus // told when an event is added
+}
 
 func NewActivityStore(d *db.DB) *ActivityStore {
 	_, _ = d.SQL.Exec(`CREATE TABLE IF NOT EXISTS activity (
@@ -53,6 +57,7 @@ func (s *ActivityStore) Add(kind, provider, credID string, data map[string]any) 
 	if err != nil {
 		return 0
 	}
+	s.Live.Publish(live.Pool)
 	id, _ := res.LastInsertId()
 	return id
 }
@@ -70,6 +75,7 @@ func (s *ActivityStore) LatestFor(kind, credID string, msAgo int64) (ActivityEve
 func (s *ActivityStore) Update(id int64, data map[string]any) {
 	raw, _ := json.Marshal(data)
 	_, _ = s.db.SQL.Exec(`UPDATE activity SET data = ? WHERE id = ?`, string(raw), id)
+	s.Live.Publish(live.Pool)
 }
 
 // Since lists events newer than ts, newest first, at most limit.

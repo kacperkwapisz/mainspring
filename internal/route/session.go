@@ -2,6 +2,7 @@ package route
 
 import (
 	"encoding/json"
+	"github.com/kacperkwapisz/mainspring/internal/live"
 	"regexp"
 	"sort"
 	"strings"
@@ -177,6 +178,7 @@ func (e *Engine) Touch(t Touch) {
 		s.Transport = t.Transport
 	}
 	s.Requests++
+	e.Live.Publish(live.Sessions, live.Pool)
 	s.InputTokens += t.InputTokens
 	s.CacheRead += t.CacheRead
 	if len(e.sessions) > 4096 {
