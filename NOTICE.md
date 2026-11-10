@@ -13,7 +13,7 @@ Cursor's agent protocol is unofficial and may change without notice.
 
 - [Alpine.js](https://github.com/alpinejs/alpine), MIT.
 - [Ding](https://github.com/YusufCeng1z/ding) 0.0.4 by Yusuf Cengiz, MIT. See `internal/panel/web/ding.LICENSE`.
-- Geist and Geist Mono fonts by Vercel, SIL Open Font License 1.1.
+- Inter (Rasmus Andersson) and Geist Mono (Vercel) fonts, SIL Open Font License 1.1.
 - Interface icons from [Lucide](https://lucide.dev), ISC.
 - Provider logos from [LobeHub Icons](https://github.com/lobehub/lobe-icons), MIT. The logos are trademarks of their owners and identify the services Mainspring connects to; Mainspring is not affiliated with or endorsed by them.
 

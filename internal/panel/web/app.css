@@ -1,5 +1,6 @@
 /* Mainspring panel. Values mirror the Paper file's tokens (see AGENTS.md). */
-@font-face { font-family: "Geist"; src: url("/assets/fonts/geist.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
+/* Apple devices use the system face (SF Pro); everything else gets the self-hosted Inter. */
+@font-face { font-family: "Inter"; src: url("/assets/fonts/inter.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
 @font-face { font-family: "Geist Mono"; src: url("/assets/fonts/geistmono.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 
 :root {
@@ -20,7 +21,7 @@
   --color-warning: #FBBF24;
   --color-danger: #F87171;
   --color-scrim: rgb(8 8 8 / 72%);
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
   --font-display: var(--font-sans);
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --radius-badge: 6px;
@@ -94,7 +95,7 @@ a { color: inherit; }
 .endpoint .url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; color: var(--color-text); }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 100dvh; border-left: 1px solid var(--color-hairline); }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 28px 32px 20px; }
-.page-title { margin: 0; color: var(--color-text-strong); font-family: var(--font-display); font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.03em; }
+.page-title { margin: 0; color: var(--color-text-strong); font-family: var(--font-display); font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.01em; }
 .page-meta { color: var(--color-text-subtle); font-variant-numeric: tabular-nums; }
 .content { display: flex; flex-direction: column; gap: 16px; padding: 0 32px 40px; }
 
@@ -268,7 +269,7 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 /* ---- Meter ---- */
 .stats { display: flex; gap: 48px; flex-wrap: wrap; padding: 0 32px 8px; }
 .stat .k { color: var(--color-text-subtle); }
-.stat .v { color: var(--color-text-strong); font-family: var(--font-display); font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.stat .v { color: var(--color-text-strong); font-family: var(--font-display); font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .stat .s { color: var(--color-text-subtle); }
 .chart { padding: 8px 15px 15px; }
 .chart svg { display: block; width: 100%; height: auto; }
