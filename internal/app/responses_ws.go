@@ -298,6 +298,15 @@ func (s *wsSession) create(body map[string]any) {
 		if v, ok := meta[wsTurnStateKey].(string); ok && v != "" {
 			headers[wsTurnStateKey] = v
 		}
+		// Codex carries per-request headers in client_metadata over WebSockets
+		// ("ws_request_header_x_foo_bar"); turn them back into headers for HTTP.
+		for k, raw := range meta {
+			v, ok := raw.(string)
+			if !ok || v == "" || !strings.HasPrefix(k, "ws_request_header_") {
+				continue
+			}
+			headers[strings.ReplaceAll(strings.TrimPrefix(k, "ws_request_header_"), "_", "-")] = v
+		}
 	}
 	delete(body, "client_metadata")
 	body["stream"] = true
@@ -372,8 +381,16 @@ func (s *wsSession) runTurn(t *wsTurn, body map[string]any, used []any, headers 
 				}
 			case "response.completed", "response.incomplete":
 				terminal = true
+				resp := translate.AsMap(ev["response"])
+				if len(output) == 0 {
+					output = translate.AsArr(translate.CloneJSON(resp["output"]))
+				}
 				rec := &wsRecord{input: used, output: output}
-				rec.id, _ = translate.AsMap(ev["response"])["id"].(string)
+				// Without the turn's output items the next incremental turn would lose
+				// the assistant's reply, so only offer continuation when we have them.
+				if len(output) > 0 {
+					rec.id, _ = resp["id"].(string)
+				}
 				// Record before writing: Codex may send the next turn as soon as it sees this frame.
 				if !s.finish(t, rec) {
 					continue

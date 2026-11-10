@@ -528,3 +528,16 @@ func TestWSLifetimeWaitsForInFlightTurn(t *testing.T) {
 		t.Fatalf("%v", f)
 	}
 }
+
+func TestWSClientMetadataHeadersBecomeHeaders(t *testing.T) {
+	env := newWSEnv(t, okStream)
+	conn := env.dial(t)
+	wsSend(t, conn, map[string]any{
+		"type": "response.create", "model": "gpt-5.5", "input": []any{userMsg("hi")},
+		"client_metadata": map[string]any{"ws_request_header_x_openai_internal_codex_responses_lite": "true"},
+	})
+	wsReadTurn(t, conn)
+	if got := env.exec.call(0).headers["x-openai-internal-codex-responses-lite"]; got != "true" {
+		t.Fatalf("lite header %q in %v", got, env.exec.call(0).headers)
+	}
+}
