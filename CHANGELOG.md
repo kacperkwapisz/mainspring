@@ -2,6 +2,10 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.3.2] - 2026-11-11
+
+- Fixes Codex over WebSockets at the connection's hourly reconnect: a turn that was still running could be cut off before its last message, so Codex saw it as unfinished.
+
 ## [1.3.1] - 2026-11-11
 
 - New docs page, Your usage in other tools: see your limits in pi, T3 Code or your own scripts, with the steps to connect T3 Code.

@@ -323,6 +323,7 @@ func (s *wsSession) create(body map[string]any) {
 
 func (s *wsSession) runTurn(t *wsTurn, body map[string]any, used []any, headers map[string]string) {
 	defer s.wg.Done()
+	defer s.signalTurnDone()
 	defer t.cancel()
 	defer s.finish(t, nil)
 
@@ -405,6 +406,9 @@ func (s *wsSession) runTurn(t *wsTurn, body map[string]any, used []any, headers 
 				t.cancel()
 				_ = s.conn.CloseNow()
 			}
+			if terminal {
+				s.signalTurnDone()
+			}
 		}
 	}
 	if !terminal && s.finish(t, nil) {
@@ -421,7 +425,8 @@ type wsRecord struct {
 
 // finish clears t as the in-flight turn and, when rec is set, stores it as the
 // socket's last response. It reports whether t was still in flight (so the
-// caller may write its closing frame).
+// caller may write its closing frame). It doesn't wake keepalive: runTurn does
+// that once the closing frame is written, so a lifetime close can't overtake it.
 func (s *wsSession) finish(t *wsTurn, rec *wsRecord) bool {
 	s.mu.Lock()
 	if s.inflight != t {
@@ -438,7 +443,6 @@ func (s *wsSession) finish(t *wsTurn, rec *wsRecord) bool {
 		}
 	}
 	s.mu.Unlock()
-	s.signalTurnDone()
 	return true
 }
 
