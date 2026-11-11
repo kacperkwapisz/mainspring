@@ -5,7 +5,6 @@ A [pi](https://pi.dev) extension for [Mainspring](https://github.com/kacperkwapi
 - **Provider.** Adds Mainspring as the `mainspring` provider, with the models your subscriptions offer. Claude models speak the Anthropic API and GPT models the Responses API, so prompt caching and sessions behave as they do directly. Each pi session stays on one Mainspring account.
 - **Web tools.** Registers `web_search` and `web_fetch`. They run on the Claude or Codex account your session already uses. They replace pi-claude-web, which registers the same names; remove it first.
 - **Account moves.** When Mainspring moves your session to another account, pi tells you which and why.
-- **Plainer prompt lines.** For Claude models, three lines of pi's system prompt go out in a plainer form, the same rewrite as `anthropic-subscription-fix.ts`. Only the system prompt is changed.
 - **`/mainspring`.** Shows the pool: every account, its limits as bars with how far into the window you are, when each resets, which goes next, and your live sessions. `r` refreshes, `esc` closes.
 
 ## Install
