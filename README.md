@@ -17,6 +17,10 @@ Mainspring runs on one always-on computer at home and pools the AI subscriptions
 > [!WARNING]
 > Using a subscription through a proxy may break a provider's terms, and providers can suspend accounts. Run Mainspring at home rather than on a cloud server, use only your own accounts, and don't serve other people's traffic with them.
 
+## Docs
+
+Every guide and the API reference live in [`docs/`](docs/) and inside Mainspring at `/docs`, for example `http://umbrel.local:8317/docs`. Agents can read each page as Markdown at `/docs/<page>.md`, and `/llms.txt` lists them all.
+
 ## Install
 
 ### Umbrel
@@ -119,7 +123,7 @@ url = "https://mainspring.example/mcp"
 bearer_token_env_var = "MAINSPRING_KEY"
 ```
 
-Codex can talk to Mainspring over WebSockets (`supports_websockets = true`). Usage dashboards such as T3 Code can read pooled limits through a read-only management key (**Settings → Usage hub**).
+Codex can talk to Mainspring over WebSockets (`supports_websockets = true`). Usage dashboards such as T3 Code can read pooled limits through a management key (**Settings → Usage hub**). The key reads limits, can clear a cooldown and spend a Codex rate-limit reset credit, and can't send prompts.
 
 ## Configuration
 

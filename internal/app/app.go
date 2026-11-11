@@ -101,6 +101,7 @@ func Create(source map[string]string) (*Booted, error) {
 	registerResponsesWS(mux, hub)
 	registerAuth(mux, authSvc)
 	registerPanel(mux)
+	registerDocs(mux)
 	registerAPI(mux, hub, authSvc)
 	registerLoginAPI(mux, hub, authSvc, logins)
 	registerUpdatesAPI(mux, hub, authSvc)

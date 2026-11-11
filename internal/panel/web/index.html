@@ -146,6 +146,7 @@
       <template x-if="!(updates && updates.available) && unseen">
         <nav class="nav" style="margin:0"><a href="#" @click.prevent="openWhatsNew()" title="What's new"><span class="ico" x-html="icon('sparkles')"></span><span class="grow label">What's new</span><span class="dot dot-quiet" title="New since you last looked"></span></a></nav>
       </template>
+      <nav class="nav" style="margin:0"><a href="/docs/get-started" target="_blank" rel="noopener" title="Docs"><span class="ico" x-html="icon('docs')"></span><span class="grow label">Docs</span></a></nav>
       <button class="endpoint" @click="copy(endpoint, 'the endpoint', $el)" title="Copy the endpoint" aria-label="Copy the endpoint">
         <span class="small muted label">Endpoint</span>
         <span class="row"><span class="url mono label" x-text="endpoint.replace(/^https?:\/\//, '')"></span><span x-html="icon('copy','#A1A1A1')"></span></span>
@@ -491,7 +492,7 @@
               <div class="head"><div class="t">Usage hub</div><div class="d">Lets T3 Code and other dashboards read pooled limits with a management key</div></div>
               <div class="card">
                 <div class="setting-row"><div class="name">Share limits with dashboards</div><div class="desc" x-text="settings.hub_key ? 'Dashboards connect with the management key to ' + location.origin : 'Create a management key first'"></div><span class="switch-hit"><button class="switch" role="switch" :disabled="!settings.hub_key" :aria-checked="settings.hub_enabled ? 'true' : 'false'" aria-label="Share limits" @click="saveSetting({hub_enabled: !settings.hub_enabled})"></button></span></div>
-                <div class="setting-row"><div class="name">Management key</div><div class="desc" x-text="settings.hub_key ? 'Created ' + fmt.day(settings.hub_key_created_at) + '. It can only read usage' : 'None yet. A management key can only read usage'"></div>
+                <div class="setting-row"><div class="name">Management key</div><div class="desc" x-text="settings.hub_key ? 'Created ' + fmt.day(settings.hub_key_created_at) + '. It reads limits and can clear a cooldown or spend a Codex reset credit, but never sends prompts' : 'None yet. A management key reads limits and can clear a cooldown, but never sends prompts'"></div>
                   <div style="display:flex;gap:8px"><button class="btn btn-secondary btn-sm" @click="createHubKey()" x-text="settings.hub_key ? 'Replace key' : 'Create management key'"></button><template x-if="settings.hub_key"><button class="btn btn-ghost btn-sm" @click="removeHubKey()">Delete</button></template></div></div>
               </div>
             </div>
@@ -820,7 +821,7 @@
       <template x-if="dialog.kind === 'hubkey'"><div style="display:flex;flex-direction:column;gap:20px">
         <div><div class="dialog-head"><h2>Management key</h2></div><div class="subtle">In T3 Code, open Settings → Providers → Usage providers → Add hub, then paste the address and this key</div></div>
         <div class="field"><div class="label">Hub URL</div><div class="secret"><span class="mono" x-text="location.origin"></span><button class="btn btn-secondary btn-sm" @click="copy(location.origin, 'the address', $el)"><span x-html="icon('copy')"></span>Copy</button></div></div>
-        <div class="field"><div class="label">Key</div><div class="secret"><span class="mono" x-text="dialog.secret"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.secret, 'the key', $el)"><span x-html="icon('copy')"></span>Copy</button></div><div class="help">Copy it now. Mainspring won't show it again. It can only read usage</div></div>
+        <div class="field"><div class="label">Key</div><div class="secret"><span class="mono" x-text="dialog.secret"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.secret, 'the key', $el)"><span x-html="icon('copy')"></span>Copy</button></div><div class="help">Copy it now. Mainspring won't show it again. It reads limits and can clear a cooldown or spend a Codex reset credit, but never sends prompts</div></div>
         <div class="dialog-foot"><button class="btn btn-ink" @click="closeDialog()">Done</button></div>
       </div></template>
 

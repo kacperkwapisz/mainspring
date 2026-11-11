@@ -2,6 +2,13 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.0.4] - 2026-11-11
+
+- Docs inside Mainspring at `/docs`: getting started, connecting Claude Code, Codex, Cursor, OpenCode and pi, every guide and the full API reference. Examples show your own address, so commands can be copied as they are.
+- For agents, each page is Markdown at `/docs/<page>.md`, and `/llms.txt` lists them all.
+- **Docs** in the sidebar opens them.
+- The management key's description says what it can do: read limits, clear a cooldown and spend a Codex reset credit. It never sends prompts.
+
 ## [1.0.3] - 2026-11-11
 
 - Copying confirms on the button itself: its icon turns into a check for a moment, instead of a toast.

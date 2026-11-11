@@ -1,0 +1,77 @@
+/* Docs pages: the panel's tokens and type, laid out for reading. */
+.docs-body { background: var(--color-page); }
+.docs-shell { display: flex; min-height: 100dvh; }
+.docs-side { position: sticky; top: 0; height: 100dvh; width: 216px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 20px; padding: 20px 12px; border-right: 1px solid var(--color-hairline); overflow-y: auto; }
+.docs-side-top { display: flex; flex-direction: column; gap: 20px; }
+.docs-brand { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; text-decoration: none; }
+.docs-pages > summary { display: none; }
+.docs-pages nav { display: flex; flex-direction: column; gap: 20px; }
+.docs-group { display: flex; flex-direction: column; gap: 2px; }
+.docs-group-name { padding: 0 8px 4px; font-size: 12px; line-height: 16px; color: var(--color-text-muted); }
+.docs-group a { display: flex; align-items: center; min-height: 30px; padding: 5px 8px; border-radius: var(--radius-control-sm); color: var(--color-text-subtle); text-decoration: none; transition: background-color 120ms ease, color 120ms ease; }
+.docs-group a[aria-current="page"] { background: var(--color-surface-hover); color: var(--color-text-strong); }
+@media (hover: hover) and (pointer: fine) { .docs-group a:hover, .docs-panel-link:hover, .docs-toc a:hover { color: var(--color-text-strong); } }
+.docs-side-foot { display: flex; flex-direction: column; gap: 2px; }
+.docs-panel-link { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border-radius: var(--radius-control-sm); color: var(--color-text-subtle); font-weight: 500; text-decoration: none; }
+.docs-llms { padding: 4px 8px; font-size: 12px; color: var(--color-text-muted); text-decoration: none; }
+
+.docs-main { flex: 1; min-width: 0; display: flex; gap: 48px; padding: 40px 32px 96px; }
+.docs-article { width: 100%; max-width: 680px; min-width: 0; }
+.docs-head { display: flex; align-items: flex-start; gap: 16px; padding-bottom: 24px; }
+.docs-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.docs-head h1 { margin: 0; font-family: var(--font-display); font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-text-strong); }
+.docs-lead { margin: 0; font-size: 15px; line-height: 24px; color: var(--color-text-subtle); }
+.docs-copy-page { flex-shrink: 0; margin-top: 2px; }
+
+/* Reading text is bigger than the interface's 13/20. */
+.docs-prose { font-size: 14px; line-height: 24px; color: var(--color-text); user-select: text; }
+.docs-prose > * { margin: 0; }
+.docs-prose > * + * { margin-top: 16px; }
+.docs-prose h2 { margin: 40px 0 0; font-size: 17px; line-height: 24px; font-weight: 500; color: var(--color-text-strong); scroll-margin-top: 24px; }
+.docs-prose h3 { margin: 28px 0 0; font-size: 15px; line-height: 24px; font-weight: 500; color: var(--color-text-strong); scroll-margin-top: 24px; }
+.docs-prose h2 + *, .docs-prose h3 + * { margin-top: 8px; }
+.docs-prose a { color: var(--color-text-strong); text-decoration: underline; text-decoration-color: var(--color-text-muted); text-underline-offset: 3px; }
+.docs-prose strong { font-weight: 500; color: var(--color-text-strong); }
+.docs-prose ul, .docs-prose ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.docs-prose li::marker { color: var(--color-text-muted); }
+.docs-prose code { font-family: var(--font-mono); font-size: 13px; color: var(--color-text-strong); }
+.docs-prose :not(pre) > code { overflow-wrap: anywhere; }
+
+.docs-code { border-radius: var(--radius-control); background: var(--color-surface); border: 1px solid var(--color-hairline); overflow: hidden; }
+.docs-code-bar .btn-icon { display: inline-flex; align-items: center; justify-content: center; }
+.docs-code-bar { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 4px 0 12px; border-bottom: 1px solid var(--color-hairline); font-size: 12px; color: var(--color-text-muted); }
+.docs-code pre { margin: 0; padding: 12px; overflow-x: auto; line-height: 20px; }
+.docs-code pre code { font-size: 12px; line-height: 20px; white-space: pre; }
+
+.docs-prose table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 20px; display: block; overflow-x: auto; }
+.docs-prose th { text-align: left; font-weight: 400; color: var(--color-text-muted); font-size: 12px; padding: 0 16px 8px 0; border-bottom: 1px solid var(--color-hairline); }
+.docs-prose td { padding: 10px 16px 10px 0; border-bottom: 1px solid var(--color-hairline); vertical-align: top; }
+.docs-prose td:first-child { white-space: nowrap; }
+
+.docs-toc { position: sticky; top: 40px; align-self: flex-start; width: 180px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding-top: 6px; }
+.docs-toc-name { font-size: 12px; line-height: 16px; color: var(--color-text-muted); }
+.docs-toc a { font-size: 13px; line-height: 20px; color: var(--color-text-subtle); text-decoration: none; }
+.docs-toc a.docs-toc-path { font-size: 12px; overflow-wrap: anywhere; }
+.docs-toc-rule { height: 1px; background: var(--color-hairline); margin: 8px 0; }
+.docs-toc .docs-toc-md { font-size: 12px; }
+
+@media (max-width: 1100px) { .docs-toc { display: none; } }
+@media (max-width: 759px) {
+  .docs-shell { flex-direction: column; }
+  .docs-side { position: static; height: auto; width: auto; border-right: 0; border-bottom: 1px solid var(--color-hairline); padding: calc(12px + env(safe-area-inset-top)) 12px 12px; gap: 8px; }
+  .docs-side-top { gap: 8px; }
+  .docs-pages > summary { display: flex; align-items: center; min-height: 44px; padding: 0 8px; color: var(--color-text-strong); font-weight: 500; cursor: pointer; list-style: none; }
+  .docs-pages > summary::-webkit-details-marker { display: none; }
+  .docs-pages > summary::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-right: 1.5px solid var(--color-text-subtle); border-bottom: 1.5px solid var(--color-text-subtle); transform: rotate(45deg) translate(-2px, -2px); transition: transform 150ms var(--ease-out); }
+  .docs-pages[open] > summary::after { transform: rotate(225deg) translate(-2px, -2px); }
+  .docs-pages nav { padding: 8px 0; }
+  .docs-group a { min-height: 44px; }
+  .docs-side-foot { flex-direction: row; justify-content: space-between; align-items: center; }
+  .docs-main { padding: 24px 16px calc(64px + env(safe-area-inset-bottom)); }
+  .docs-head { flex-direction: column; }
+}
+
+/* API endpoint headings: a method badge and the path. */
+.docs-prose h2.docs-endpoint { display: flex; align-items: center; gap: 10px; }
+.docs-prose h2.docs-endpoint code { font-size: 15px; line-height: 24px; }
+.docs-method { display: inline-flex; align-items: center; height: 22px; padding: 0 6px; border-radius: var(--radius-badge); background: var(--color-surface-hover); border: 1px solid var(--color-hairline); font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; color: var(--color-text-strong); }
