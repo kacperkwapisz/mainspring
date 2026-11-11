@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.3.1] - 2026-11-11
+
+- New docs page, Your usage in other tools: see your limits in pi, T3 Code or your own scripts, with the steps to connect T3 Code.
+- The docs are shorter: pages no longer repeat each other, and an outdated troubleshooting entry is gone.
+
 ## [1.3.0] - 2026-11-11
 
 - What's new shows the version you have installed and the latest release, and whether you're up to date.
