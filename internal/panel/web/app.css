@@ -450,3 +450,18 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
   .scrim { align-items: flex-end; padding: 0; }
   .dialog { max-width: none; border-radius: var(--radius-modal) var(--radius-modal) 0 0; border-bottom: 0; padding-bottom: calc(24px + env(safe-area-inset-bottom)); max-height: calc(100dvh - 48px); }
 }
+
+/* Copy confirmation: the copy icon gives way to a check that draws itself in,
+   then everything eases back. Transitions, so a second click mid-way retargets. */
+.copy-ico { position: relative; display: inline-flex; }
+.copy-ico > svg:first-child { transition: opacity 150ms var(--ease-out), transform 200ms var(--ease-out), filter 150ms ease; }
+.copy-ico > .copy-check { position: absolute; inset: 0; margin: auto; color: var(--color-success); stroke: var(--color-success); opacity: 0; transform: scale(0.6); filter: blur(2px);
+  transition: opacity 150ms var(--ease-out), transform 200ms var(--ease-out), filter 150ms ease; }
+.copy-ico > .copy-check path { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 260ms var(--ease-out) 40ms; }
+.is-copied.copy-ico > svg:first-child, .is-copied .copy-ico > svg:first-child { opacity: 0; transform: scale(0.6); filter: blur(2px); }
+.is-copied.copy-ico > .copy-check, .is-copied .copy-ico > .copy-check { opacity: 1; transform: scale(1); filter: blur(0); }
+.is-copied.copy-ico > .copy-check path, .is-copied .copy-ico > .copy-check path { stroke-dashoffset: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .copy-ico > svg:first-child, .copy-ico > .copy-check { transform: none !important; filter: none !important; }
+  .copy-ico > .copy-check path { stroke-dashoffset: 0; transition: none; }
+}

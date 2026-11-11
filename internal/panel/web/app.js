@@ -785,9 +785,24 @@
       },
 
       // ----- misc -----
-      async copy(text, what) {
-        try { await navigator.clipboard.writeText(text); T.ok(`Copied ${what}`); }
-        catch { T.err("Couldn't copy", "Select the text and copy it yourself"); }
+      // Copying confirms on the button itself: its icon turns into a check for a
+      // moment. A toast is only the fallback for a button without an icon.
+      async copy(text, what, el) {
+        el = el || (window.event && window.event.currentTarget);
+        try { await navigator.clipboard.writeText(text); }
+        catch { T.err("Couldn't copy", "Select the text and copy it yourself"); return; }
+        const status = document.getElementById("copy-status");
+        if (status) status.textContent = `Copied ${what}`;
+        const icon = el && el.querySelector && el.querySelector("svg");
+        if (!icon) { T.ok(`Copied ${what}`); return; }
+        const host = icon.parentElement;
+        if (!host.classList.contains("copy-ico")) {
+          host.classList.add("copy-ico");
+          host.insertAdjacentHTML("beforeend", '<svg class="copy-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M20 6 9 17l-5-5"/></svg>');
+        }
+        el.classList.add("is-copied");
+        clearTimeout(el._copiedTimer);
+        el._copiedTimer = setTimeout(() => el.classList.remove("is-copied"), 1600);
       },
       esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); },
       activityText(ev) {

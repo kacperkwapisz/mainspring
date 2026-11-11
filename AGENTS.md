@@ -23,7 +23,7 @@ Base style: `dense-neutral` (dark values), adapted below. Rules come from the `d
 - **Icons:** Lucide (real icons, not redrawn), 16px, 1.2px stroke. Provider marks are the real logos from LobeHub Icons, monochrome. Both are inlined in `app.js`.
 - **Confirms:** destructive actions always use a modal, never a popover.
 - **Toasts:** Ding (`@yusufceng1z/ding`, plain-DOM build), pinned and vendored like Alpine.
-  - Bottom right, one toast at a time, changing in place.
+  - Top centre, one toast at a time, changing in place.
   - `--tst-radius: 14px`, `--tst-bg: var(--color-surface-hover)`, `--tst-fg: var(--color-text-strong)`.
   - Sound off.
   - Used only for one-off actions finishing or failing.

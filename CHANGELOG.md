@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.0.3] - 2026-11-11
+
+- Copying confirms on the button itself: its icon turns into a check for a moment, instead of a toast.
+- Toasts appear at the top centre.
+
 ## [1.0.2] - 2026-11-11
 
 - Settings → Tailnet address has an **Open it** button once Mainspring is connected, so you can always get to the tailnet address, with a setup code while no security key exists for it.

@@ -12,11 +12,12 @@
 <script defer src="/assets/alpine.min.js"></script>
 <script type="module">
   import { mountToaster, toast } from "/assets/ding.js";
-  mountToaster({ position: "bottom-right", theme: "dark", sound: false });
+  mountToaster({ position: "top-center", theme: "dark", sound: false });
   window.dingToast = toast;
 </script>
 </head>
 <body>
+<div class="sr-only" aria-live="polite" id="copy-status"></div>
 <div x-data="app" x-cloak>
 
 <!-- ================= Sign-in gate ================= -->
@@ -145,7 +146,7 @@
       <template x-if="!(updates && updates.available) && unseen">
         <nav class="nav" style="margin:0"><a href="#" @click.prevent="openWhatsNew()" title="What's new"><span class="ico" x-html="icon('sparkles')"></span><span class="grow label">What's new</span><span class="dot dot-quiet" title="New since you last looked"></span></a></nav>
       </template>
-      <button class="endpoint" @click="copy(endpoint, 'the endpoint')" title="Copy the endpoint" aria-label="Copy the endpoint">
+      <button class="endpoint" @click="copy(endpoint, 'the endpoint', $el)" title="Copy the endpoint" aria-label="Copy the endpoint">
         <span class="small muted label">Endpoint</span>
         <span class="row"><span class="url mono label" x-text="endpoint.replace(/^https?:\/\//, '')"></span><span x-html="icon('copy','#A1A1A1')"></span></span>
       </button>
@@ -173,7 +174,7 @@
             <div class="guide-step"><div class="n">1</div><div style="flex:1"><div class="strong">Add an account</div><div class="subtle">Sign in to a Claude or Codex subscription, or connect Grok, Cursor, OpenCode Console or an OpenAI-compatible API</div></div><button class="btn btn-ink btn-sm" @click="addAccount()"><span x-html="icon('plus','#171717')"></span>Add account</button></div>
             <div class="guide-step"><div class="n">2</div><div style="flex:1"><div class="strong">Create a key</div><div class="subtle">Give each machine its own key, so you can see what it uses and revoke it on its own</div></div><a class="btn btn-secondary btn-sm" href="#/keys">Create key</a></div>
             <div class="guide-step"><div class="n">3</div><div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:0"><div><div class="strong">Point your tools at the endpoint</div><div class="subtle">Use the key from step 2 wherever a tool asks for an API key</div></div>
-              <div class="secret"><span class="mono" x-text="endpoint"></span><button class="btn-icon" @click="copy(endpoint,'the endpoint')" x-html="icon('copy')" aria-label="Copy"></button></div>
+              <div class="secret"><span class="mono" x-text="endpoint"></span><button class="btn-icon" @click="copy(endpoint,'the endpoint', $el)" x-html="icon('copy')" aria-label="Copy"></button></div>
               <pre class="code" x-text="'export ANTHROPIC_BASE_URL=' + location.origin + '\nexport ANTHROPIC_AUTH_TOKEN=sk-ms-…\nclaude'"></pre>
               <div class="subtle">Codex, Cursor, OpenCode and other OpenAI-style tools take the endpoint above as their base URL</div></div></div>
           </div>
@@ -421,7 +422,7 @@
                 <td class="subtle" x-text="m.efforts && m.efforts.length ? m.efforts.join(' · ') : '—'"></td>
                 <td class="subtle" x-text="m.input && m.input.length ? m.input.map(s => s[0].toUpperCase()+s.slice(1)).join(', ') : 'Text'"></td>
                 <td class="r"><span class="switch-hit"><button class="switch" role="switch" :aria-checked="m.enabled ? 'true' : 'false'" :aria-label="(m.enabled ? 'Turn off ' : 'Turn on ') + m.id" @click="setModel(m, !m.enabled)"></button></span></td>
-                <td class="r"><button class="btn-icon" @click="copy(m.id, m.id)" x-html="icon('copy')" :aria-label="'Copy ' + m.id"></button></td>
+                <td class="r"><button class="btn-icon" @click="copy(m.id, m.id, $el)" x-html="icon('copy')" :aria-label="'Copy ' + m.id"></button></td>
               </tr></template>
             </tbody></table></div>
           </template>
@@ -455,7 +456,7 @@
                 </div></template>
                 <template x-if="tailnet.state === 'connected'"><div>
                   <div class="setting-row"><div class="name">Address</div><div class="desc"><span class="mono strong" x-text="tailnet.url"></span><template x-if="!tailnet.keys"><div class="small subtle">No security key for it yet. Open it to add one</div></template></div>
-                    <div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" @click="copy(tailnet.url, 'the address')"><span x-html="icon('copy')"></span>Copy</button><button class="btn btn-secondary btn-sm" @click="openTailnetAddress()">Open it<span x-html="icon('external')"></span></button></div></div>
+                    <div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" @click="copy(tailnet.url, 'the address', $el)"><span x-html="icon('copy')"></span>Copy</button><button class="btn btn-secondary btn-sm" @click="openTailnetAddress()">Open it<span x-html="icon('external')"></span></button></div></div>
                   <div class="setting-row"><div class="name">Device</div><div class="desc"><span x-text="tailnet.hostname"></span>, <span class="mono" x-text="tailnet.ip"></span> on <span x-text="tailnet.tailnet"></span></div></div>
                   <div class="setting-row"><div class="name">HTTPS certificate</div><div class="desc" x-text="'Valid until ' + fmt.day(tailnet.cert_expires) + '. Mainspring renews it before then'"></div></div>
                   <div class="setting-row"><div class="name">Remove from tailnet</div><div class="desc" x-text="'Mainspring leaves ' + tailnet.tailnet + ', and this address stops working'"></div><button class="btn btn-secondary btn-sm danger-text" @click="removeTailnet()">Remove</button></div>
@@ -501,7 +502,7 @@
                 <template x-if="settings.web_tools"><div class="setting-block">
                   <div class="subtle">Set <span class="mono">MAINSPRING_KEY</span> to a key from Keys, then add the server:</div>
                   <template x-for="s in mcpSetup()" :key="s.app"><div class="field"><div class="label" x-text="s.app"></div>
-                    <div class="secret"><span class="mono pre" x-text="s.cmd"></span><button class="btn btn-secondary btn-sm" @click="copy(s.cmd, 'the ' + s.app + ' setup')"><span x-html="icon('copy')"></span>Copy</button></div></div></template>
+                    <div class="secret"><span class="mono pre" x-text="s.cmd"></span><button class="btn btn-secondary btn-sm" @click="copy(s.cmd, 'the ' + s.app + ' setup', $el)"><span x-html="icon('copy')"></span>Copy</button></div></div></template>
                 </div></template>
               </div>
             </div>
@@ -674,7 +675,7 @@
           <div style="display:flex;flex-direction:column;gap:14px">
             <template x-if="dialog.start.user_code">
               <div><div class="subtle" style="margin-bottom:8px">Enter this code at <span class="mono" x-text="(dialog.start.url || '').replace(/^https?:\/\//,'').replace(/\?.*$/,'')"></span></div>
-              <div class="devicecode"><span class="mono" x-text="dialog.start.user_code"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.start.user_code, 'the code')"><span x-html="icon('copy')"></span>Copy</button></div></div>
+              <div class="devicecode"><span class="mono" x-text="dialog.start.user_code"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.start.user_code, 'the code', $el)"><span x-html="icon('copy')"></span>Copy</button></div></div>
             </template>
             <div class="waiting" style="justify-content:space-between"><span style="display:flex;gap:10px;align-items:center"><span x-html="SPINNER"></span><span x-text="'Waiting for you to approve it' + (dialog.provider === 'grok' ? ' on x.ai' : ' in Cursor')"></span></span><span class="small muted" x-show="dialog.start.expires_at" x-text="'Expires ' + fmt.in(dialog.start.expires_at, now)"></span></div>
           </div>
@@ -735,10 +736,10 @@
       <!-- Key created -->
       <template x-if="dialog.kind === 'keycreated'"><div style="display:flex;flex-direction:column;gap:20px">
         <div><div class="dialog-head"><h2>Key created</h2></div><div class="subtle" x-text="dialog.key.name + ' · ' + (dialog.key.providers && dialog.key.providers.length ? dialog.key.providers.map(p => PROVIDERS[p]?.name).join(', ') : 'All providers') + ' · ' + (dialog.key.daily_cap ? fmt.tokens(dialog.key.daily_cap) + ' a day' : 'No cap')"></div></div>
-        <div><div class="secret"><span class="mono" x-text="dialog.secret"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.secret, 'the key')"><span x-html="icon('copy')"></span>Copy</button></div><div class="help" style="margin-top:6px">Copy it now. Mainspring won't show it again</div></div>
+        <div><div class="secret"><span class="mono" x-text="dialog.secret"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.secret, 'the key', $el)"><span x-html="icon('copy')"></span>Copy</button></div><div class="help" style="margin-top:6px">Copy it now. Mainspring won't show it again</div></div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div class="label-row" style="align-items:center"><div class="label">Set up a tool</div><div class="segmented"><template x-for="t in [['claude','Claude Code'],['codex','Codex'],['other','Other tools']]" :key="t[0]"><button :aria-pressed="dialog.tab === t[0]" @click="dialog.tab = t[0]" x-text="t[1]"></button></template></div></div>
-          <div class="label-row" style="align-items:center"><span class="small subtle mono" x-text="snippetPath(dialog.tab)"></span><button class="btn btn-ghost btn-sm" @click="copy(snippet(dialog.tab, dialog.secret), 'the snippet')"><span x-html="icon('copy')"></span>Copy</button></div>
+          <div class="label-row" style="align-items:center"><span class="small subtle mono" x-text="snippetPath(dialog.tab)"></span><button class="btn btn-ghost btn-sm" @click="copy(snippet(dialog.tab, dialog.secret), 'the snippet', $el)"><span x-html="icon('copy')"></span>Copy</button></div>
           <pre class="code" x-text="snippet(dialog.tab, dialog.secret)"></pre>
         </div>
         <div class="dialog-foot"><button class="btn btn-ink" @click="closeDialog()">Done</button></div>
@@ -764,7 +765,7 @@
             <div class="tn-signin-body">
               <div class="tn-qr-hint">Scan it with your phone, or open the link on this computer</div>
               <div><a class="btn btn-ink" :href="tailnet.auth_url" target="_blank" rel="noopener">Open Tailscale sign-in<span x-html="icon('external')"></span></a></div>
-              <button class="tn-link" @click="copy(tailnet.auth_url, 'the sign-in link')"><span class="mono" x-text="tailnet.auth_url.replace(/^https:\/\//, '')"></span><span x-html="icon('copy')"></span></button>
+              <button class="tn-link" @click="copy(tailnet.auth_url, 'the sign-in link', $el)"><span class="mono" x-text="tailnet.auth_url.replace(/^https:\/\//, '')"></span><span x-html="icon('copy')"></span></button>
             </div></div></template>
           <div class="waiting"><span x-html="SPINNER"></span><span x-text="tailnet.auth_url ? 'Waiting for you to approve Mainspring in Tailscale' : 'Starting Mainspring\'s device'"></span></div>
           <div class="dialog-foot"><button class="btn btn-secondary" @click="cancelTailnet()">Cancel</button></div>
@@ -789,7 +790,7 @@
 
         <template x-if="tailnet && tailnet.state === 'connected'"><div style="display:flex;flex-direction:column;gap:20px">
           <div><div class="dialog-head"><h2>Mainspring is on your tailnet</h2></div><div class="subtle" style="margin-top:4px" x-text="'Every device on ' + tailnet.tailnet + ' can reach it, with HTTPS'"></div></div>
-          <div class="tn-address"><div class="row"><span class="mono" x-text="tailnet.url"></span><button class="btn btn-secondary btn-sm" @click="copy(tailnet.url, 'the address')"><span x-html="icon('copy')"></span>Copy</button></div>
+          <div class="tn-address"><div class="row"><span class="mono" x-text="tailnet.url"></span><button class="btn btn-secondary btn-sm" @click="copy(tailnet.url, 'the address', $el)"><span x-html="icon('copy')"></span>Copy</button></div>
             <div class="small subtle">Tools use <span class="mono" x-text="tailnet.url + '/v1'"></span> with a Mainspring key</div></div>
           <div class="notice"><span x-html="icon('lock')"></span><div class="body" x-text="tailnet.keys ? 'This address skips Umbrel\'s login, so the panel there asks for your security key' : 'This address skips Umbrel\'s login, so the panel there needs a security key. Open it to add one'"></div></div>
           <div class="dialog-foot"><button class="btn btn-secondary" @click="closeDialog()">Done</button><button class="btn btn-ink" @click="openTailnetAddress()">Open it<span x-html="icon('external')"></span></button></div>
@@ -803,7 +804,7 @@
           <div class="strong" x-text="'Mainspring ' + updates.latest.version + ' is out'"></div>
           <ul class="notes"><template x-for="n in noteItems(updates.latest.notes)" :key="n"><li x-html="md(n)"></li></template></ul>
           <div class="subtle" x-text="updateSteps().text"></div>
-          <template x-if="updateSteps().cmd"><div class="secret"><span class="mono" x-text="updateSteps().cmd"></span><button class="btn btn-secondary btn-sm" @click="copy(updateSteps().cmd, 'the command')"><span x-html="icon('copy')"></span>Copy</button></div></template>
+          <template x-if="updateSteps().cmd"><div class="secret"><span class="mono" x-text="updateSteps().cmd"></span><button class="btn btn-secondary btn-sm" @click="copy(updateSteps().cmd, 'the command', $el)"><span x-html="icon('copy')"></span>Copy</button></div></template>
           <div><a class="btn btn-ghost btn-sm" :href="updates.latest.url" target="_blank" rel="noopener">Release on GitHub<span x-html="icon('external')"></span></a></div>
         </div></template>
         <div class="whatsnew-list">
@@ -818,8 +819,8 @@
 
       <template x-if="dialog.kind === 'hubkey'"><div style="display:flex;flex-direction:column;gap:20px">
         <div><div class="dialog-head"><h2>Management key</h2></div><div class="subtle">In T3 Code, open Settings → Providers → Usage providers → Add hub, then paste the address and this key</div></div>
-        <div class="field"><div class="label">Hub URL</div><div class="secret"><span class="mono" x-text="location.origin"></span><button class="btn btn-secondary btn-sm" @click="copy(location.origin, 'the address')"><span x-html="icon('copy')"></span>Copy</button></div></div>
-        <div class="field"><div class="label">Key</div><div class="secret"><span class="mono" x-text="dialog.secret"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.secret, 'the key')"><span x-html="icon('copy')"></span>Copy</button></div><div class="help">Copy it now. Mainspring won't show it again. It can only read usage</div></div>
+        <div class="field"><div class="label">Hub URL</div><div class="secret"><span class="mono" x-text="location.origin"></span><button class="btn btn-secondary btn-sm" @click="copy(location.origin, 'the address', $el)"><span x-html="icon('copy')"></span>Copy</button></div></div>
+        <div class="field"><div class="label">Key</div><div class="secret"><span class="mono" x-text="dialog.secret"></span><button class="btn btn-secondary btn-sm" @click="copy(dialog.secret, 'the key', $el)"><span x-html="icon('copy')"></span>Copy</button></div><div class="help">Copy it now. Mainspring won't show it again. It can only read usage</div></div>
         <div class="dialog-foot"><button class="btn btn-ink" @click="closeDialog()">Done</button></div>
       </div></template>
 
