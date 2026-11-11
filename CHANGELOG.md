@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.1.0] - 2026-11-11
+
+- **Mainspring for pi**: a pi extension in this repo (`pi install git:github.com/kacperkwapisz/mainspring`). It adds Mainspring as a provider, registers `web_search` and `web_fetch` on your subscriptions, tells you when your session moves to another account, and shows the pool with `/mainspring`.
+- Answers say which account served them and its limits, in `X-Mainspring-*` headers, and `GET /v1/pool` shows the pool to tools holding a key. Turn both off with **Share pool with keys** under **Settings → Keys**.
+
 ## [1.0.4] - 2026-11-11
 
 - Docs inside Mainspring at `/docs`: getting started, connecting Claude Code, Codex, Cursor, OpenCode and pi, every guide and the full API reference. Examples show your own address, so commands can be copied as they are.

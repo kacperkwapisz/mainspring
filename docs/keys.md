@@ -25,6 +25,10 @@ Send it as `Authorization: Bearer sk-ms-…` or as `x-api-key: sk-ms-…`. Both 
 
 Revoking a key refuses it from then on. Its live sessions end at their next request. You can't undo it; create a new key instead.
 
+## What keys can see
+
+With **Share pool with keys** on (**Settings → Keys**, on by default), tools holding a key see which account served each answer and every account's limits, through [response headers and `/v1/pool`](api.md#get-v1pool). Turn it off to keep account emails in the panel.
+
 ## Management key
 
 Usage dashboards such as T3 Code read limits through a separate management key, created under **Settings → Usage hub**. It reads account limits and can clear a cooldown or spend a Codex rate-limit reset credit. It can't send prompts. See [`/v0/management`](api.md#v0management).

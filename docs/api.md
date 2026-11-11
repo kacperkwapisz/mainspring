@@ -96,6 +96,48 @@ Every model your accounts can serve, minus the ones you turned off, in OpenAI's 
 
 Needs a key.
 
+## GET /v1/pool
+
+The pool as a client sees it: every account with its status and limits, which one goes next, and the live sessions of the key you sent. The pi extension's `/mainspring` reads it. Needs a key, and answers `404` when **Share pool with keys** is off under **Settings → Keys**.
+
+```json
+{
+  "now": 1794358764436,
+  "groups": [
+    {
+      "provider": "claude",
+      "name": "Claude",
+      "next_up": "alex@example.com",
+      "accounts": [
+        {
+          "label": "alex@example.com",
+          "plan": "Max",
+          "status": "next",
+          "sessions": 2,
+          "windows": [{ "label": "5 hours", "left": 62, "resets_at": 1794366000000, "period_ms": 18000000 }]
+        }
+      ]
+    }
+  ],
+  "others": [],
+  "sessions": [{ "provider": "claude", "account": "alex@example.com", "model": "claude-sonnet-5-5", "client": "pi", "requests": 14, "last_at": 1794358700000 }]
+}
+```
+
+`status` is `next`, `active`, `cooling`, `benched` or `needs_sign_in`.
+
+## Response headers
+
+With **Share pool with keys** on, every successful answer from `/v1/messages`, `/v1/chat/completions` and `/v1/responses` says which account served it:
+
+| Header | Value |
+|---|---|
+| `X-Mainspring-Account` | The account's name, usually its email |
+| `X-Mainspring-Provider` | `claude`, `codex`, … |
+| `X-Mainspring-Limits` | JSON: `[{"label":"5 hours","left":62,"resets_at":1794366000000}]`, `left` in percent |
+| `X-Mainspring-Moved-From` | Only when the session just moved: the account it left |
+| `X-Mainspring-Moved-Reason` | Why, like `5-hour limit hit` |
+
 ## POST /mcp
 
 An MCP server (Streamable HTTP, answered as plain JSON) with `web_search` and `web_fetch`. Needs a key. See [Web tools](web-tools.md).

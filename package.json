@@ -1,0 +1,14 @@
+{
+  "name": "pi-mainspring",
+  "version": "1.0.0",
+  "description": "Mainspring for pi: your pooled subscriptions as a provider, web search and fetch on them, and the pool at /mainspring.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Kacper Kwapisz",
+  "homepage": "https://github.com/kacperkwapisz/mainspring/tree/main/pi#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/kacperkwapisz/mainspring.git" },
+  "keywords": ["pi-package", "pi-extension", "mainspring", "web-search", "web-fetch"],
+  "files": ["pi"],
+  "pi": { "extensions": ["./pi/index.ts"] },
+  "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*", "typebox": "*" }
+}

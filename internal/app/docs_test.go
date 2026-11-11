@@ -37,3 +37,27 @@ func TestDocsArePublicAndUseTheRequestsAddress(t *testing.T) {
 		t.Fatalf("docs.css: %d", res.Code)
 	}
 }
+
+func TestPoolForKeysFollowsTheSetting(t *testing.T) {
+	b := bootAPI(t)
+	created, _ := b.Hub.Keys.Create("laptop", nil, nil, nil)
+	get := func(auth string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/v1/pool", nil)
+		if auth != "" {
+			req.Header.Set("Authorization", "Bearer "+auth)
+		}
+		res := httptest.NewRecorder()
+		b.Handler.ServeHTTP(res, req)
+		return res
+	}
+	if res := get(""); res.Code != 401 {
+		t.Fatalf("no key: %d", res.Code)
+	}
+	if res := get(created.Secret); res.Code != 200 || !strings.Contains(res.Body.String(), `"groups"`) || !strings.Contains(res.Body.String(), `"sessions"`) {
+		t.Fatalf("pool: %d %s", res.Code, res.Body.String())
+	}
+	_ = b.Hub.Settings.Set("keys.sharePool", "0")
+	if res := get(created.Secret); res.Code != 404 {
+		t.Fatalf("sharing off: %d", res.Code)
+	}
+}

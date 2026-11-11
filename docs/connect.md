@@ -72,7 +72,15 @@ List the model IDs you want from [`/v1/models`](api.md#get-v1models).
 
 ## pi
 
-Add a provider to `~/.pi/agent/models.json`:
+Install the Mainspring extension. It adds Mainspring as a provider with the models your subscriptions offer, registers `web_search` and `web_fetch`, tells you when Mainspring moves your session to another account, and shows the pool with `/mainspring`:
+
+```sh
+pi install git:github.com/kacperkwapisz/mainspring
+```
+
+Then run `/mainspring setup` in pi and enter the address and a key, or set `MAINSPRING_URL` and `MAINSPRING_KEY`. Pick a model under **Mainspring** with `/model`.
+
+Without the extension, add a provider to `~/.pi/agent/models.json`:
 
 ```json
 {

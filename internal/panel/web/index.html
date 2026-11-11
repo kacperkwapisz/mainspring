@@ -489,6 +489,12 @@
                 <div class="segmented"><template x-for="t in [['off','Off'],['errors','On failure'],['always','Always']]" :key="t[0]"><button :aria-pressed="settings.trace === t[0]" @click="saveSetting({trace: t[0]})" x-text="t[1]"></button></template></div></div></div>
             </div>
             <div class="setting-section">
+              <div class="head"><div class="t">Keys</div><div class="d">What tools holding a Mainspring key can see</div></div>
+              <div class="card">
+                <div class="setting-row"><div class="name">Share pool with keys</div><div class="desc">Tools see which account served them and every account's limits, like the pi extension's <span class="mono">/mainspring</span>. Off keeps account emails in this panel</div><span class="switch-hit"><button class="switch" role="switch" :aria-checked="settings.share_pool ? 'true' : 'false'" aria-label="Share pool with keys" @click="saveSetting({share_pool: !settings.share_pool})"></button></span></div>
+              </div>
+            </div>
+            <div class="setting-section">
               <div class="head"><div class="t">Usage hub</div><div class="d">Lets T3 Code and other dashboards read pooled limits with a management key</div></div>
               <div class="card">
                 <div class="setting-row"><div class="name">Share limits with dashboards</div><div class="desc" x-text="settings.hub_key ? 'Dashboards connect with the management key to ' + location.origin : 'Create a management key first'"></div><span class="switch-hit"><button class="switch" role="switch" :disabled="!settings.hub_key" :aria-checked="settings.hub_enabled ? 'true' : 'false'" aria-label="Share limits" @click="saveSetting({hub_enabled: !settings.hub_enabled})"></button></span></div>

@@ -222,7 +222,7 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 			if movedFrom != "" {
 				touch.MovedReason = movedReason(hub, movedFrom)
 			}
-			passthrough := passthroughHeaders(result.Header)
+			passthrough := accountHeaders(hub, passthroughHeaders(result.Header), hop.Provider, cred, movedFrom, touch.MovedReason)
 			if req.Stream && result.Stream != nil {
 				out := make(chan string)
 				go func() {

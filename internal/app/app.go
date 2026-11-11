@@ -106,6 +106,7 @@ func Create(source map[string]string) (*Booted, error) {
 	registerLoginAPI(mux, hub, authSvc, logins)
 	registerUpdatesAPI(mux, hub, authSvc)
 	registerMCP(mux, hub)
+	registerPoolAPI(mux, hub)
 	// An in-memory database (the demo, tests) gets a scripted device: a real
 	// one needs a folder to keep its keys in.
 	tn := tailnet.NewDemoManager(nil)

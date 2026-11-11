@@ -32,6 +32,7 @@ Mainspring needs no configuration to start. Environment variables change where i
 | Cursor | List fast twins as `…-fast` | On |
 | Cursor | Fall back between Grok and Cursor | Off |
 | Request trace | Log how requests were routed: off, on failure, always | Off |
+| Keys | Share pool with keys: account names and limits in response headers and `/v1/pool` | On |
 | Usage hub | Share limits with dashboards through a management key | Off |
 | Web tools | `web_search` and `web_fetch` at `/mcp` | On |
 | Sign-in | Security keys and passkeys; with `proxy` auth, also require a key | |
