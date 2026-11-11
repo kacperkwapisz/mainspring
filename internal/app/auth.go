@@ -19,7 +19,7 @@ const authBodyLimit = 64 << 10
 func registerAuth(mux *httpx.Mux, a *auth.Service) {
 	mux.Handle(http.MethodGet, "/api/auth/state", func(w http.ResponseWriter, r *http.Request) {
 		rp := a.RelyingParty(r)
-		setup, err := a.SetupNeeded()
+		setup, err := a.SetupNeededFor(r)
 		if err != nil {
 			authFail(w, err)
 			return
@@ -35,7 +35,7 @@ func registerAuth(mux *httpx.Mux, a *auth.Service) {
 			return
 		}
 		httpx.JSON(w, http.StatusOK, map[string]any{
-			"mode":          a.Mode,
+			"mode":          a.ModeFor(r),
 			"signedIn":      a.Authed(r),
 			"setupNeeded":   setup,
 			"secureContext": rp.SecureContext,
@@ -76,7 +76,7 @@ func registerAuth(mux *httpx.Mux, a *auth.Service) {
 			return
 		}
 		if !allowed {
-			if setup, _ := a.SetupNeeded(); setup {
+			if setup, _ := a.SetupNeededFor(r); setup {
 				authError(w, http.StatusUnauthorized, "setup_code_required", "Enter the setup code from the hub's terminal first")
 				return
 			}

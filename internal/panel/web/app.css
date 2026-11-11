@@ -401,3 +401,46 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-badge); background: var(--color-surface-hover); color: var(--color-text-subtle); font-size: 12px; line-height: 16px; }
 .setting-block { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 16px; border-top: 1px solid var(--color-hairline); }
 .mono.pre { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1; }
+
+/* Tailnet */
+.tailnet-card { overflow: clip; }
+.tn-diagram { display: flex; align-items: flex-start; padding: 24px 40px 18px; border-bottom: 1px solid var(--color-hairline); }
+.tn-node-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 96px; flex-shrink: 0; }
+.tn-diagram .tn-node-wrap + .tn-node-wrap::before { content: none; }
+.tn-diagram > .tn-node-wrap:not(:last-child) { position: relative; }
+.tn-diagram { gap: 0; justify-content: space-between; position: relative; }
+.tn-diagram::before { content: ""; position: absolute; left: 88px; right: 88px; top: 46px; height: 1px; background: var(--color-track); }
+.tn-node { position: relative; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 22px; background: var(--color-surface-hover); border: 1px solid var(--color-hairline); color: var(--color-text-subtle); }
+.tn-node.generic { color: var(--color-text-muted); }
+.tn-node.self-off { background: var(--color-surface); border: 1px dashed var(--color-text-muted); }
+.tn-node.self-on { border-color: var(--color-text-muted); }
+.tn-label { font-size: 12px; line-height: 16px; color: var(--color-text-subtle); max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tn-status { display: flex; align-items: center; gap: 24px; padding: 16px 15px; }
+.tn-status .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tn-signin { display: flex; align-items: center; gap: 20px; }
+.tn-qr { border-radius: 10px; background: #fff; flex-shrink: 0; }
+.tn-signin-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tn-link { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-subtle); font-size: 12px; line-height: 16px; min-width: 0; }
+.tn-link .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tn-steps { display: flex; flex-direction: column; border-radius: var(--radius-card); background: var(--color-page); border: 1px solid var(--color-hairline); overflow: clip; }
+.tn-step { display: flex; gap: 12px; padding: 12px 15px; }
+.tn-step + .tn-step { border-top: 1px solid var(--color-hairline); }
+.tn-step > span:first-child { display: inline-flex; padding-top: 2px; flex-shrink: 0; }
+.tn-done { color: var(--color-success); }
+.tn-address { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--radius-card); background: var(--color-page); border: 1px solid var(--color-hairline); }
+.tn-address .row { display: flex; align-items: center; gap: 12px; }
+.tn-address .row .mono { flex: 1; min-width: 0; font-size: 15px; line-height: 20px; color: var(--color-text-strong); overflow-wrap: anywhere; }
+/* On a phone the link opens Tailscale on the phone itself: no code to scan. */
+@media (max-width: 759px) {
+  .tn-qr, .tn-qr-hint { display: none; }
+  .tn-signin-body, .tn-signin-body .btn { width: 100%; justify-content: center; }
+  .tn-diagram { padding: 20px 16px 16px; }
+  .tn-diagram::before { left: 56px; right: 56px; }
+  .tn-node-wrap { width: 64px; }
+  .tn-status { flex-direction: column; align-items: stretch; gap: 12px; }
+}
+/* On a phone, dialogs rise from the bottom edge, within thumb reach. */
+@media (max-width: 759px) {
+  .scrim { align-items: flex-end; padding: 0; }
+  .dialog { max-width: none; border-radius: var(--radius-modal) var(--radius-modal) 0 0; border-bottom: 0; padding-bottom: calc(24px + env(safe-area-inset-bottom)); max-height: calc(100dvh - 48px); }
+}

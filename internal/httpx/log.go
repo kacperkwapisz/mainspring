@@ -77,3 +77,8 @@ func logln(min logLevel, line string) {
 	}
 	fmt.Fprintln(logWriter, line)
 }
+
+// Logf writes one info line, like the tailnet sign-in link.
+func Logf(format string, args ...any) {
+	logln(levelInfo, "mainspring "+fmt.Sprintf(format, args...))
+}

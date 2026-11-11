@@ -78,6 +78,9 @@
     "external": "<path d=\"M15 3h6v6\"/> <path d=\"M10 14 21 3\"/> <path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>",
     "update": "<circle cx=\"12\" cy=\"12\" r=\"10\"/> <path d=\"m16 12-4-4-4 4\"/> <path d=\"M12 16V8\"/>",
     "sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\"/> <path d=\"M20 2v4\"/> <path d=\"M22 4h-4\"/> <circle cx=\"4\" cy=\"20\" r=\"2\"/>",
+    "laptop": "<path d=\"M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z\"/> <path d=\"M20.054 15.987H3.946\"/>",
+    "phone": "<rect width=\"14\" height=\"20\" x=\"5\" y=\"2\" rx=\"2\" ry=\"2\"/> <path d=\"M12 18h.01\"/>",
+    "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/> <rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/> <line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/> <line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>",
     "openai": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/> <rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/> <line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/> <line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>",
   };
   const BRAND = {
@@ -85,6 +88,7 @@
     "codex": "<path clip-rule=\"evenodd\" d=\"M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z\"></path>",
     "grok": "<path d=\"M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815\"></path>",
     "cursor": "<path d=\"M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z\"></path>",
+    "tailscale": "<path d=\"M24 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm-9 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm0-9a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm6-6a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0-.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 24a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0-.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zm18 .5a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0-.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM6 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm9-9a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm-3 2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM6 3a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM3 5.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z\"/>",
     "opencode": "<path d=\"M16 6H8v12h8V6zm4 16H4V2h16v20z\"></path>",
   };
   // 16px with a 1.2px stroke: 1.8 on Lucide's 24-unit grid.
@@ -235,6 +239,7 @@
       // Live updates: /api/events names what changed and the panel reloads that.
       es: null, live: false, lastEvent: 0, lastSafety: 0, dirty: {},
       updates: null, changelog: null, unseen: false,
+      tailnet: null, tn: { name: "mainspring", authKey: "", showKey: false, busy: false, error: "" },
 
       async init() {
         window.addEventListener("hashchange", () => this.go());
@@ -242,6 +247,11 @@
         document.addEventListener("visibilitychange", () => { if (!document.hidden) { this.startLive(); this.flush(); } });
         setInterval(() => { this.now = Date.now(); }, 1000);
         await this.loadAuth();
+        const setupCode = new URLSearchParams(location.search).get("setup");
+        if (setupCode) {
+          history.replaceState(null, "", location.pathname + location.hash);
+          if (this.auth && this.auth.setupNeeded) { this.setup.code = setupCode; await this.verifySetup(); }
+        }
         this.go();
         setInterval(() => this.poll(), 10000);
         document.addEventListener("keydown", (e) => {
@@ -322,6 +332,7 @@
       // Reload what's on screen if it changed. Waits while the tab is hidden or
       // a dialog is open, so nothing shifts under a form.
       flush() {
+        if (this.dirty.tailnet && this.signedIn) { delete this.dirty.tailnet; this.loadTailnet(); }
         if (!this.signedIn || document.hidden || this.dialog) return;
         const d = this.dirty;
         this.dirty = {};
@@ -331,6 +342,65 @@
         if (this.drawer && (d.pool || d.sessions)) this.openDrawer(this.drawer, true);
         if (d.updates) this.loadUpdates();
       },
+
+      // ----- tailnet -----
+      async loadTailnet() {
+        try { this.tailnet = await api("GET", "/api/tailnet"); }
+        catch (e) { this.tailnet = { state: e.status === 404 ? "unavailable" : "error", error: e.message, peers: [] }; }
+      },
+      // The diagram shows real devices once joined; before that, kinds of device.
+      tailnetPeers() {
+        const peers = (this.tailnet && this.tailnet.peers) || [];
+        if (!peers.length) return [{ name: "Laptop", icon: "laptop", generic: true }, { name: "Phone", icon: "phone", generic: true }, { name: "Server", icon: "server", generic: true }];
+        return peers.map((p) => ({ name: p.name, online: p.online, icon: /ios|android/i.test(p.os) ? "phone" : /mac|windows/i.test(p.os) ? "laptop" : "server" }));
+      },
+      get tailnetBusy() { const s = this.tailnet && this.tailnet.state; return ["starting", "needs_login", "needs_approval", "certificate", "no_https", "failed"].includes(s); },
+      tailnetStatusLine() {
+        const t = this.tailnet || {};
+        return {
+          starting: ["Starting", "Mainspring is starting its device"],
+          needs_login: ["Waiting for you to sign in", "Approve Mainspring in Tailscale to finish"],
+          needs_approval: ["Waiting for an admin", "A tailnet admin needs to approve the device in Tailscale"],
+          certificate: ["Getting an HTTPS certificate", t.error || "This can take a minute"],
+          no_https: ["HTTPS is off for your tailnet", "Turn on HTTPS certificates in Tailscale's DNS settings"],
+          failed: ["Couldn't start", t.error || "Try again"],
+        }[t.state] || ["", ""];
+      },
+      openTailnet() {
+        const t = this.tailnet || {};
+        this.tn = { name: t.hostname || "mainspring", authKey: "", showKey: false, busy: false, error: "" };
+        this.openDialog("tailnet", {});
+      },
+      async startTailnet() {
+        this.tn.busy = true; this.tn.error = "";
+        try { this.tailnet = await api("POST", "/api/tailnet/start", { hostname: this.tn.name.trim().toLowerCase(), auth_key: this.tn.showKey ? this.tn.authKey.trim() : "" }); }
+        catch (e) { this.tn.error = e.message; }
+        this.tn.busy = false;
+      },
+      async cancelTailnet() {
+        if (this.tailnet && ["starting", "needs_login"].includes(this.tailnet.state)) {
+          try { this.tailnet = await api("POST", "/api/tailnet/cancel"); } catch { /* closing anyway */ }
+        }
+        this.closeDialog();
+      },
+      async checkTailnet() {
+        this.tn.busy = true;
+        try { this.tailnet = await api("POST", "/api/tailnet/check"); } catch (e) { T.err("Couldn't check", e.message); }
+        this.tn.busy = false;
+      },
+      async openTailnetAddress() {
+        const tab = window.open("about:blank", "_blank");
+        try { const r = await api("POST", "/api/tailnet/open"); if (tab) tab.location = r.url; else location.href = r.url; }
+        catch (e) { if (tab) tab.close(); T.err("Couldn't open it", e.message); }
+      },
+      async removeTailnet() {
+        const t = this.tailnet || {};
+        const ok = await this.confirm("Remove Mainspring from your tailnet?", `Mainspring leaves ${this.esc(t.tailnet || "your tailnet")}, and <span class="mono strong">${this.esc(t.url || "its address")}</span> stops working. You can add it again later`, "Remove from tailnet");
+        if (!ok) return;
+        try { this.tailnet = await api("DELETE", "/api/tailnet"); T.ok("Mainspring left your tailnet"); }
+        catch (e) { T.err("Couldn't remove it", e.message); }
+      },
+      tailnetQR() { return this.tailnet && this.tailnet.auth_url ? "/api/tailnet/qr.svg?u=" + encodeURIComponent(this.tailnet.auth_url) : ""; },
 
       // ----- what's new and updates -----
       async loadUpdates() {
@@ -398,6 +468,7 @@
       },
       async loadSettings() {
         try { this.settings = await api("GET", "/api/settings"); this.settingsError = ""; } catch (e) { this.settingsError = e.message; }
+        this.loadTailnet();
         try { this.authKeys = (await api("GET", "/api/auth/keys")).keys || []; } catch { this.authKeys = []; }
       },
 

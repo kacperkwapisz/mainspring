@@ -2,6 +2,12 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.0.0-rc.15] - 2026-11-11
+
+- Mainspring can join your Tailscale network as its own device, with an HTTPS address every device on your tailnet can reach. Add it under **Settings → Tailnet address**: name it, approve it in Tailscale, done.
+- The panel on the tailnet address always asks for a security key, because that address skips Umbrel's login. The first time, **Open it** brings a one-time setup code to add one.
+- Dialogs rise from the bottom of the screen on phones.
+
 ## [1.0.0-rc.14] - 2026-11-11
 
 - Mainspring is an MCP server at `/mcp` with `web_search` and `web_fetch`. Each call runs on the Claude or Codex account your app's session already uses, and shows on the meter. Setup lines for Claude Code, Codex and pi are under **Settings → Web tools**.

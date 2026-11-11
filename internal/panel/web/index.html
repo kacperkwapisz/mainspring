@@ -438,6 +438,29 @@
         <template x-if="settingsError && !settings"><div class="card pane-error"><div class="subtle" x-text="settingsError"></div><button class="btn btn-secondary btn-sm" @click="loadSettings()">Retry</button></div></template>
         <template x-if="settings">
           <div class="settings">
+            <template x-if="tailnet && tailnet.state !== 'unavailable'"><div class="setting-section">
+              <div class="head"><div class="t">Tailnet address</div><div class="d">Mainspring's own device on your Tailscale network, with HTTPS</div></div>
+              <div class="card tailnet-card">
+                <div class="tn-diagram" aria-hidden="true">
+                  <template x-for="(p, i) in tailnetPeers()" :key="p.name + i"><div class="tn-node-wrap"><div class="tn-node" :class="p.generic && 'generic'"><span x-html="icon(p.icon)"></span></div><div class="tn-label" x-text="p.name"></div></div></template>
+                  <div class="tn-node-wrap tn-self"><div class="tn-node" :class="tailnet.state === 'connected' ? 'self-on' : 'self-off'"><template x-if="tailnet.state === 'connected'"><img src="/assets/mark.svg" width="20" height="20" alt=""></template></div><div class="tn-label strong" x-text="tailnet.hostname || 'mainspring'"></div></div>
+                </div>
+                <template x-if="tailnet.state === 'off'"><div class="tn-status">
+                  <div class="body"><div class="strong">Not on your tailnet yet</div><div class="subtle">Mainspring joins as its own device, like <span class="mono">https://mainspring.your-tailnet.ts.net</span>. Every machine on your tailnet can reach it, and security keys work there</div></div>
+                  <button class="btn btn-ink" @click="openTailnet()"><span x-html="icon('tailscale')"></span>Add to tailnet</button>
+                </div></template>
+                <template x-if="tailnetBusy"><div class="tn-status">
+                  <div class="body"><div class="strong" x-text="tailnetStatusLine()[0]"></div><div class="subtle" x-text="tailnetStatusLine()[1]"></div></div>
+                  <button class="btn btn-secondary" @click="openTailnet()">Continue</button>
+                </div></template>
+                <template x-if="tailnet.state === 'connected'"><div>
+                  <div class="setting-row"><div class="name">Address</div><div class="desc"><span class="mono strong" x-text="tailnet.url"></span></div><button class="btn btn-secondary btn-sm" @click="copy(tailnet.url, 'the address')"><span x-html="icon('copy')"></span>Copy</button></div>
+                  <div class="setting-row"><div class="name">Device</div><div class="desc"><span x-text="tailnet.hostname"></span>, <span class="mono" x-text="tailnet.ip"></span> on <span x-text="tailnet.tailnet"></span></div></div>
+                  <div class="setting-row"><div class="name">HTTPS certificate</div><div class="desc" x-text="'Valid until ' + fmt.day(tailnet.cert_expires) + '. Mainspring renews it before then'"></div></div>
+                  <div class="setting-row"><div class="name">Remove from tailnet</div><div class="desc" x-text="'Mainspring leaves ' + tailnet.tailnet + ', and this address stops working'"></div><button class="btn btn-secondary btn-sm danger-text" @click="removeTailnet()">Remove</button></div>
+                </div></template>
+              </div>
+            </div></template>
             <div class="setting-section">
               <div class="head"><div class="t">Routing</div><div class="d">New sessions go to the account whose limit resets soonest while it still has reserve left</div></div>
               <div class="card">
@@ -721,6 +744,57 @@
       </div></template>
 
       <!-- Management key created -->
+      <!-- Tailnet: one dialog that follows the device's state -->
+      <template x-if="dialog.kind === 'tailnet'"><div style="display:flex;flex-direction:column;gap:20px">
+        <template x-if="!tailnet || tailnet.state === 'off'"><form style="display:flex;flex-direction:column;gap:20px" @submit.prevent="startTailnet()">
+          <div><div class="dialog-head"><h2>Add Mainspring to your tailnet</h2></div><div class="subtle" style="margin-top:4px">It joins as its own device. You sign in to Tailscale next</div></div>
+          <div class="field"><label class="label" for="tnname">Device name</label><input id="tnname" class="input" x-model="tn.name" maxlength="63" autocomplete="off" spellcheck="false" x-init="$nextTick(() => $el.focus())">
+            <div class="mono small" x-text="'https://' + (tn.name.trim().toLowerCase() || 'mainspring') + '.your-tailnet.ts.net'"></div>
+            <div class="help">Lowercase letters, numbers and dashes. Your tailnet's name fills in after you sign in</div></div>
+          <template x-if="tn.showKey"><div class="field"><label class="label" for="tnkey">Auth key</label><input id="tnkey" class="input mono" x-model="tn.authKey" placeholder="tskey-auth-…" autocomplete="off" spellcheck="false"><div class="help">From the Keys page in Tailscale's admin console. Mainspring joins without a browser sign-in</div></div></template>
+          <template x-if="tn.error"><div class="dialog-error"><span x-html="icon('alert')"></span><div class="subtle" x-text="tn.error"></div></div></template>
+          <div class="dialog-foot"><button type="button" class="btn btn-ghost" style="margin-right:auto" @click="tn.showKey = !tn.showKey" x-text="tn.showKey ? 'Sign in with a browser instead' : 'Use an auth key instead'"></button><button type="button" class="btn btn-secondary" @click="closeDialog()">Cancel</button><button class="btn btn-ink" :disabled="tn.busy">Continue</button></div>
+        </form></template>
+
+        <template x-if="tailnet && (tailnet.state === 'starting' || tailnet.state === 'needs_login')"><div style="display:flex;flex-direction:column;gap:20px">
+          <div><div class="dialog-head"><h2>Sign in to Tailscale</h2></div><div class="subtle" style="margin-top:4px">Use an account on the tailnet you want Mainspring on</div></div>
+          <template x-if="tailnet.auth_url"><div class="tn-signin">
+            <img class="tn-qr" :src="tailnetQR()" width="144" height="144" alt="QR code for the Tailscale sign-in link">
+            <div class="tn-signin-body">
+              <div class="tn-qr-hint">Scan it with your phone, or open the link on this computer</div>
+              <div><a class="btn btn-ink" :href="tailnet.auth_url" target="_blank" rel="noopener">Open Tailscale sign-in<span x-html="icon('external')"></span></a></div>
+              <button class="tn-link" @click="copy(tailnet.auth_url, 'the sign-in link')"><span class="mono" x-text="tailnet.auth_url.replace(/^https:\/\//, '')"></span><span x-html="icon('copy')"></span></button>
+            </div></div></template>
+          <div class="waiting"><span x-html="SPINNER"></span><span x-text="tailnet.auth_url ? 'Waiting for you to approve Mainspring in Tailscale' : 'Starting Mainspring\'s device'"></span></div>
+          <div class="dialog-foot"><button class="btn btn-secondary" @click="cancelTailnet()">Cancel</button></div>
+        </div></template>
+
+        <template x-if="tailnet && ['needs_approval', 'certificate', 'no_https', 'failed'].includes(tailnet.state)"><div style="display:flex;flex-direction:column;gap:20px">
+          <div><div class="dialog-head"><h2 x-text="tailnet.state === 'no_https' ? 'Turn on HTTPS for your tailnet' : tailnet.state === 'needs_approval' ? 'Waiting for an admin' : tailnet.state === 'failed' ? 'Couldn\'t add Mainspring' : 'Connecting'"></h2></div>
+            <div class="subtle" style="margin-top:4px" x-text="tailnet.state === 'no_https' ? 'Mainspring joined, but ' + tailnet.tailnet + ' doesn\'t hand out HTTPS certificates yet' : tailnet.state === 'needs_approval' ? 'A tailnet admin needs to approve the device in Tailscale\'s admin console' : tailnet.state === 'failed' ? tailnet.error : 'You can close this. Mainspring keeps going and Settings shows when it\'s done'"></div></div>
+          <template x-if="tailnet.state === 'certificate' || tailnet.state === 'no_https'"><div class="tn-steps">
+            <div class="tn-step"><span class="tn-done" x-html="icon('check')"></span><div><div class="strong">Signed in to Tailscale</div><div class="small subtle">Tailnet <span class="mono" x-text="tailnet.tailnet"></span><span x-show="tailnet.user" x-text="', as ' + tailnet.user"></span></div></div></div>
+            <div class="tn-step"><span class="tn-done" x-html="icon('check')"></span><div><div class="strong" x-text="'Joined as ' + tailnet.hostname"></div><div class="small subtle"><span class="mono" x-text="tailnet.ip"></span> on your tailnet</div></div></div>
+            <template x-if="tailnet.state === 'certificate'"><div class="tn-step"><span x-html="SPINNER"></span><div><div class="strong">Getting an HTTPS certificate</div><div class="small subtle" x-text="tailnet.error || ('For ' + tailnet.dns_name + ', through Tailscale. This can take a minute')"></div></div></div></template>
+            <template x-if="tailnet.state === 'no_https'"><div class="tn-step"><span x-html="icon('info')"></span><div style="display:flex;flex-direction:column;gap:10px"><div><div class="strong">HTTPS is off for this tailnet</div><div class="small subtle">In Tailscale's admin console, open DNS and choose Enable HTTPS. Security keys only work over HTTPS</div></div><div><a class="btn btn-secondary btn-sm" href="https://login.tailscale.com/admin/dns" target="_blank" rel="noopener">Open DNS settings<span x-html="icon('external')"></span></a></div></div></div></template>
+          </div></template>
+          <template x-if="tailnet.state === 'no_https'"><div class="small subtle">Until then, tools can use <span class="mono" x-text="tailnet.url + '/v1'"></span></div></template>
+          <div class="dialog-foot">
+            <template x-if="tailnet.state === 'failed'"><button class="btn btn-secondary" @click="removeTailnet()">Start over</button></template>
+            <button class="btn btn-secondary" @click="closeDialog()">Close</button>
+            <template x-if="tailnet.state === 'no_https'"><button class="btn btn-ink" :disabled="tn.busy" @click="checkTailnet()">Check again</button></template>
+          </div>
+        </div></template>
+
+        <template x-if="tailnet && tailnet.state === 'connected'"><div style="display:flex;flex-direction:column;gap:20px">
+          <div><div class="dialog-head"><h2>Mainspring is on your tailnet</h2></div><div class="subtle" style="margin-top:4px" x-text="'Every device on ' + tailnet.tailnet + ' can reach it, with HTTPS'"></div></div>
+          <div class="tn-address"><div class="row"><span class="mono" x-text="tailnet.url"></span><button class="btn btn-secondary btn-sm" @click="copy(tailnet.url, 'the address')"><span x-html="icon('copy')"></span>Copy</button></div>
+            <div class="small subtle">Tools use <span class="mono" x-text="tailnet.url + '/v1'"></span> with a Mainspring key</div></div>
+          <div class="notice"><span x-html="icon('lock')"></span><div class="body" x-text="tailnet.keys ? 'This address skips Umbrel\'s login, so the panel there asks for your security key' : 'This address skips Umbrel\'s login, so the panel there needs a security key. Open it to add one'"></div></div>
+          <div class="dialog-foot"><button class="btn btn-secondary" @click="closeDialog()">Done</button><button class="btn btn-ink" @click="openTailnetAddress()">Open it<span x-html="icon('external')"></span></button></div>
+        </div></template>
+      </div></template>
+
       <!-- What's new, and the update when one is out -->
       <template x-if="dialog.kind === 'whatsnew'"><div style="display:flex;flex-direction:column;gap:20px">
         <div class="dialog-head"><h2>What's new</h2><button class="btn-icon" @click="closeDialog()" x-html="icon('close')" aria-label="Close"></button></div>

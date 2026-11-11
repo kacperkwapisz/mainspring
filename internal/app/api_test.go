@@ -14,9 +14,15 @@ import (
 	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
-func bootAPI(t *testing.T) *Booted {
+func bootAPI(t *testing.T) *Booted { t.Helper(); return bootAPIWith(t, nil) }
+
+func bootAPIWith(t *testing.T, vars map[string]string) *Booted {
 	t.Helper()
-	booted, err := Create(map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:"})
+	src := map[string]string{"JWT_SECRET": secret, "DATABASE_PATH": ":memory:"}
+	for k, v := range vars {
+		src[k] = v
+	}
+	booted, err := Create(src)
 	if err != nil {
 		t.Fatal(err)
 	}

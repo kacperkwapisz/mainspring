@@ -87,7 +87,7 @@ func New(e *env.Env, creds *store.WebAuthnStore, settings *store.SettingsStore) 
 // Authed reports whether r may use the panel. In proxy mode the reverse proxy
 // already authenticated the operator unless auth.requireKey is on.
 func (s *Service) Authed(r *http.Request) bool {
-	if !s.KeyRequired() {
+	if !s.KeyRequiredFor(r) {
 		return true
 	}
 	return s.SessionAuthed(r)
@@ -206,7 +206,7 @@ type RelyingParty struct {
 // RelyingParty derives the RP ID and origin from r. X-Forwarded-Host and
 // X-Forwarded-Proto count only with MAINSPRING_TRUST_PROXY=1 or in proxy mode.
 func (s *Service) RelyingParty(r *http.Request) RelyingParty {
-	trust := s.TrustProxy || s.Mode == env.AuthProxy
+	trust := (s.TrustProxy || s.Mode == env.AuthProxy) && !IsStrict(r)
 	host := r.Host
 	scheme := "http"
 	if r.TLS != nil {

@@ -2,8 +2,10 @@ package app
 
 import (
 	"github.com/kacperkwapisz/mainspring/internal/live"
+	"github.com/kacperkwapisz/mainspring/internal/tailnet"
 	"github.com/kacperkwapisz/mainspring/internal/update"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -34,6 +36,8 @@ type Booted struct {
 	// Auth is the panel sign-in service behind Gate.
 	Auth *auth.Service
 	DB   *db.DB
+	// Tailnet runs Mainspring's own Tailscale device; nil with an in-memory database.
+	Tailnet *tailnet.Manager
 }
 
 func Create(source map[string]string) (*Booted, error) {
@@ -101,8 +105,21 @@ func Create(source map[string]string) (*Booted, error) {
 	registerLoginAPI(mux, hub, authSvc, logins)
 	registerUpdatesAPI(mux, hub, authSvc)
 	registerMCP(mux, hub)
+	// An in-memory database (the demo, tests) gets a scripted device: a real
+	// one needs a folder to keep its keys in.
+	tn := tailnet.NewDemoManager(nil)
+	if e.DatabasePath != "" && e.DatabasePath != ":memory:" {
+		tn = tailnet.NewManager(filepath.Join(filepath.Dir(e.DatabasePath), "tailscale"), nil)
+		tn.Logf = httpx.Logf
+	}
+	tn.OnChange = publishTailnet(hub)
+	registerTailnetAPI(mux, hub, authSvc, authSvc, tn)
 	registerManagement(mux, hub)
-	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Gate: authSvc, Auth: authSvc, DB: d}, nil
+	handler := httpx.Guard(mux)
+	// Requests over the tailnet always need Mainspring's own sign-in.
+	tn.Handler = auth.Strict(handler)
+	startTailnet(hub, tn)
+	return &Booted{Handler: handler, Env: e, Hub: hub, Gate: authSvc, Auth: authSvc, DB: d, Tailnet: tn}, nil
 }
 
 // Settings keys owned by the routing engine.

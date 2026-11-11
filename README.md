@@ -47,10 +47,18 @@ Data lives in `~/.mainspring` (`mainspring.sqlite` and the `jwt_secret` that enc
 ## First run
 
 1. **Sign in to the panel.** Outside Umbrel the panel uses security keys and passkeys, with no password. Open it over HTTPS or on `localhost`, enter the setup code Mainspring printed when it started, and add a key. Add a second one as a backup.
-2. **Add accounts.** Choose **Add account**. Claude and Codex open their sign-in page in a new tab. When Mainspring runs on another machine, that tab ends on a page that can't load; copy its whole address into the panel. Grok uses a device code, Cursor a sign-in or an API key, OpenCode Console a service account key, and OpenAI-compatible APIs a base URL.
+2. **Add accounts.** Choose **Add account**. Claude and Codex open their sign-in page in a new tab. When Mainspring runs on another machine, Claude then shows a code to paste into the panel, and Codex's tab ends on a page that can't load; copy its whole address into the panel. Grok uses a device code, Cursor a sign-in or an API key, OpenCode Console a service account key, and OpenAI-compatible APIs a base URL.
 3. **Create a key per machine** under **Keys**. The panel shows the exact config for Claude Code, Codex and other tools when you create one.
 
 Security keys are registered without a passkey, so they don't take up one of your YubiKey's passkey slots. Lost every key? Run `mainspring auth reset` on the host for a fresh setup code.
+
+## Your own tailnet address
+
+Mainspring can join your [Tailscale](https://tailscale.com) network as its own device, with an HTTPS address like `https://mainspring.your-tailnet.ts.net` that every device on your tailnet can reach. Open **Settings → Tailnet address → Add to tailnet**, pick a device name and approve it in Tailscale (scan the QR code, open the link, or paste an auth key for a headless setup).
+
+- HTTPS needs **Enable HTTPS** under DNS in Tailscale's admin console. Without it, tools can still use `http://…/v1`.
+- The tailnet address skips Umbrel's login, so the panel there always asks for a security key. The first time, **Open it** in the panel hands you over with a one-time setup code to add one.
+- The device's keys live in Mainspring's data folder (`tailscale/` next to the database), so it stays on your tailnet across restarts. **Remove from tailnet** signs it out and deletes them.
 
 ## Point your tools at it
 

@@ -99,7 +99,7 @@ func (s *Service) CanRegister(r *http.Request) (allowed, fromSetup bool, err err
 		if s.SetupAuthed(r) {
 			return true, true, nil
 		}
-		return !s.KeyRequired(), false, nil
+		return !s.KeyRequiredFor(r), false, nil
 	}
 	return s.Authed(r), false, nil
 }
