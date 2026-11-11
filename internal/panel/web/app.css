@@ -54,6 +54,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; background: none; border: 0; padding: 0; user-select: none; touch-action: manipulation; }
 a { color: inherit; }
 [x-cloak] { display: none !important; }
+/* Scrollbars: thin, no track, a quiet thumb that firms up under the pointer. */
+* { scrollbar-width: thin; scrollbar-color: var(--color-track) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: var(--color-track); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--color-text-muted); }
 /* Inline SVGs sit on the text baseline and leave descender space under them,
    which pushes icons up inside buttons and rows. Render them as blocks. */
 svg { display: block; flex-shrink: 0; }

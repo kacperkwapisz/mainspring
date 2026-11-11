@@ -2,6 +2,10 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.0.1] - 2026-11-11
+
+- Scrollbars are thin, with no track behind them.
+
 ## [1.0.0] - 2026-11-11
 
 The first stable release. Everything from the release candidates below, in one place:
