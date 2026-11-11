@@ -2,6 +2,17 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.0.0] - 2026-11-11
+
+The first stable release. Everything from the release candidates below, in one place:
+
+- Pools Claude, Codex, Grok, Cursor, OpenCode Console and OpenAI-compatible accounts behind one OpenAI- and Anthropic-compatible endpoint.
+- Sends new sessions to the account whose limit resets soonest, keeps each session on its account so prompt caches stay warm, and rests an account that runs out until its limit resets.
+- Shows every account's limits live, read from responses and from each provider's usage endpoint, with the models each subscription offers.
+- Web search and fetch for your apps over MCP, on the account your session uses.
+- Its own HTTPS address on your Tailscale network, set up from Settings.
+- A panel that updates live, signs in with security keys or passkeys, and tells you when a new release is out.
+
 ## [1.0.0-rc.15] - 2026-11-11
 
 - Mainspring can join your Tailscale network as its own device, with an HTTPS address every device on your tailnet can reach. Add it under **Settings → Tailnet address**: name it, approve it in Tailscale, done.
