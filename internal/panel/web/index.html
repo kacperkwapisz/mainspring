@@ -471,6 +471,17 @@
               </div>
             </div>
             <div class="setting-section">
+              <div class="head"><div class="t">Web tools</div><div class="d">Apps add Mainspring as an MCP server and get <span class="mono">web_search</span> and <span class="mono">web_fetch</span>. Each call runs on the Claude or Codex account the app's session already uses</div></div>
+              <div class="card">
+                <div class="setting-row"><div class="name">Web search and fetch</div><div class="desc">Answers at <span class="mono">/mcp</span> to anyone with a Mainspring key</div><span class="switch-hit"><button class="switch" role="switch" :aria-checked="settings.web_tools ? 'true' : 'false'" aria-label="Web tools" @click="saveSetting({web_tools: !settings.web_tools})"></button></span></div>
+                <template x-if="settings.web_tools"><div class="setting-block">
+                  <div class="subtle">Set <span class="mono">MAINSPRING_KEY</span> to a key from Keys, then add the server:</div>
+                  <template x-for="s in mcpSetup()" :key="s.app"><div class="field"><div class="label" x-text="s.app"></div>
+                    <div class="secret"><span class="mono pre" x-text="s.cmd"></span><button class="btn btn-secondary btn-sm" @click="copy(s.cmd, 'the ' + s.app + ' setup')"><span x-html="icon('copy')"></span>Copy</button></div></div></template>
+                </div></template>
+              </div>
+            </div>
+            <div class="setting-section">
               <div class="head"><div class="t">Sign-in</div><div class="d" x-text="auth.mode === 'proxy' ? 'Umbrel\'s login protects this panel. Your keys can add a second lock' : 'Who can open this panel'"></div></div>
               <div class="card">
                 <template x-if="auth.mode === 'proxy'">

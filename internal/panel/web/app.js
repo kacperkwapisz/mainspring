@@ -359,6 +359,14 @@
         } catch (e) { T.err("Couldn't check for updates", e.message); }
         this.checking.updates = false;
       },
+      mcpSetup() {
+        const url = this.endpoint.replace(/\/v1\/?$/, "") + "/mcp";
+        return [
+          { app: "Claude Code", cmd: `claude mcp add --transport http mainspring ${url} --header "Authorization: Bearer $MAINSPRING_KEY"` },
+          { app: "Codex (~/.codex/config.toml)", cmd: `[mcp_servers.mainspring]\nurl = "${url}"\nbearer_token_env_var = "MAINSPRING_KEY"` },
+          { app: "pi", cmd: `pi mcp add mainspring --url ${url} --bearer-token-env-var MAINSPRING_KEY` },
+        ];
+      },
       updateSteps() {
         const u = this.updates;
         if (!u || !u.latest) return null;

@@ -349,6 +349,7 @@ func settingsView(hub *proxy.Hub) map[string]any {
 		"hub_key_created_at": createdAt,
 		"version":            Version,
 		"update_check":       settingOn(hub, SettingUpdateCheck, true),
+		"web_tools":          settingOn(hub, SettingWebTools, true),
 	}
 }
 
@@ -386,6 +387,7 @@ func updateSettings(hub *proxy.Hub, body any) error {
 	setBool("grok_failover", proxy.SettingCursorGrokFailover)
 	setBool("websockets", SettingWSEnabled)
 	setBool("update_check", SettingUpdateCheck)
+	setBool("web_tools", SettingWebTools)
 	if _, ok := m["hub_enabled"]; ok {
 		if jsonBool(m, "hub_enabled") {
 			if h, _ := hub.Settings.Get(SettingHubKeyHash); h == "" {

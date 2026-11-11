@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.0.0-rc.14] - 2026-11-11
+
+- Mainspring is an MCP server at `/mcp` with `web_search` and `web_fetch`. Each call runs on the Claude or Codex account your app's session already uses, and shows on the meter. Setup lines for Claude Code, Codex and pi are under **Settings → Web tools**.
+- `web_fetch` never reaches addresses on your local network.
+
 ## [1.0.0-rc.13] - 2026-11-11
 
 - Fixes Claude requests with a system prompt from tools other than Claude Code, which failed with "role 'system' is not supported" since 1.0.0-rc.4.

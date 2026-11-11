@@ -100,6 +100,7 @@ func Create(source map[string]string) (*Booted, error) {
 	registerAPI(mux, hub, authSvc)
 	registerLoginAPI(mux, hub, authSvc, logins)
 	registerUpdatesAPI(mux, hub, authSvc)
+	registerMCP(mux, hub)
 	registerManagement(mux, hub)
 	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Gate: authSvc, Auth: authSvc, DB: d}, nil
 }

@@ -399,3 +399,5 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 .notes b { color: var(--color-text-strong); font-weight: 500; }
 .notes a { color: var(--color-text-strong); }
 .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-badge); background: var(--color-surface-hover); color: var(--color-text-subtle); font-size: 12px; line-height: 16px; }
+.setting-block { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 16px; border-top: 1px solid var(--color-hairline); }
+.mono.pre { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1; }

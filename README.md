@@ -93,6 +93,24 @@ For each request Mainspring picks the provider from the model ID, then an accoun
 
 Accounts that are out of rotation, waiting for a sign-in, or resting after a limit are skipped. A 429 rests the account until the window that ran out resets, using the reset time the provider sends. If every account of a provider is resting, clients get a 429 with `Retry-After` set to when the first one is back. Plain model IDs like `claude-opus-5` can fall back to Cursor on retryable errors, and `cursor/…` IDs always use Cursor. A model turned off under **Sources → Models** leaves `/v1/models` and is refused, Cursor fallback included.
 
+### Web search and fetch for your apps
+
+Mainspring is also an MCP server at `/mcp` with two tools, `web_search` and `web_fetch`. Each call runs on the Claude or Codex account your app's session already uses, the same way Claude Code and Codex search: Claude through the `web_search` server tool in its own small request, Codex through its native `web_search` tool. With no session to follow, the router picks the account. `web_fetch` downloads the page itself (never from your local network) and, given a prompt, has a model on your subscription answer from it. Calls update limits and show on the meter.
+
+Set `MAINSPRING_KEY` to a key from **Keys**, then add the server:
+
+```bash
+claude mcp add --transport http mainspring https://mainspring.example/mcp --header "Authorization: Bearer $MAINSPRING_KEY"
+pi mcp add mainspring --url https://mainspring.example/mcp --bearer-token-env-var MAINSPRING_KEY
+```
+
+```toml
+# ~/.codex/config.toml
+[mcp_servers.mainspring]
+url = "https://mainspring.example/mcp"
+bearer_token_env_var = "MAINSPRING_KEY"
+```
+
 Codex can talk to Mainspring over WebSockets (`supports_websockets = true`). Usage dashboards such as T3 Code can read pooled limits through a read-only management key (**Settings → Usage hub**).
 
 ## Configuration
