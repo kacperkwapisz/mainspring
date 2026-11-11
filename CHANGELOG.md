@@ -2,6 +2,12 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.0.0-rc.13] - 2026-11-11
+
+- Fixes Claude requests with a system prompt from tools other than Claude Code, which failed with "role 'system' is not supported" since 1.0.0-rc.4.
+- Older Claude models such as Haiku 4.5 now accept a system prompt too.
+- Fixes empty answers from Codex models when a tool doesn't stream the response.
+
 ## [1.0.0-rc.12] - 2026-11-11
 
 - **What's new** in the panel shows what changed in each version.

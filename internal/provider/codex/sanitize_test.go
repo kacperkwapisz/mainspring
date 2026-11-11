@@ -91,3 +91,15 @@ func TestRealCodexKeepsItsUserAgent(t *testing.T) {
 		t.Fatalf("non-Codex client must get the Codex UA: %v", other["User-Agent"])
 	}
 }
+
+func TestCollectGathersItemsCodexLeavesOutOfCompleted(t *testing.T) {
+	ch := make(chan any, 8)
+	ch <- map[string]any{"type": "response.output_item.done", "output_index": 1.0, "item": map[string]any{"type": "message", "id": "m"}}
+	ch <- map[string]any{"type": "response.output_item.done", "output_index": 0.0, "item": map[string]any{"type": "web_search_call", "id": "w"}}
+	ch <- map[string]any{"type": "response.completed", "response": map[string]any{"status": "completed", "output": []any{}}}
+	close(ch)
+	out := translate.AsArr(translate.AsMap(collectCodexResponse(ch))["output"])
+	if len(out) != 2 || translate.AsMap(out[0])["id"] != "w" || translate.AsMap(out[1])["id"] != "m" {
+		t.Fatalf("output %v", out)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/translate"
@@ -144,7 +145,9 @@ func claudeBetas(body map[string]any, requested string, countTokens bool) string
 		}
 		out = append(out, beta)
 	}
-	if asked["mid-conversation-system-2026-04-07"] {
+	// The disguise moves a caller's system prompt into role "system" messages,
+	// which Claude only accepts with this beta.
+	if asked["mid-conversation-system-2026-04-07"] || hasRoleSystem(body) {
 		out = append(out, "mid-conversation-system-2026-04-07")
 	}
 	if asked[advisorBeta] || hasAdvisorTool(body) {
@@ -292,6 +295,16 @@ func normalizeSampling(body map[string]any, native bool) {
 	}
 }
 
+// noMidSystem remembers models that answered "role 'system' is not supported
+// on this model", so the caller's system prompt stays in the system field.
+var noMidSystem sync.Map
+
+// RefusesMidSystem reports whether an error body is that refusal.
+func RefusesMidSystem(body any) bool {
+	msg := translate.AsStr(translate.AsMap(translate.AsMap(body)["error"])["message"])
+	return strings.Contains(msg, "role 'system' is not supported")
+}
+
 func applyCloak(body map[string]any) map[string]any {
 	forwarded := collectSystem(body["system"])
 	billing := billingHeader(body, true)
@@ -300,7 +313,17 @@ func applyCloak(body map[string]any) map[string]any {
 		map[string]any{"type": "text", "text": cliIdentity, "cache_control": map[string]any{"type": "ephemeral"}},
 	}
 	if len(forwarded) > 0 {
-		insertMidSystem(body, forwarded)
+		if _, old := noMidSystem.Load(translate.AsStr(body["model"])); old {
+			// This model refuses role "system" messages: keep the caller's
+			// system prompt in the system field, after Claude Code's identity.
+			sys := translate.AsArr(body["system"])
+			for _, text := range forwarded {
+				sys = append(sys, map[string]any{"type": "text", "text": text})
+			}
+			body["system"] = sys
+		} else {
+			insertMidSystem(body, forwarded)
+		}
 	}
 	injectDate(body)
 	return body

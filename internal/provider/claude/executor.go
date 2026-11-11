@@ -35,7 +35,16 @@ func (e Executor) Execute(ctx context.Context, credential domain.Credential, bod
 	if err != nil {
 		return provider.FailFromErr(err), nil
 	}
-	return wrap(res, opts.Stream && !opts.CountTokens, prepared.Reverse)
+	result, err := wrap(res, opts.Stream && !opts.CountTokens, prepared.Reverse)
+	// Older models refuse the role "system" messages the disguise uses. Remember
+	// the model and send this request again with the system prompt in place.
+	model := translate.AsStr(translate.AsMap(body)["model"])
+	if err == nil && !result.OK && result.Status == 400 && RefusesMidSystem(result.Body) && model != "" {
+		if _, known := noMidSystem.LoadOrStore(model, true); !known {
+			return e.Execute(ctx, credential, body, opts)
+		}
+	}
+	return result, err
 }
 
 func (e Executor) Refresh(ctx context.Context, credential domain.Credential) (domain.Credential, error) {

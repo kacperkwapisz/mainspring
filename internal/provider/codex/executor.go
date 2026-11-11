@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
@@ -112,14 +113,36 @@ func wrap(res *http.Response, stream bool) (provider.ExecuteResult, error) {
 	return provider.ExecuteResult{OK: true, Status: res.StatusCode, Body: body, Header: res.Header}, nil
 }
 
+// collectCodexResponse turns Codex's event stream into one response. The final
+// response.completed event carries an empty output; the items themselves
+// arrive as response.output_item.done events, so they're gathered here.
 func collectCodexResponse(ch <-chan any) any {
 	var last any = map[string]any{"object": "response", "status": "completed", "output": []any{}}
+	items := map[int]any{}
+	order := []int{}
 	for chunk := range ch {
 		ev := translate.AsMap(chunk)
 		typ := translate.AsStr(ev["type"])
 		switch typ {
+		case "response.output_item.done":
+			idx := len(order)
+			if n, ok := ev["output_index"].(float64); ok {
+				idx = int(n)
+			}
+			if _, seen := items[idx]; !seen {
+				order = append(order, idx)
+			}
+			items[idx] = ev["item"]
 		case "response.completed", "response.done", "response.incomplete", "response.failed":
-			if resp := ev["response"]; resp != nil {
+			if resp := translate.AsMap(ev["response"]); resp != nil {
+				if len(translate.AsArr(resp["output"])) == 0 && len(order) > 0 {
+					sort.Ints(order)
+					out := make([]any, 0, len(order))
+					for _, i := range order {
+						out = append(out, items[i])
+					}
+					resp["output"] = out
+				}
 				return resp
 			}
 		case "error":

@@ -85,3 +85,35 @@ func TestNativeClaudeCodeKeepsItsSDKFingerprint(t *testing.T) {
 		t.Fatalf("native betas changed: %s", p.Headers["anthropic-beta"])
 	}
 }
+
+func TestCloakedSystemPromptSendsTheBetaItNeeds(t *testing.T) {
+	body := map[string]any{"model": "claude-sonnet-5", "system": "Answer in French.",
+		"messages": []any{map[string]any{"role": "user", "content": "hi"}}}
+	p := PrepareUpstream(body, "tok", "cred", "", map[string]string{"User-Agent": "curl/8"}, false, false, "k")
+	if !hasRoleSystem(p.Body.(map[string]any)) {
+		t.Fatal("the disguise should move the system prompt into a role system message")
+	}
+	if !strings.Contains(p.Headers["anthropic-beta"], "mid-conversation-system-2026-04-07") {
+		t.Fatalf("role system messages need the beta: %s", p.Headers["anthropic-beta"])
+	}
+}
+
+func TestModelsThatRefuseMidSystemKeepTheSystemField(t *testing.T) {
+	refusal := map[string]any{"error": map[string]any{"message": "role 'system' is not supported on this model"}}
+	if !RefusesMidSystem(refusal) {
+		t.Fatal("refusal not recognised")
+	}
+	noMidSystem.Store("claude-old-1", true)
+	defer noMidSystem.Delete("claude-old-1")
+	body := map[string]any{"model": "claude-old-1", "system": "Answer in French.",
+		"messages": []any{map[string]any{"role": "user", "content": "hi"}}}
+	p := PrepareUpstream(body, "tok", "cred", "", map[string]string{"User-Agent": "curl/8"}, false, false, "k")
+	got := p.Body.(map[string]any)
+	if hasRoleSystem(got) {
+		t.Fatal("must not send role system messages to this model")
+	}
+	sys := translate.AsArr(got["system"])
+	if translate.AsStr(translate.AsMap(sys[len(sys)-1])["text"]) != "Answer in French." {
+		t.Fatalf("system prompt lost: %v", sys)
+	}
+}
