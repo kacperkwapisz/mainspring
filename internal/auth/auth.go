@@ -322,7 +322,7 @@ func (s *Service) VerifySetupCode(r *http.Request, code string) (string, error) 
 	}
 	if !ok || !pending {
 		s.recordWrongSetup()
-		return "", fail(http.StatusBadRequest, "setup_code_wrong", "That code doesn't match the one in hub's terminal")
+		return "", fail(http.StatusBadRequest, "setup_code_wrong", "That code doesn't match the latest setup code")
 	}
 	return session.IssueSetup(s.key, s.setupBinding(hash), s.RelyingParty(r).Secure), nil
 }

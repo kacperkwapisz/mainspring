@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.0.2] - 2026-11-11
+
+- Settings → Tailnet address has an **Open it** button once Mainspring is connected, so you can always get to the tailnet address, with a setup code while no security key exists for it.
+- The setup screen says where to find the setup code on Umbrel, instead of pointing at a terminal.
+
 ## [1.0.1] - 2026-11-11
 
 - Scrollbars are thin, with no track behind them.

@@ -77,7 +77,7 @@ func registerAuth(mux *httpx.Mux, a *auth.Service) {
 		}
 		if !allowed {
 			if setup, _ := a.SetupNeededFor(r); setup {
-				authError(w, http.StatusUnauthorized, "setup_code_required", "Enter the setup code from the hub's terminal first")
+				authError(w, http.StatusUnauthorized, "setup_code_required", "Enter the setup code first")
 				return
 			}
 			requirePanel(w, r, nil)

@@ -73,7 +73,7 @@
             <form class="field" @submit.prevent="verifySetup()">
               <input class="input mono" :class="setup.error && 'invalid'" x-model="setup.code" placeholder="XXXX-XXXX" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" autofocus>
               <template x-if="setup.error"><div class="field-error" x-text="setup.error"></div></template>
-              <div class="help">Mainspring printed it in hub's terminal when it started. On Umbrel, open the app's logs</div>
+              <div class="help">Mainspring prints it in its log when it starts. On Umbrel, open Mainspring from Umbrel and choose <b>Open it</b> under Settings → Tailnet address, which brings the code with it</div>
               <div><button class="btn btn-ink" type="submit" :disabled="!setup.code.trim()">Continue</button></div>
             </form>
           </template>
@@ -106,7 +106,7 @@
           <div class="label-row"><div class="label">Add a backup key</div><div class="small muted">Recommended</div></div>
           <template x-if="setup.step === 3">
             <div class="body">
-              <div class="subtle">Keep a second key somewhere safe. If you lose your only key, you'll have to reset sign-in from hub's terminal</div>
+              <div class="subtle">Keep a second key somewhere safe. If you lose your only key, you'll have to reset sign-in with <span class="mono">mainspring auth reset</span></div>
               <div class="field"><label class="label" for="k2">Name</label><input id="k2" class="input" x-model="setup.backupName" placeholder="YubiKey 5 Nano, desk drawer"></div>
               <template x-if="setup.error"><div class="field-error" x-text="setup.error"></div></template>
               <div style="display:flex;gap:8px">
@@ -454,7 +454,8 @@
                   <button class="btn btn-secondary" @click="openTailnet()">Continue</button>
                 </div></template>
                 <template x-if="tailnet.state === 'connected'"><div>
-                  <div class="setting-row"><div class="name">Address</div><div class="desc"><span class="mono strong" x-text="tailnet.url"></span></div><button class="btn btn-secondary btn-sm" @click="copy(tailnet.url, 'the address')"><span x-html="icon('copy')"></span>Copy</button></div>
+                  <div class="setting-row"><div class="name">Address</div><div class="desc"><span class="mono strong" x-text="tailnet.url"></span><template x-if="!tailnet.keys"><div class="small subtle">No security key for it yet. Open it to add one</div></template></div>
+                    <div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" @click="copy(tailnet.url, 'the address')"><span x-html="icon('copy')"></span>Copy</button><button class="btn btn-secondary btn-sm" @click="openTailnetAddress()">Open it<span x-html="icon('external')"></span></button></div></div>
                   <div class="setting-row"><div class="name">Device</div><div class="desc"><span x-text="tailnet.hostname"></span>, <span class="mono" x-text="tailnet.ip"></span> on <span x-text="tailnet.tailnet"></span></div></div>
                   <div class="setting-row"><div class="name">HTTPS certificate</div><div class="desc" x-text="'Valid until ' + fmt.day(tailnet.cert_expires) + '. Mainspring renews it before then'"></div></div>
                   <div class="setting-row"><div class="name">Remove from tailnet</div><div class="desc" x-text="'Mainspring leaves ' + tailnet.tailnet + ', and this address stops working'"></div><button class="btn btn-secondary btn-sm danger-text" @click="removeTailnet()">Remove</button></div>
@@ -512,7 +513,7 @@
                     <span class="switch-hit"><button class="switch" role="switch" :disabled="!auth.secureContext || (!auth.hostKeys && !auth.requireKey)" :aria-checked="auth.requireKey ? 'true' : 'false'" aria-label="Require a key" @click="setRequireKey(!auth.requireKey)"></button></span></div>
                 </template>
                 <template x-if="authKeys.length === 1 && (auth.mode !== 'proxy' || auth.requireKey)">
-                  <div class="setting-row"><span x-html="icon('info','#A1A1A1')"></span><div class="desc"><div class="strong">Add a backup key</div>You have one key. If you lose it, you'll have to reset sign-in from hub's terminal</div></div>
+                  <div class="setting-row"><span x-html="icon('info','#A1A1A1')"></span><div class="desc"><div class="strong">Add a backup key</div>You have one key. If you lose it, you'll have to reset sign-in with <span class="mono">mainspring auth reset</span></div></div>
                 </template>
                 <div class="setting-row"><div class="desc"><span class="strong">Sign-in keys</span> <span class="muted" x-text="fmt.plural(authKeys.length, 'key', 'keys')"></span></div>
                   <div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" :disabled="!auth.secureContext" @click="addSignInKey('security-key')"><span x-html="icon('key')"></span>Add security key</button><button class="btn btn-ghost btn-sm" :disabled="!auth.secureContext" @click="addSignInKey('passkey')"><span x-html="icon('passkey')"></span>Add passkey</button></div></div>

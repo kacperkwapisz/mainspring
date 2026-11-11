@@ -143,7 +143,7 @@ func TestSetupVerify(t *testing.T) {
 	c := newClient(t, b)
 	res, body := c.do(http.MethodPost, "/api/auth/setup/verify", `{"code":"AAAA-AAAA"}`)
 	expect(t, res, 400, "setup_code_wrong")
-	if e := body["error"].(map[string]any); e["message"] != "That code doesn't match the one in hub's terminal" {
+	if e := body["error"].(map[string]any); e["message"] != "That code doesn't match the latest setup code" {
 		t.Fatalf("%v", e)
 	}
 	if setCookieHeader(res, "ms_setup") != "" {
