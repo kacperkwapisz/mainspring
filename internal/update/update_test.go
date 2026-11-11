@@ -15,7 +15,7 @@ func TestNewerFollowsSemverPrecedence(t *testing.T) {
 		want bool
 	}{
 		{"1.0.0-rc.10", "1.0.0-rc.9", true}, // numeric, not text
-		{"1.0.0", "1.0.0-rc.12", true},       // a release beats its candidates
+		{"1.0.0", "1.0.0-rc.12", true},      // a release beats its candidates
 		{"1.0.0-rc.12", "1.0.0", false},
 		{"v1.0.1", "1.0.0", true},
 		{"1.0.0", "1.0.0", false},
