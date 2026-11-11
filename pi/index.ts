@@ -11,6 +11,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Type } from "typebox";
 import { cachedModels, callTool, fetchModels, loadConfig, saveConfig, saveModels, type Config, type ServedModel } from "./client.ts";
 import { PoolView } from "./pool-view.ts";
+import { fixSystemPrompt } from "./prompt-fix.ts";
 
 const PROVIDER = "mainspring";
 
@@ -128,6 +129,12 @@ export default async function (pi: ExtensionAPI) {
 	pi.on("before_provider_headers", (event, ctx) => {
 		if (!usesMainspring(ctx)) return;
 		event.headers["X-Session-ID"] = `pi-${ctx.sessionManager.getSessionId()}`;
+	});
+
+	// Claude models get pi's system prompt with three lines in a plainer form.
+	pi.on("before_provider_request", (event, ctx) => {
+		if (!usesMainspring(ctx) || !String(ctx.model?.id ?? "").startsWith("claude-")) return;
+		return fixSystemPrompt(event.payload);
 	});
 
 	pi.on("after_provider_response", (event, ctx) => {
