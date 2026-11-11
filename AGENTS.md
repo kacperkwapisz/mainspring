@@ -39,4 +39,5 @@ Base style: `dense-neutral` (dark values), adapted below. Rules come from the `d
 - `go run ./cmd/mainspring demo` serves the panel with made-up data at http://127.0.0.1:8318 (in memory, proxy sign-in). `-sign-in` exercises the security-key screens.
 - The panel is static: `internal/panel/web` (index.html, app.js, app.css, vendored Alpine and Ding, fonts). No build step; `{{VERSION}}` in index.html is replaced with a content hash.
 - Routing lives in `internal/route`; the proxy loop in `internal/proxy/proxy.go` calls it. Quota windows are dynamic: never hardcode window ids or counts.
+- Every release needs a `CHANGELOG.md` entry (`## [X.Y.Z] - date`, user-facing bullets): the panel's What's new shows it and the release workflow fails without it.
 - Releases: tag `vX.Y.Z`; GitHub Actions builds binaries (goreleaser) and the multi-arch image `ghcr.io/kacperkwapisz/mainspring`. The Umbrel store lives in its own repo (`mainspring-umbrel`); bump its `version` and image tag per release.

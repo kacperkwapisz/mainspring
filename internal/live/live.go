@@ -15,6 +15,7 @@ const (
 	Meter    = "meter"
 	Keys     = "keys"
 	Settings = "settings"
+	Updates  = "updates"
 )
 
 // Bus fans change notifications out to subscribers. A nil *Bus is valid and

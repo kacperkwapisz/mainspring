@@ -84,6 +84,14 @@ func main() {
 		}
 	}()
 	go proxy.WatchResets(context.Background(), booted.Hub)
+	go func() {
+		time.Sleep(15 * time.Second)
+		app.CheckForUpdates(context.Background(), booted.Hub, false)
+		t := time.NewTicker(app.UpdateEvery)
+		for range t.C {
+			app.CheckForUpdates(context.Background(), booted.Hub, false)
+		}
+	}()
 	addr := net.JoinHostPort(booted.Env.Host, strconv.Itoa(booted.Env.Port))
 	srv := httpx.Server(addr, booted.Handler)
 	fmt.Printf("mainspring %s listening on http://%s\n", version, addr)

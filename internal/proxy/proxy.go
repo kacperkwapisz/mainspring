@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/kacperkwapisz/mainspring/internal/live"
+	"github.com/kacperkwapisz/mainspring/internal/update"
 	"net/http"
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ type Hub struct {
 	Router    *route.Engine
 	Activity  *store.ActivityStore
 	Live      *live.Bus // tells open panels what changed
+	Updates   *update.Checker
 }
 
 type Request struct {

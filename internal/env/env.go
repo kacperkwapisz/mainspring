@@ -58,6 +58,9 @@ type Env struct {
 	AuthMode string
 	// TrustProxy honours X-Forwarded-Host/Proto (MAINSPRING_TRUST_PROXY=1).
 	TrustProxy bool
+	// Install says how Mainspring was installed (MAINSPRING_INSTALL): "umbrel",
+	// "docker" or "binary". Empty means detect it. Update instructions follow it.
+	Install string
 }
 
 type Error struct {
@@ -183,6 +186,7 @@ func Load(source map[string]string) (*Env, error) {
 		JWTGenerated:       generated,
 		AuthMode:           authMode,
 		TrustProxy:         strings.TrimSpace(get("MAINSPRING_TRUST_PROXY")) == "1",
+		Install:            strings.ToLower(strings.TrimSpace(get("MAINSPRING_INSTALL"))),
 	}, nil
 }
 

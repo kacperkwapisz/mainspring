@@ -139,6 +139,12 @@
       </nav>
     </div>
     <div class="sidebar-foot">
+      <template x-if="updates && updates.available">
+        <nav class="nav" style="margin:0"><a href="#" @click.prevent="openWhatsNew()" :title="'Mainspring ' + updates.latest.version + ' is out'"><span class="ico" x-html="icon('update')"></span><span class="grow label">Update available</span></a></nav>
+      </template>
+      <template x-if="!(updates && updates.available) && unseen">
+        <nav class="nav" style="margin:0"><a href="#" @click.prevent="openWhatsNew()" title="What's new"><span class="ico" x-html="icon('sparkles')"></span><span class="grow label">What's new</span><span class="dot dot-quiet" title="New since you last looked"></span></a></nav>
+      </template>
       <button class="endpoint" @click="copy(endpoint, 'the endpoint')" title="Copy the endpoint" aria-label="Copy the endpoint">
         <span class="small muted label">Endpoint</span>
         <span class="row"><span class="url mono label" x-text="endpoint.replace(/^https?:\/\//, '')"></span><span x-html="icon('copy','#A1A1A1')"></span></span>
@@ -487,7 +493,14 @@
             </div>
             <div class="setting-section">
               <div class="head"><div class="t">About</div></div>
-              <div class="card"><div class="setting-row"><div class="name">Version</div><div class="desc">Mainspring <span class="mono" x-text="settings.version"></span></div><a class="btn btn-ghost btn-sm" href="https://github.com/kacperkwapisz/mainspring" target="_blank" rel="noopener">Source<span x-html="icon('external')"></span></a></div></div>
+              <div class="card">
+                <div class="setting-row"><div class="name">Version</div><div class="desc">Mainspring <span class="mono" x-text="settings.version"></span></div>
+                  <div style="display:flex;gap:4px"><button class="btn btn-ghost btn-sm" @click="openWhatsNew()">What's new</button><a class="btn btn-ghost btn-sm" href="https://github.com/kacperkwapisz/mainspring" target="_blank" rel="noopener">Source<span x-html="icon('external')"></span></a></div></div>
+                <div class="setting-row"><div class="name">Check for updates</div><div class="desc">Mainspring asks GitHub for new releases and shows them in the sidebar</div><span class="switch-hit"><button class="switch" role="switch" :aria-checked="settings.update_check ? 'true' : 'false'" aria-label="Check for updates" @click="saveSetting({update_check: !settings.update_check}); if (!settings.update_check) checkUpdates()"></button></span></div>
+                <template x-if="updates && updates.current !== 'dev'"><div class="setting-row"><div class="name" x-text="updates.available ? 'Mainspring ' + updates.latest.version + ' is out' : (updates.checked_at ? 'Up to date' : 'Not checked yet')"></div>
+                  <div class="desc" x-text="updates.error ? updates.error : (updates.checked_at ? 'Checked ' + fmt.ago(updates.checked_at, now) : '')"></div>
+                  <button class="btn btn-secondary btn-sm" :disabled="!!checking.updates" @click="updates.available ? openWhatsNew() : checkUpdates()" x-text="updates.available ? 'How to update' : 'Check now'"></button></div></template>
+              </div>
             </div>
           </div>
         </template>
@@ -697,6 +710,26 @@
       </div></template>
 
       <!-- Management key created -->
+      <!-- What's new, and the update when one is out -->
+      <template x-if="dialog.kind === 'whatsnew'"><div style="display:flex;flex-direction:column;gap:20px">
+        <div class="dialog-head"><h2>What's new</h2><button class="btn-icon" @click="closeDialog()" x-html="icon('close')" aria-label="Close"></button></div>
+        <template x-if="updates && updates.available"><div class="card whatsnew-update">
+          <div class="strong" x-text="'Mainspring ' + updates.latest.version + ' is out'"></div>
+          <ul class="notes"><template x-for="n in noteItems(updates.latest.notes)" :key="n"><li x-html="md(n)"></li></template></ul>
+          <div class="subtle" x-text="updateSteps().text"></div>
+          <template x-if="updateSteps().cmd"><div class="secret"><span class="mono" x-text="updateSteps().cmd"></span><button class="btn btn-secondary btn-sm" @click="copy(updateSteps().cmd, 'the command')"><span x-html="icon('copy')"></span>Copy</button></div></template>
+          <div><a class="btn btn-ghost btn-sm" :href="updates.latest.url" target="_blank" rel="noopener">Release on GitHub<span x-html="icon('external')"></span></a></div>
+        </div></template>
+        <div class="whatsnew-list">
+          <template x-if="!changelog"><div class="subtle">Loading…</div></template>
+          <template x-if="changelog && changelog.error"><div class="subtle" x-text="changelog.error"></div></template>
+          <template x-for="r in (changelog ? changelog.releases : [])" :key="r.version"><section>
+            <div class="whatsnew-head"><span class="strong mono" x-text="r.version"></span><template x-if="changelog.current === r.version"><span class="badge">This version</span></template><span class="meta grow" style="text-align:right" x-text="r.date ? fmt.day(Date.parse(r.date)) : ''"></span></div>
+            <ul class="notes"><template x-for="n in r.items" :key="n"><li x-html="md(n)"></li></template></ul>
+          </section></template>
+        </div>
+      </div></template>
+
       <template x-if="dialog.kind === 'hubkey'"><div style="display:flex;flex-direction:column;gap:20px">
         <div><div class="dialog-head"><h2>Management key</h2></div><div class="subtle">In T3 Code, open Settings → Providers → Usage providers → Add hub, then paste the address and this key</div></div>
         <div class="field"><div class="label">Hub URL</div><div class="secret"><span class="mono" x-text="location.origin"></span><button class="btn btn-secondary btn-sm" @click="copy(location.origin, 'the address')"><span x-html="icon('copy')"></span>Copy</button></div></div>

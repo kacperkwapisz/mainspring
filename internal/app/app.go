@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/kacperkwapisz/mainspring/internal/live"
+	"github.com/kacperkwapisz/mainspring/internal/update"
 	"net/http"
 	"strconv"
 	"time"
@@ -73,6 +74,7 @@ func Create(source map[string]string) (*Booted, error) {
 		Router:   router,
 		Activity: activity,
 		Live:     bus,
+		Updates:  update.NewChecker(Version, e.Install),
 		Executors: map[domain.ProviderID]provider.Executor{
 			domain.ProviderClaude:   claudeexec.Executor{ClientID: e.ClaudeClientID},
 			domain.ProviderCodex:    codexexec.Executor{ClientID: e.CodexClientID},
@@ -97,6 +99,7 @@ func Create(source map[string]string) (*Booted, error) {
 	registerPanel(mux)
 	registerAPI(mux, hub, authSvc)
 	registerLoginAPI(mux, hub, authSvc, logins)
+	registerUpdatesAPI(mux, hub, authSvc)
 	registerManagement(mux, hub)
 	return &Booted{Handler: httpx.Guard(mux), Env: e, Hub: hub, Gate: authSvc, Auth: authSvc, DB: d}, nil
 }

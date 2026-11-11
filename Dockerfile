@@ -20,6 +20,7 @@ COPY --from=build /out/mainspring /mainspring
 COPY --from=build --chown=65532:65532 /out/data /data
 USER nonroot:nonroot
 ENV HOST=0.0.0.0 \
+    MAINSPRING_INSTALL=docker \
     PORT=8317 \
     DATABASE_PATH=/data/mainspring.sqlite
 EXPOSE 8317

@@ -90,6 +90,7 @@ svg { display: block; flex-shrink: 0; }
 @media (hover: hover) and (pointer: fine) { .nav a:hover { color: var(--color-text-strong); } }
 .nav .count { color: var(--color-text-muted); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
 .dot { width: 6px; height: 6px; border-radius: 3px; background: var(--color-warning); flex-shrink: 0; }
+.dot-quiet { background: var(--color-text-muted); }
 .sidebar-foot { display: flex; flex-direction: column; gap: 8px; }
 .endpoint {
   display: flex; flex-direction: column; gap: 4px; padding: 10px; text-align: left;
@@ -387,3 +388,14 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
+
+/* What's new */
+.whatsnew-update { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.whatsnew-list { display: flex; flex-direction: column; gap: 20px; max-height: min(60vh, 520px); overflow-y: auto; }
+.whatsnew-list section { display: flex; flex-direction: column; gap: 8px; }
+.whatsnew-head { display: flex; align-items: center; gap: 8px; }
+.notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--color-text); }
+.notes li::marker { color: var(--color-text-muted); }
+.notes b { color: var(--color-text-strong); font-weight: 500; }
+.notes a { color: var(--color-text-strong); }
+.badge { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-badge); background: var(--color-surface-hover); color: var(--color-text-subtle); font-size: 12px; line-height: 16px; }

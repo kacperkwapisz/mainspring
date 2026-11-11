@@ -76,6 +76,8 @@
     "alert": "<circle cx=\"12\" cy=\"12\" r=\"10\"/> <line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\"/> <line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\"/>",
     "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/> <path d=\"M12 6v6l4 2\"/>",
     "external": "<path d=\"M15 3h6v6\"/> <path d=\"M10 14 21 3\"/> <path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>",
+    "update": "<circle cx=\"12\" cy=\"12\" r=\"10\"/> <path d=\"m16 12-4-4-4 4\"/> <path d=\"M12 16V8\"/>",
+    "sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\"/> <path d=\"M20 2v4\"/> <path d=\"M22 4h-4\"/> <circle cx=\"4\" cy=\"20\" r=\"2\"/>",
     "openai": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/> <rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/> <line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/> <line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>",
   };
   const BRAND = {
@@ -232,6 +234,7 @@
       timers: [],
       // Live updates: /api/events names what changed and the panel reloads that.
       es: null, live: false, lastEvent: 0, lastSafety: 0, dirty: {},
+      updates: null, changelog: null, unseen: false,
 
       async init() {
         window.addEventListener("hashchange", () => this.go());
@@ -255,7 +258,7 @@
         this.route = ROUTES.includes(h) ? h : "pool";
         this.closeDrawer();
         this.dirty = {};
-        if (this.signedIn) { this.startLive(); this.load(this.route); }
+        if (this.signedIn) { this.startLive(); this.load(this.route); if (!this.updates) this.loadUpdates(); }
       },
       load(r) {
         const map = { pool: this.loadPool, sessions: this.loadSessions, keys: this.loadKeys, meter: this.loadMeter, sources: this.loadSources, settings: this.loadSettings };
@@ -326,6 +329,54 @@
         const need = { sessions: "sessions", keys: "keys", meter: "meter", settings: "settings", sources: "pool" }[this.route];
         if (need && d[need]) this.load(this.route);
         if (this.drawer && (d.pool || d.sessions)) this.openDrawer(this.drawer, true);
+        if (d.updates) this.loadUpdates();
+      },
+
+      // ----- what's new and updates -----
+      async loadUpdates() {
+        try { this.updates = await api("GET", "/api/updates"); } catch { return; }
+        // "What's new" lights up once after Mainspring moves to a new version.
+        // A first visit just remembers the version.
+        const cur = this.updates.current, key = "ms.seenVersion";
+        if (!cur || cur === "dev") return;
+        const seen = localStorage.getItem(key);
+        if (!seen) localStorage.setItem(key, cur);
+        this.unseen = !!seen && seen !== cur;
+      },
+      async openWhatsNew() {
+        this.openDialog("whatsnew", {});
+        if (this.updates && this.updates.current) localStorage.setItem("ms.seenVersion", this.updates.current);
+        this.unseen = false;
+        if (!this.changelog) { try { this.changelog = await api("GET", "/api/changelog"); } catch (e) { this.changelog = { releases: [], error: e.message }; } }
+      },
+      async checkUpdates() {
+        this.checking.updates = true;
+        try {
+          this.updates = await api("POST", "/api/updates/check");
+          if (this.updates.error) T.err("Couldn't check for updates", this.updates.error);
+          else if (this.updates.available) T.ok(`Mainspring ${this.updates.latest.version} is out`);
+          else T.ok("Mainspring is up to date");
+        } catch (e) { T.err("Couldn't check for updates", e.message); }
+        this.checking.updates = false;
+      },
+      updateSteps() {
+        const u = this.updates;
+        if (!u || !u.latest) return null;
+        switch (u.install) {
+          case "umbrel": return { text: "Open the Umbrel App Store and update Mainspring there. The update reaches the store shortly after the release." };
+          case "docker": return { text: "Pull the new image and restart the container:", cmd: "docker compose pull && docker compose up -d" };
+          default: return { text: "Download the new binary from the release page and replace the old one, then restart Mainspring." };
+        }
+      },
+      // Light Markdown for release notes: `code`, **bold** and https links, after escaping.
+      md(s) {
+        return this.esc(s)
+          .replace(/`([^`]+)`/g, '<span class="mono">$1</span>')
+          .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+          .replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      },
+      noteItems(text) {
+        return (text || "").split("\n").map((l) => l.trim()).filter((l) => /^[-*] /.test(l)).map((l) => l.slice(2).replace(/^[0-9a-f]{7,40}\s+/, "")); // older notes list commits
       },
 
       // ----- data -----
