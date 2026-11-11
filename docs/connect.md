@@ -3,9 +3,7 @@ title: Connect your tools
 summary: Point Claude Code, Codex, Cursor, OpenCode, pi or any OpenAI- or Anthropic-style client at Mainspring.
 ---
 
-Every tool needs two things: the endpoint and a key that starts with `sk-ms-`. The endpoint is the panel's address plus `/v1`, for example `https://mainspring.your-tailnet.ts.net/v1`. The panel shows it at the bottom of the sidebar.
-
-Create one key per machine under **Keys**, so you can see its usage and revoke it on its own.
+Every tool needs two things: the endpoint and a key that starts with `sk-ms-`. The endpoint is the panel's address plus `/v1`, for example `https://mainspring.your-tailnet.ts.net/v1`. The panel shows it at the bottom of the sidebar. Create keys under [Keys](keys.md).
 
 ## Claude Code
 

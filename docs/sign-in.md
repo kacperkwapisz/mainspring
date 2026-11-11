@@ -7,13 +7,7 @@ The panel signs in with security keys (like a YubiKey) and passkeys, with no pas
 
 ## First key
 
-When no key exists, Mainspring prints a one-time setup code in its log when it starts:
-
-```text
-mainspring setup code: YFZ8-G9FA — open the panel to add your first security key
-```
-
-Open the panel over HTTPS or on `localhost`, enter the code and add a key. Browsers only offer security keys and passkeys there, so a plain `http://` address on your network won't work; use the [tailnet address](tailnet.md) or another HTTPS address.
+When no key exists, Mainspring prints a one-time setup code in its log when it starts; [Get started](get-started.md#sign-in-to-the-panel) shows it. Open the panel over HTTPS or on `localhost`, enter the code and add a key. Browsers only offer security keys and passkeys there, so a plain `http://` address on your network won't work; use the [tailnet address](tailnet.md) or another HTTPS address.
 
 ## More keys
 

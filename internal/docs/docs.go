@@ -20,7 +20,7 @@ import (
 // Order is the sidebar: groups and their pages, by slug.
 var Order = []Group{
 	{"Start", []string{"get-started", "connect"}},
-	{"Guides", []string{"routing", "providers", "keys", "models", "web-tools", "tailnet", "sign-in", "umbrel", "troubleshooting"}},
+	{"Guides", []string{"routing", "providers", "keys", "usage", "models", "web-tools", "tailnet", "sign-in", "umbrel", "troubleshooting"}},
 	{"Reference", []string{"api", "configuration"}},
 }
 

@@ -27,7 +27,7 @@ The key's daily cap is used up. It resets at midnight UTC, or raise the cap on t
 
 ## An account says Needs sign-in
 
-The provider rejected its refresh token, usually after a password change or a sign-out everywhere. Choose **Sign in again** on its row.
+The provider rejected its refresh token, usually after a password change or a sign-out everywhere. Choose **Sign in again** on its row; see [Accounts and providers](providers.md#signing-in-again).
 
 ## Limits show as stale
 
@@ -36,10 +36,6 @@ Mainspring hasn't read the account's limits for a while. Idle accounts are read 
 ## Check says the provider is limiting how often limits can be read
 
 The provider's usage endpoint answered 429. That's about reading limits, not the account's own quota. Mainspring tries again in 30 minutes, and the account's limits also update with every request it serves.
-
-## Claude sign-in fails with "Invalid request format"
-
-Update Mainspring: 1.0.0-rc.3 and later start the sign-in exactly as Claude Code does.
 
 ## Security keys aren't offered
 
