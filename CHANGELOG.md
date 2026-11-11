@@ -2,6 +2,13 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.3.0] - 2026-11-11
+
+- What's new shows the version you have installed and the latest release, and whether you're up to date.
+- Text keeps its sizes on iPhones and the iPhone Duo: iOS no longer enlarges some blocks on wide or landscape screens, which broke the hierarchy.
+- Sessions stack into readable rows on screens narrower than 1100px, like the Duo unfolded.
+- The installed app opens like Umbrel's: standalone, without the browser around it.
+
 ## [1.2.1] - 2026-11-11
 
 - Fixes an empty Sessions list when several pi sessions shared an account: their short IDs came out the same.

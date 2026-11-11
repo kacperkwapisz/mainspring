@@ -26,13 +26,15 @@ type Latest struct {
 
 // Status is what the panel shows about updates.
 type Status struct {
-	Current   string  `json:"current"`
-	Install   string  `json:"install"` // umbrel, docker or binary
-	Enabled   bool    `json:"enabled"`
-	CheckedAt int64   `json:"checked_at,omitempty"`
-	Available bool    `json:"available"`
-	Latest    *Latest `json:"latest,omitempty"`
-	Error     string  `json:"error,omitempty"`
+	Current   string `json:"current"`
+	Install   string `json:"install"` // umbrel, docker or binary
+	Enabled   bool   `json:"enabled"`
+	CheckedAt int64  `json:"checked_at,omitempty"`
+	Available bool   `json:"available"`
+	// LatestVersion is the newest release on this install's channel, whether or not it's newer.
+	LatestVersion string  `json:"latest_version,omitempty"`
+	Latest        *Latest `json:"latest,omitempty"`
+	Error         string  `json:"error,omitempty"`
 }
 
 // Checker asks GitHub for new releases and remembers the answer.
@@ -64,6 +66,9 @@ func (c *Checker) Status(enabled bool) Status {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	s := Status{Current: c.Current, Install: c.Install, Enabled: enabled, CheckedAt: c.at, Error: c.err}
+	if c.latest != nil {
+		s.LatestVersion = c.latest.Version
+	}
 	if c.latest != nil && Newer(c.latest.Version, c.Current) {
 		s.Available, s.Latest = true, c.latest
 	}

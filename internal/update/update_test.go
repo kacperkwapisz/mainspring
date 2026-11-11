@@ -78,3 +78,16 @@ func TestCheckPicksTheRightChannel(t *testing.T) {
 		t.Fatalf("a dev build never checks: %+v", s)
 	}
 }
+
+func TestStatusNamesTheLatestVersionWhenUpToDate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"tag_name":"v1.2.1","prerelease":false,"html_url":"https://example.com/121"}]`))
+	}))
+	defer srv.Close()
+	ReleasesURL = srv.URL
+	c := NewChecker("1.2.1", "umbrel")
+	_ = c.Check(context.Background())
+	if s := c.Status(true); s.Available || s.LatestVersion != "1.2.1" {
+		t.Fatalf("%+v", s)
+	}
+}

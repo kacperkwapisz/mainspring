@@ -45,6 +45,9 @@ html body .tst-viewport {
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--color-page); }
+/* iOS enlarges text it thinks is hard to read (wide screens, landscape, the Duo
+   unfolded), block by block, which breaks the type scale. Sizes here are final. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   font-family: var(--font-sans); font-size: 13px; line-height: 20px; color: var(--color-text);
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-synthesis: none;
@@ -221,7 +224,8 @@ tr.next .bar > i, .bar.accent > i { background: var(--color-accent); }
   border: 1px solid var(--color-hairline); color: var(--color-text-strong); font-size: 16px; width: 100%;
   transition: border-color 120ms ease;
 }
-@media (min-width: 700px) { .input { font-size: 13px; } }
+/* 16px stops iOS zooming into a field on focus; only touch screens need it. */
+@media (pointer: fine) { .input { font-size: 13px; } }
 .input::placeholder { color: var(--color-text-muted); }
 .input:focus { outline: none; border-color: var(--color-text-muted); }
 .input.invalid { border-color: var(--color-danger); }
@@ -498,3 +502,22 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 /* Today sits at the right edge: keep its value and label inside the card. */
 .chart-col:last-child .chart-tip { left: auto; right: 0; transform: none; }
 .chart-labels span.today { display: flex; justify-content: flex-end; white-space: nowrap; }
+
+/* Sessions: below 1100px each session stacks instead of ten squeezed columns. */
+.sessions-table td.c-meta { display: none; }
+@media (max-width: 1099px) {
+  .sessions-table, .sessions-table tbody { display: block; width: 100%; }
+  .sessions-table thead { display: none; }
+  .sessions-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "account last" "model cache" "meta cache"; column-gap: 16px; row-gap: 2px; padding: 12px 15px; border-top: 1px solid var(--color-hairline); }
+  table.sessions-table td { display: none; height: auto; padding: 0; border: 0; min-width: 0; white-space: normal; }
+  table.sessions-table td.c-account { display: block; grid-area: account; }
+  table.sessions-table td.c-last { display: block; grid-area: last; text-align: right; white-space: nowrap; }
+  table.sessions-table td.c-model { display: block; grid-area: model; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  table.sessions-table td.c-meta { display: block; grid-area: meta; }
+  table.sessions-table td.c-cache { display: block; grid-area: cache; align-self: center; padding: 0; }
+}
+
+/* What's new: installed and latest version side by side. */
+.versions { display: flex; align-items: flex-end; gap: 24px; padding: 12px 15px; border-radius: var(--radius-card); background: var(--color-page); border: 1px solid var(--color-hairline); }
+.versions > div:not(.versions-state) { display: flex; flex-direction: column; gap: 2px; }
+.versions-state { margin-left: auto; text-align: right; }

@@ -284,21 +284,22 @@
         <template x-if="sessions && sessions.sessions.length">
           <section class="card">
             <div class="card-head"><div class="reason" x-text="'A session stays on its account for ' + sessions.ttl_minutes + ' min after its last request, so its prompt cache stays warm. A session that moves starts cold, which shows as cache read below 75%'"></div></div>
-            <div class="scroll-x"><table class="grid">
+            <div class="scroll-x"><table class="grid sessions-table">
               <thead><tr><th>Session</th><th>Client</th><th>Key</th><th>Account</th><th>Model</th><th>Transport</th><th>Started</th><th>Last request</th><th class="r">Requests</th><th>Cache read</th></tr></thead>
               <tbody>
                 <template x-for="s in sessions.sessions" :key="s.session_key">
                   <tr>
-                    <td class="mono strong" x-text="s.id"></td>
-                    <td x-text="s.client"></td>
-                    <td class="subtle" x-text="s.key || '—'"></td>
-                    <td class="wrap"><div class="strong" x-text="(PROVIDERS[s.provider]?.name || s.provider) + ' · ' + s.account"></div><template x-if="s.moved_from"><div class="small subtle" x-text="'Moved from ' + s.moved_from + ' at ' + fmt.clock(s.moved_at) + (s.moved_reason ? ', ' + s.moved_reason : '')"></div></template></td>
-                    <td class="mono" x-text="s.model"></td>
-                    <td class="subtle" x-text="s.transport === 'websocket' ? 'WebSocket' : 'HTTP'"></td>
-                    <td class="mono subtle" x-text="fmt.clock(s.started_at)"></td>
-                    <td class="subtle" x-text="fmt.ago(s.last_at, now)"></td>
-                    <td class="r strong" x-text="fmt.int(s.requests)"></td>
-                    <td><div class="reserve"><span class="bar" :class="s.cache_share >= 0.75 ? '' : ''" style="width:72px"><i :style="'width:' + Math.round(s.cache_share*100) + '%;' + (s.cache_share < 0.75 ? 'background:#E5E5E5' : '')"></i></span><span :class="s.cache_share < 0.75 ? 'strong' : 'subtle'" x-text="Math.round(s.cache_share*100) + '%'"></span></div></td>
+                    <td class="c-id mono strong" x-text="s.id"></td>
+                    <td class="c-client" x-text="s.client"></td>
+                    <td class="c-key subtle" x-text="s.key || '—'"></td>
+                    <td class="c-account wrap"><div class="strong" x-text="(PROVIDERS[s.provider]?.name || s.provider) + ' · ' + s.account"></div><template x-if="s.moved_from"><div class="small subtle" x-text="'Moved from ' + s.moved_from + ' at ' + fmt.clock(s.moved_at) + (s.moved_reason ? ', ' + s.moved_reason : '')"></div></template></td>
+                    <td class="c-model mono" x-text="s.model"></td>
+                    <td class="c-meta small subtle" x-text="[s.client, s.key, s.transport === 'websocket' ? 'WebSocket' : 'HTTP', fmt.plural(s.requests, 'request', 'requests'), 'since ' + fmt.clock(s.started_at)].filter(Boolean).join(' · ')"></td>
+                    <td class="c-transport subtle" x-text="s.transport === 'websocket' ? 'WebSocket' : 'HTTP'"></td>
+                    <td class="c-started mono subtle" x-text="fmt.clock(s.started_at)"></td>
+                    <td class="c-last subtle" x-text="fmt.ago(s.last_at, now)"></td>
+                    <td class="c-req r strong" x-text="fmt.int(s.requests)"></td>
+                    <td class="c-cache"><div class="reserve"><span class="bar" :class="s.cache_share >= 0.75 ? '' : ''" style="width:72px"><i :style="'width:' + Math.round(s.cache_share*100) + '%;' + (s.cache_share < 0.75 ? 'background:#E5E5E5' : '')"></i></span><span :class="s.cache_share < 0.75 ? 'strong' : 'subtle'" x-text="Math.round(s.cache_share*100) + '%'"></span></div></td>
                   </tr>
                 </template>
               </tbody>
@@ -835,6 +836,11 @@
       <!-- What's new, and the update when one is out -->
       <template x-if="dialog.kind === 'whatsnew'"><div style="display:flex;flex-direction:column;gap:20px">
         <div class="dialog-head"><h2>What's new</h2><button class="btn-icon" @click="closeDialog()" x-html="icon('close')" aria-label="Close"></button></div>
+        <div class="versions" x-show="updates && updates.current">
+          <div><div class="small subtle">Installed</div><div class="mono strong" x-text="updates && updates.current"></div></div>
+          <div><div class="small subtle">Latest</div><div class="mono strong" x-text="updates && (updates.latest_version || (updates.checked_at ? updates.current : '—'))"></div></div>
+          <div class="versions-state small" :class="updates && updates.available ? 'strong' : 'subtle'" x-text="!updates ? '' : updates.available ? 'Update available' : updates.checked_at ? 'Up to date · checked ' + fmt.ago(updates.checked_at, now) : updates.enabled ? 'Not checked yet' : 'Update checks are off'"></div>
+        </div>
         <template x-if="updates && updates.available"><div class="card whatsnew-update">
           <div class="strong" x-text="'Mainspring ' + updates.latest.version + ' is out'"></div>
           <ul class="notes"><template x-for="n in noteItems(updates.latest.notes)" :key="n"><li x-html="md(n)"></li></template></ul>
