@@ -124,6 +124,51 @@ func meterView(hub *proxy.Hub, rng string) map[string]any {
 	}
 	sort.Slice(accounts, func(i, j int) bool { return accounts[i].Requests > accounts[j].Requests })
 
+	// Web tools: searches and page reads through /mcp, by provider.
+	type webRow struct {
+		Provider domain.ProviderID `json:"provider"`
+		Name     string            `json:"name"`
+		Searches int64             `json:"searches"`
+		Fetches  int64             `json:"fetches"`
+		Errors   int64             `json:"errors"`
+		Tokens   int64             `json:"tokens"`
+		USD      float64           `json:"usd"`
+	}
+	web := map[domain.ProviderID]*webRow{}
+	var webTotal webRow
+	byInbound, _ := hub.Usage.GroupFrom(from, "inbound_provider")
+	for _, b := range byInbound {
+		parts := strings.SplitN(b.Key, "|", 2)
+		if len(parts) != 2 || !strings.HasPrefix(parts[0], "mcp.") {
+			continue
+		}
+		p := domain.ProviderID(parts[1])
+		row := web[p]
+		if row == nil {
+			row = &webRow{Provider: p, Name: providerName(p)}
+			web[p] = row
+		}
+		ok := b.Requests - b.Errors
+		tokens := proxy.InputTokens(p, b.PromptTokens, b.CacheReadTokens, b.CacheWriteTokens) + b.CompletionTokens
+		for _, r := range []*webRow{row, &webTotal} {
+			if parts[0] == "mcp.web_search" {
+				r.Searches += ok
+			} else {
+				r.Fetches += ok
+			}
+			r.Errors += b.Errors
+			r.Tokens += tokens
+			r.USD += b.USD
+		}
+	}
+	webRows := []webRow{}
+	for _, r := range web {
+		webRows = append(webRows, *r)
+	}
+	sort.Slice(webRows, func(i, j int) bool {
+		return webRows[i].Searches+webRows[i].Fetches > webRows[j].Searches+webRows[j].Fetches
+	})
+
 	daily, _ := hub.Usage.Daily(14)
 	type dayRow struct {
 		Day    string  `json:"day"`
@@ -141,6 +186,7 @@ func meterView(hub *proxy.Hub, rng string) map[string]any {
 		"uncached": maxInt(0, input-cacheRead-cacheWrite),
 		"keys":     countKeys(hub), "accounts": len(byCred),
 		"costs": costs, "by_account": accounts, "daily": chart,
+		"web":         map[string]any{"searches": webTotal.Searches, "fetches": webTotal.Fetches, "errors": webTotal.Errors, "tokens": webTotal.Tokens, "usd": webTotal.USD, "by_provider": webRows},
 		"first_event": hub.Usage.FirstEvent(),
 	}
 }

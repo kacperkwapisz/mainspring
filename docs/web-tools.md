@@ -12,7 +12,7 @@ Mainspring is an MCP server at `/mcp` with two tools. Any app that supports remo
 
 The account your app's current Claude or Codex session uses, with the same model, so a search costs the same subscription as the work around it. With no session to follow, the router picks the account, using a small model (Haiku on Claude). If that account is out, the call moves to the next one.
 
-Claude searches the way Claude Code does, in its own small request with the `web_search` server tool. Codex uses its built-in `web_search`. Calls update limits and show on the meter.
+Claude searches the way Claude Code does, in its own small request with the `web_search` server tool. Codex uses its built-in `web_search`. Calls update limits, and the **Web tools** card on the Meter counts searches and page questions by provider.
 
 `web_fetch` downloads the page from Mainspring itself and refuses addresses on your local network, loopback, link-local and Tailscale ranges.
 

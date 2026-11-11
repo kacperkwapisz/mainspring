@@ -35,6 +35,15 @@ Choose **Add account** on the Pool page and pick a provider. Claude and Codex op
 
 Add as many accounts of a provider as you have. Mainspring spreads new sessions across them by when each one's limit resets.
 
+## Install it on your phone
+
+The panel installs as an app and opens full screen, without the browser around it. Open it at an HTTPS address, like your [tailnet address](tailnet.md), then:
+
+- **iPhone**: tap Share, then **Add to Home Screen**.
+- **Android**: open Chrome's menu and choose **Install app**.
+
+Installing needs HTTPS: on a plain `http://` address the phone adds a bookmark instead.
+
 ## Create a key
 
 Under **Keys**, create one key per machine or tool. A key starts with `sk-ms-`, and the panel shows it once, with ready-made settings for Claude Code and Codex. Then [connect your tools](connect.md).

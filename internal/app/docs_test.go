@@ -61,3 +61,21 @@ func TestPoolForKeysFollowsTheSetting(t *testing.T) {
 		t.Fatalf("sharing off: %d", res.Code)
 	}
 }
+
+func TestPanelIsInstallable(t *testing.T) {
+	b := bootAPI(t)
+	for path, ctype := range map[string]string{"/assets/manifest.webmanifest": "application/manifest+json", "/sw.js": "javascript", "/assets/icon-512.png": "image/png", "/assets/apple-touch-icon.png": "image/png"} {
+		res := httptest.NewRecorder()
+		b.Handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, path, nil))
+		if res.Code != 200 || !strings.Contains(res.Header().Get("Content-Type"), ctype) {
+			t.Errorf("%s: %d %q", path, res.Code, res.Header().Get("Content-Type"))
+		}
+	}
+	res := httptest.NewRecorder()
+	b.Handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/", nil))
+	for _, want := range []string{`rel="manifest"`, `apple-mobile-web-app-capable`, `black-translucent`} {
+		if !strings.Contains(res.Body.String(), want) {
+			t.Errorf("index.html is missing %s", want)
+		}
+	}
+}

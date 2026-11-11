@@ -2,6 +2,13 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.2.0] - 2026-11-11
+
+- Install Mainspring on your phone: the panel is an app that opens full screen, from Add to Home Screen on iPhone or Install app on Android. It needs an HTTPS address, like your tailnet address.
+- The Meter has a **Web tools** card: how many searches and page questions your apps ran, by provider.
+- The Tokens per day chart is cleaner: readable labels at any width, a scale, and the day's total on hover.
+- Fixes the Meter for Claude Code, pi and other Anthropic-format tools: their streamed answers were counted as failed with no tokens, so cost and the cache share read zero.
+
 ## [1.1.0] - 2026-11-11
 
 - **Mainspring for pi**: a pi extension in this repo (`pi install git:github.com/kacperkwapisz/mainspring`). It adds Mainspring as a provider, registers `web_search` and `web_fetch` on your subscriptions, tells you when your session moves to another account, and shows the pool with `/mainspring`.

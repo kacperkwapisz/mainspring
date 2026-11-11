@@ -203,11 +203,12 @@ func startOfUTCDay(ts int64) int64 {
 }
 
 var groupColumns = map[string]string{
-	"provider":       "provider",
-	"model":          "model",
-	"key_id":         "COALESCE(key_id, '')",
-	"credential_id":  "COALESCE(credential_id, '')",
-	"provider_model": "provider || '|' || model",
+	"provider":         "provider",
+	"model":            "model",
+	"key_id":           "COALESCE(key_id, '')",
+	"credential_id":    "COALESCE(credential_id, '')",
+	"provider_model":   "provider || '|' || model",
+	"inbound_provider": "COALESCE(inbound, '') || '|' || provider",
 }
 
 // GroupFrom groups usage since a unix-ms timestamp by an allowed field.

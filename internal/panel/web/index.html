@@ -7,6 +7,13 @@
 <meta name="color-scheme" content="dark">
 <title>Mainspring</title>
 <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="manifest" href="/assets/manifest.webmanifest" crossorigin="use-credentials">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mainspring">
+<!-- Edge to edge on iPhone: the page draws under the status bar and pads itself with the safe areas. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="/assets/app.css?v={{VERSION}}">
 <script defer src="/assets/app.js?v={{VERSION}}"></script>
 <script defer src="/assets/alpine.min.js"></script>
@@ -352,7 +359,17 @@
             <div class="split" style="grid-template-columns:2fr 1fr">
               <section class="card">
                 <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Tokens per day</span><span class="meta">Last 14 days</span></div></div>
-                <div class="chart" x-html="chartSVG()"></div>
+                <div class="chart" role="img" :aria-label="'Tokens per day for the last 14 days, up to ' + fmt.tokens(chart().top)">
+                  <div class="chart-plot">
+                    <div class="chart-grid" aria-hidden="true"><div><span x-text="axis(chart().top)"></span></div><div><span x-text="axis(chart().top / 2)"></span></div><div><span>0</span></div></div>
+                    <div class="chart-cols">
+                      <template x-for="b in chart().bars" :key="b.key"><div class="chart-col" :class="{ 'in-range': b.inRange, today: b.today, empty: !b.tokens }" :title="b.title">
+                        <div class="chart-bar" :style="'height:' + (b.tokens ? Math.max(b.pct, 1.5) : 0) + '%'"><span class="chart-tip num" x-text="fmt.tokens(b.tokens)"></span></div>
+                      </div></template>
+                    </div>
+                  </div>
+                  <div class="chart-labels" aria-hidden="true"><template x-for="b in chart().bars" :key="b.key"><span :class="{ today: b.today }" x-text="b.label"></span></template></div>
+                </div>
               </section>
               <section class="card">
                 <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Cache</span><span class="meta" x-text="fmt.tokens(meter.input) + ' input tokens'"></span></div><div class="reason">A high share means sessions stay on their accounts</div></div>
@@ -372,6 +389,7 @@
                   <template x-for="m in p.models" :key="m.model"><div class="list-row" style="padding-left:39px"><span class="mono ellipsis" style="flex:1" x-text="m.model"></span><span class="bar hide-sm" style="width:180px"><i :style="'width:' + (meter.usd ? m.usd / meter.usd * 100 : 0) + '%'"></i></span><span class="num" style="width:80px;text-align:right" x-text="fmt.usd(m.usd)"></span></div></template>
                 </div></template>
               </section>
+              <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
               <section class="card">
                 <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Requests by account</span></div></div>
                 <template x-for="g in meter.by_account" :key="g.provider"><div>
@@ -379,6 +397,16 @@
                   <template x-for="a in g.accounts" :key="a.id"><div class="list-row" style="padding-left:39px"><span class="ellipsis" style="flex:1" x-text="a.label"></span><span class="num" x-text="fmt.int(a.requests)"></span></div></template>
                 </div></template>
               </section>
+              <section class="card">
+                <div class="card-head"><div style="display:flex;gap:10px;align-items:baseline"><span class="card-title">Web tools</span><span class="meta" x-text="meter.web && (meter.web.searches + meter.web.fetches) ? fmt.tokens(meter.web.tokens) + ' tokens' : ''"></span></div><div class="reason">Searches and page questions from <span class="mono">/mcp</span>, on your subscriptions</div></div>
+                <template x-if="!meter.web || !(meter.web.searches + meter.web.fetches + meter.web.errors)"><div class="list-row subtle">None yet. Settings → Web tools shows how to add them to your apps</div></template>
+                <template x-if="meter.web && (meter.web.searches + meter.web.fetches + meter.web.errors)"><div>
+                  <div class="web-stats"><div><span class="stat"><span class="v num" x-text="fmt.int(meter.web.searches)"></span></span><span class="subtle" x-text="meter.web.searches === 1 ? 'search' : 'searches'"></span></div><div><span class="stat"><span class="v num" x-text="fmt.int(meter.web.fetches)"></span></span><span class="subtle" x-text="meter.web.fetches === 1 ? 'page question' : 'page questions'"></span></div></div>
+                  <template x-for="r in meter.web.by_provider" :key="r.provider"><div class="list-row"><span style="flex:1" x-text="r.name"></span><span class="subtle num" x-text="fmt.plural(r.searches, 'search', 'searches') + ' · ' + fmt.plural(r.fetches, 'page question', 'page questions')"></span></div></template>
+                  <template x-if="meter.web.errors"><div class="list-row subtle" x-text="fmt.plural(meter.web.errors, 'call failed', 'calls failed')"></div></template>
+                </div></template>
+              </section>
+              </div>
             </div>
           </div>
         </div>

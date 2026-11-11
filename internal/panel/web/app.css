@@ -284,8 +284,35 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 .stat .k { color: var(--color-text-subtle); }
 .stat .v { color: var(--color-text-strong); font-family: var(--font-display); font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .stat .s { color: var(--color-text-subtle); }
-.chart { padding: 8px 15px 15px; }
-.chart svg { display: block; width: 100%; height: auto; }
+/* Tokens per day. Neutral bars: the accent belongs to the Claude next-up row. */
+.chart { padding: 8px 15px 14px; --chart-axis: 44px; }
+.chart-plot { position: relative; height: 168px; padding-left: var(--chart-axis); }
+.chart-grid { position: absolute; inset: 0 0 0 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+.chart-grid > div { position: relative; height: 0; border-top: 1px solid var(--color-hairline); margin-left: var(--chart-axis); }
+.chart-grid > div:last-child { border-top-color: var(--color-track); }
+.chart-grid span { position: absolute; left: calc(-1 * var(--chart-axis)); top: -8px; width: calc(var(--chart-axis) - 8px); text-align: right; font-family: var(--font-mono); font-size: 11px; line-height: 16px; color: var(--color-text-muted); }
+.chart-cols { position: relative; display: flex; align-items: flex-end; gap: 6px; height: 100%; }
+.chart-col { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.chart-bar { position: relative; width: min(100%, 28px); border-radius: 4px 4px 1px 1px; background: var(--color-track); transition: background-color 120ms ease; }
+.chart-col.in-range .chart-bar { background: #5C5C5C; }
+.chart-col.today .chart-bar { background: var(--color-text-subtle); }
+.chart-tip { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); padding: 2px 6px; border-radius: var(--radius-badge); background: var(--color-surface-hover); border: 1px solid var(--color-hairline); font-size: 11px; line-height: 16px; color: var(--color-text-strong); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.chart-col.today .chart-tip { opacity: 1; }
+.chart-col.empty .chart-tip { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .chart-cols:hover .chart-col.today:not(:hover) .chart-tip { opacity: 0; }
+  .chart-col:hover .chart-tip { opacity: 1; }
+  .chart-col:hover .chart-bar { background: var(--color-text-strong); }
+}
+.chart-labels { display: flex; gap: 6px; padding: 8px 0 0 var(--chart-axis); }
+.chart-labels span { flex: 1; min-width: 0; text-align: center; font-size: 12px; line-height: 16px; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.chart-labels span.today { color: var(--color-text-strong); }
+@media (max-width: 759px) {
+  .chart { --chart-axis: 36px; }
+  .chart-cols, .chart-labels { gap: 3px; }
+  /* Every other day, counted back from Today (the first child is Alpine's template). */
+  .chart-labels span:nth-child(even) { visibility: hidden; }
+}
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
 
 /* ---- Settings ---- */
@@ -322,7 +349,7 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
    portrait): the sidebar becomes a 64px icon rail and Pool rows stack. */
 .sm-only { display: none; }
 .sidebar { padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); padding-left: max(12px, env(safe-area-inset-left)); }
-.main { padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
+.main { padding-top: env(safe-area-inset-top); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
 @media (max-width: 1099px) {
   .split, .split[style] { grid-template-columns: 1fr !important; }
   .setting-section { grid-template-columns: 1fr; gap: 12px; }
@@ -465,3 +492,9 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
   .copy-ico > svg:first-child, .copy-ico > .copy-check { transform: none !important; filter: none !important; }
   .copy-ico > .copy-check path { stroke-dashoffset: 0; transition: none; }
 }
+
+.web-stats { display: flex; gap: 32px; padding: 4px 15px 12px; }
+.web-stats > div { display: flex; align-items: baseline; gap: 6px; }
+/* Today sits at the right edge: keep its value and label inside the card. */
+.chart-col:last-child .chart-tip { left: auto; right: 0; transform: none; }
+.chart-labels span.today { display: flex; justify-content: flex-end; white-space: nowrap; }

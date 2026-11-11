@@ -39,6 +39,10 @@ func registerPanel(mux *httpx.Mux) {
 	mux.Handle(http.MethodGet, "/assets/{file}", func(w http.ResponseWriter, r *http.Request) {
 		serveAsset(w, httpx.Param(r, "file"))
 	})
+	// The service worker has to live at the root to control the whole panel.
+	mux.Handle(http.MethodGet, "/sw.js", func(w http.ResponseWriter, r *http.Request) {
+		serveAsset(w, "sw.js")
+	})
 	mux.Handle(http.MethodGet, "/assets/fonts/{file}", func(w http.ResponseWriter, r *http.Request) {
 		serveAsset(w, "fonts/"+httpx.Param(r, "file"))
 	})
@@ -65,6 +69,8 @@ func serveAsset(w http.ResponseWriter, name string) {
 		ctype = "font/woff2"
 	case ".svg":
 		ctype = "image/svg+xml"
+	case ".webmanifest":
+		ctype = "application/manifest+json"
 	}
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("X-Content-Type-Options", "nosniff")

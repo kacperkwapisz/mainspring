@@ -182,6 +182,22 @@ func SeedDemo(b *Booted) error {
 				Inbound: domain.InboundClaudeMessages, PromptTokens: prompt, CompletionTokens: out, CacheReadTokens: cache, CacheWriteTokens: 800,
 				LatencyMs: 2000, Status: "ok", USD: usd})
 		}
+		// Web tools: a few dozen searches and page questions a day, on Claude and Codex.
+		for i := 0; i < 20+rng.Intn(30); i++ {
+			ts := dayStart.Add(time.Duration(rng.Int63n(int64(24 * time.Hour)))).UnixMilli()
+			if ts > now.UnixMilli() {
+				continue
+			}
+			inbound, p, model, cred := domain.InboundFormat("mcp.web_search"), domain.ProviderClaude, "claude-haiku-5-5", kacper.ID
+			if rng.Intn(4) == 0 {
+				inbound = "mcp.web_fetch"
+			}
+			if rng.Intn(3) == 0 {
+				p, model, cred = domain.ProviderCodex, "gpt-5.6-luna", ck.ID
+			}
+			_ = hub.Usage.Record(domain.UsageEvent{TS: ts, KeyID: keys[rng.Intn(len(keys))], CredentialID: cred, Provider: p, Model: model,
+				Inbound: inbound, PromptTokens: int64(3000 + rng.Intn(6000)), CompletionTokens: int64(200 + rng.Intn(600)), LatencyMs: 4000, Status: "ok"})
+		}
 	}
 
 	// What happened today.

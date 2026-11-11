@@ -243,6 +243,8 @@
       tailnet: null, tn: { name: "mainspring", authKey: "", showKey: false, busy: false, error: "" },
 
       async init() {
+        // Installable as an app; the worker only shows a page when Mainspring is unreachable.
+        if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});
         window.addEventListener("hashchange", () => this.go());
         window.addEventListener("ms:signed-out", () => { this.stopLive(); this.loadAuth(); });
         document.addEventListener("visibilitychange", () => { if (!document.hidden) { this.startLive(); this.flush(); } });
@@ -836,31 +838,33 @@
         catch (e) { m.enabled = !on; T.err(`Couldn't turn ${m.id} ${on ? "on" : "off"}`, e.message); }
       },
       modelSources() { return this.models ? [...new Set(this.models.models.map((m) => m.served_by).filter(Boolean))] : []; },
+      // Axis labels: 150M, 75M, 2.5k. No trailing .0
+      axis(n) {
+        const f = (v, u) => `${Number(v.toFixed(1))}${u}`;
+        return n >= 1e9 ? f(n / 1e9, "B") : n >= 1e6 ? f(n / 1e6, "M") : n >= 1e3 ? f(n / 1e3, "k") : String(Math.round(n));
+      },
+      // Tokens per day as plain HTML bars: type stays at its real size at any width.
       chart() {
         const m = this.meter;
-        if (!m || !m.daily) return { bars: [], max: 0, ticks: [] };
+        if (!m || !m.daily || !m.daily.length) return { bars: [], top: 0 };
         const max = Math.max(1, ...m.daily.map((d) => d.tokens));
-        const nice = Math.pow(10, Math.floor(Math.log10(max)));
-        const top = Math.ceil(max / nice) * nice;
-        const n = m.daily.length, w = 1000, h = 180, gap = 12, bw = (w - gap * (n - 1)) / n;
-        const today = new Date().toISOString().slice(0, 10);
+        // The smallest round number at or above the busiest day, so the bars fill the plot.
+        const mag = Math.pow(10, Math.floor(Math.log10(max)));
+        const top = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((f) => f * mag).find((v) => v >= max);
+        const n = m.daily.length;
         const from = m.range === "today" ? n - 1 : n - (m.range === "7d" ? 7 : 14);
         return {
           top,
-          bars: m.daily.map((d, i) => ({ x: i * (bw + gap), w: bw, h: (d.tokens / top) * h, y: h - (d.tokens / top) * h, label: i === n - 1 ? "Today" : new Date(d.day + "T12:00:00").getDate(), tokens: d.tokens, inRange: i >= from, today: d.day === today })),
+          bars: m.daily.map((d, i) => {
+            const date = new Date(d.day + "T12:00:00");
+            return {
+              key: d.day, tokens: d.tokens, pct: (d.tokens / top) * 100,
+              label: i === n - 1 ? "Today" : String(date.getDate()),
+              title: `${date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}: ${fmt.tokens(d.tokens)} tokens`,
+              inRange: i >= from, today: i === n - 1,
+            };
+          }),
         };
-      },
-      chartSVG() {
-        const c = this.chart();
-        if (!c.bars.length) return "";
-        let out = '<svg viewBox="0 0 1000 220" role="img" aria-label="Tokens per day">';
-        for (const b of c.bars) {
-          const fill = b.today ? "#3B9BFF" : b.inRange ? "#6B6B6B" : "#3A3A3A";
-          const h = Math.max(b.h, b.tokens ? 2 : 0);
-          out += `<rect x="${b.x.toFixed(1)}" y="${(180 - h).toFixed(1)}" width="${b.w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${fill}"><title>${fmt.tokens(b.tokens)} tokens</title></rect>`;
-          out += `<text x="${(b.x + b.w / 2).toFixed(1)}" y="212" text-anchor="middle" fill="#737373" font-size="22" font-family="-apple-system, BlinkMacSystemFont, Inter, sans-serif">${b.label}</text>`;
-        }
-        return out + "</svg>";
       },
       dialogTitle() {
         const d = this.dialog; if (!d) return "";

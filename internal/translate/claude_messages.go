@@ -321,8 +321,40 @@ func codexToClaude(model string, _, upstream any) any {
 	}
 }
 
-func claudeStreamIdentity(_ string, _ any, chunk any, _ *StreamState) []string {
-	return []string{"event: " + AsStr(AsMap(chunk)["type"], "message") + "\ndata: " + mustJSON(chunk)}
+// claudeStreamIdentity passes Claude's events through unchanged and reads the
+// usage and outcome from them, so the meter and the session's cache share see
+// Claude Code and other Anthropic-format clients.
+func claudeStreamIdentity(_ string, _ any, chunk any, state *StreamState) []string {
+	c := AsMap(chunk)
+	switch AsStr(c["type"]) {
+	case "message_start":
+		state.Started = true
+		claudeStreamUsage(state, AsMap(AsMap(c["message"])["usage"]))
+	case "message_delta":
+		claudeStreamUsage(state, AsMap(c["usage"]))
+	case "message_stop":
+		state.Finished = true
+	case "error":
+		state.Error = AsStr(AsMap(c["error"])["message"], "stream error")
+	}
+	return []string{"event: " + AsStr(c["type"], "message") + "\ndata: " + mustJSON(chunk)}
+}
+
+// claudeStreamUsage keeps the latest value of each usage field: message_start
+// carries the input side, message_delta the running output count.
+func claudeStreamUsage(state *StreamState, u map[string]any) {
+	if n, ok := AsNum(u["input_tokens"]); ok {
+		state.PromptTokens = int64(n)
+	}
+	if n, ok := AsNum(u["output_tokens"]); ok {
+		state.CompletionTokens = int64(n)
+	}
+	if n, ok := AsNum(u["cache_read_input_tokens"]); ok {
+		state.CacheRead = int64(n)
+	}
+	if n, ok := AsNum(u["cache_creation_input_tokens"]); ok {
+		state.CacheWrite = int64(n)
+	}
 }
 
 func grokStreamToClaude(model string, _ any, chunk any, state *StreamState) []string {
