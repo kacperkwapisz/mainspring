@@ -3,6 +3,7 @@ package sub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"sync"
 	"time"
@@ -38,6 +39,8 @@ type Snapshot struct {
 	Account  string            `json:"account_id,omitempty"` // the provider's account id, when reported
 	Note     string            `json:"note,omitempty"`
 	Windows  []Window          `json:"windows,omitempty"`
+	// RetryAt is set when the usage endpoint refused the read (429): when to try again, unix ms.
+	RetryAt int64 `json:"retry_at,omitempty"`
 }
 
 type Fetcher func(ctx context.Context, credential domain.Credential) (Snapshot, error)
@@ -103,6 +106,14 @@ func fetchOne(ctx context.Context, vault *store.Vault, executors map[domain.Prov
 	got, err := fn(ctx, cred)
 	if err != nil {
 		base.Error = err.Error()
+		var rl *RateLimited
+		if errors.As(err, &rl) {
+			wait := rl.RetryAfter
+			if wait < 30*time.Minute {
+				wait = 30 * time.Minute // limits only need reading now and then, so leave the endpoint alone a while
+			}
+			base.RetryAt = time.Now().Add(wait).UnixMilli()
+		}
 		return base
 	}
 	got.ID = cred.ID

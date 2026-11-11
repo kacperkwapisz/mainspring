@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.2.1] - 2026-11-11
+
+- Fixes an empty Sessions list when several pi sessions shared an account: their short IDs came out the same.
+- When Anthropic or OpenAI limits how often limits can be read, Mainspring waits 30 minutes before reading that account again and says so, instead of "claude sub 429". Idle accounts are read every 30 minutes instead of 15.
+
 ## [1.2.0] - 2026-11-11
 
 - Install Mainspring on your phone: the panel is an app that opens full screen, from Add to Home Screen on iPhone or Install app on Android. It needs an HTTPS address, like your tailnet address.

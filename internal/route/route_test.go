@@ -220,3 +220,11 @@ func itoa(n int64) string {
 }
 
 func strconvFormat(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestTimeBasedSessionIDsGetDistinctShortIDs(t *testing.T) {
+	a := shortID("sid:pi-019a7f3c-1111-7000-8000-000000000001")
+	b := shortID("sid:pi-019a7f3c-2222-7000-8000-000000000002")
+	if a == b || len(a) != 6 {
+		t.Fatalf("%q %q", a, b)
+	}
+}

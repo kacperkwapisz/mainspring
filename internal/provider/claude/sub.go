@@ -60,7 +60,7 @@ func getJSON(ctx context.Context, rawURL string, headers map[string]string) (any
 		return nil, err
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("claude sub %d", res.StatusCode)
+		return nil, sub.HTTPError("Anthropic", res)
 	}
 	return body, nil
 }

@@ -287,7 +287,7 @@
             <div class="scroll-x"><table class="grid">
               <thead><tr><th>Session</th><th>Client</th><th>Key</th><th>Account</th><th>Model</th><th>Transport</th><th>Started</th><th>Last request</th><th class="r">Requests</th><th>Cache read</th></tr></thead>
               <tbody>
-                <template x-for="s in sessions.sessions" :key="s.id + s.account_id">
+                <template x-for="s in sessions.sessions" :key="s.session_key">
                   <tr>
                     <td class="mono strong" x-text="s.id"></td>
                     <td x-text="s.client"></td>
@@ -622,7 +622,7 @@
       </template>
       <template x-if="drawerData.sessions.length">
         <section><h3>Live sessions <span class="muted small" style="font-weight:400" x-text="drawerData.sessions.length"></span></h3>
-          <template x-for="s in drawerData.sessions" :key="s.id"><div style="display:flex;gap:10px;min-height:28px;align-items:center"><span class="mono strong" style="width:56px" x-text="s.id"></span><span class="mono ellipsis" style="flex:1" x-text="s.model"></span><span class="subtle" x-text="s.key"></span><span class="subtle num" style="width:72px;text-align:right" x-text="fmt.ago(s.last_at, now)"></span></div></template>
+          <template x-for="s in drawerData.sessions" :key="s.session_key || s.id"><div style="display:flex;gap:10px;min-height:28px;align-items:center"><span class="mono strong" style="width:56px" x-text="s.id"></span><span class="mono ellipsis" style="flex:1" x-text="s.model"></span><span class="subtle" x-text="s.key"></span><span class="subtle num" style="width:72px;text-align:right" x-text="fmt.ago(s.last_at, now)"></span></div></template>
         </section>
       </template>
       <section><h3>Today</h3><dl class="kv"><dt>Requests</dt><dd class="num" x-text="fmt.int(drawerData.account.requests_today)"></dd><dt>API-equivalent</dt><dd><span class="num" x-text="fmt.usd(drawerData.account.usd_today)"></span> <span class="small muted">at list price, not what you pay</span></dd></dl></section>

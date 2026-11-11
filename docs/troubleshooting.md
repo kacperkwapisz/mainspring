@@ -31,7 +31,11 @@ The provider rejected its refresh token, usually after a password change or a si
 
 ## Limits show as stale
 
-Mainspring hasn't read the account's limits for a while. Idle accounts are read every 15 minutes from the provider's usage endpoint. To read them straight away, choose **Check** on the account's row or **Check now** in its detail panel.
+Mainspring hasn't read the account's limits for a while. Idle accounts are read every 30 minutes from the provider's usage endpoint. To read them straight away, choose **Check** on the account's row or **Check now** in its detail panel.
+
+## Check says the provider is limiting how often limits can be read
+
+The provider's usage endpoint answered 429. That's about reading limits, not the account's own quota. Mainspring tries again in 30 minutes, and the account's limits also update with every request it serves.
 
 ## Claude sign-in fails with "Invalid request format"
 

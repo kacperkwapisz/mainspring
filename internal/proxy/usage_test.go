@@ -102,3 +102,22 @@ func TestWatchResetsAnnouncesTheResetAndReadsTheNewWindow(t *testing.T) {
 		t.Fatal("limits weren't read after the reset")
 	}
 }
+
+func TestUsage429BacksOffInsteadOfRetryingEveryPoll(t *testing.T) {
+	usagePause = 0
+	const p domain.ProviderID = "ratelimit-test"
+	calls := 0
+	sub.Register(p, func(context.Context, domain.Credential) (sub.Snapshot, error) {
+		calls++
+		return sub.Snapshot{}, &sub.RateLimited{Provider: "Anthropic"}
+	})
+	hub, _ := testHub(t, nil)
+	c, _ := hub.Vault.Save(store.SaveCredential{Provider: p, Label: "pat@example.com", Tokens: domain.CredentialTokens{AccessToken: "t"}})
+	if snap := CheckUsage(context.Background(), hub, c); snap.OK || snap.RetryAt < time.Now().Add(29*time.Minute).UnixMilli() {
+		t.Fatalf("%+v", snap)
+	}
+	PollUsage(context.Background(), hub, 0)
+	if snap := CheckUsage(context.Background(), hub, c); snap.RetryAt == 0 || calls != 1 {
+		t.Fatalf("the endpoint was asked again during the back-off: %d calls", calls)
+	}
+}

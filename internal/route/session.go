@@ -1,6 +1,8 @@
 package route
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"github.com/kacperkwapisz/mainspring/internal/live"
 	"regexp"
@@ -219,15 +221,11 @@ func (e *Engine) SessionsOn(credID string) int {
 	return n
 }
 
+// shortID is a short, stable label for a session. It comes from a hash, not
+// a prefix: time-based ids (pi's, UUIDv7) share their first characters.
 func shortID(key string) string {
-	if i := strings.IndexByte(key, ':'); i >= 0 {
-		key = key[i+1:]
-	}
-	key = strings.ReplaceAll(key, "-", "")
-	if len(key) > 6 {
-		return key[:6]
-	}
-	return key
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])[:6]
 }
 
 // SeedSession adds a live session as-is (demo data).

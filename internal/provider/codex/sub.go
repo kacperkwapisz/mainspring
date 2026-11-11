@@ -42,7 +42,7 @@ func FetchSub(ctx context.Context, credential domain.Credential) (sub.Snapshot, 
 		return sub.Snapshot{}, err
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return sub.Snapshot{}, fmt.Errorf("codex sub %d", res.StatusCode)
+		return sub.Snapshot{}, sub.HTTPError("OpenAI", res)
 	}
 	return ParseSub(body), nil
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -352,6 +353,15 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 		defer cancel()
 		snap := proxy.CheckUsage(ctx, hub, *c)
+		if !snap.OK && snap.RetryAt > 0 {
+			mins := (snap.RetryAt-time.Now().UnixMilli())/60_000 + 1
+			who := map[domain.ProviderID]string{domain.ProviderClaude: "Anthropic", domain.ProviderCodex: "OpenAI"}[c.Provider]
+			if who == "" {
+				who = providerName(c.Provider)
+			}
+			apiError(w, 429, "usage_rate_limited", fmt.Sprintf("%s is limiting how often Mainspring reads limits, so %s's weren't updated. Mainspring reads them again in %d min, or sooner when the account serves a request", who, c.Label, mins))
+			return
+		}
 		if !snap.OK {
 			apiError(w, 502, "check_failed", "Couldn't check "+c.Label+": "+snap.Error)
 			return
@@ -545,7 +555,7 @@ func sessionJSON(hub *proxy.Hub, s route.Session, keyNames map[string]string) ma
 		cacheShare = float64(s.CacheRead) / float64(s.InputTokens)
 	}
 	return map[string]any{
-		"id": s.ShortID, "provider": s.Provider, "account_id": s.CredID, "account": label(s.CredID),
+		"id": s.ShortID, "session_key": s.Key, "provider": s.Provider, "account_id": s.CredID, "account": label(s.CredID),
 		"key": keyNames[s.LocalKeyID], "client": s.Client, "model": s.Model, "transport": s.Transport,
 		"started_at": s.StartedAt, "last_at": s.LastAt, "requests": s.Requests,
 		"input_tokens": s.InputTokens, "cache_read_tokens": s.CacheRead, "cache_share": cacheShare,

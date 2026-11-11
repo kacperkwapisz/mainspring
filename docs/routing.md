@@ -34,7 +34,7 @@ Mainspring recognises a session from what the tool sends: Claude Code's session 
 
 ## Limits
 
-Claude and Codex report each account's limits (a 5-hour window, a weekly one, sometimes per-model ones) with every response. Mainspring reads them as they come, and for accounts that haven't served a request in 15 minutes it asks the provider's usage endpoint instead. Providers add and rename windows over time; Mainspring follows whatever they report.
+Claude and Codex report each account's limits (a 5-hour window, a weekly one, sometimes per-model ones) with every response. Mainspring reads them as they come, and for accounts that haven't served a request in 30 minutes it asks the provider's usage endpoint instead. If that endpoint answers 429, Mainspring leaves it alone for 30 minutes. Providers add and rename windows over time; Mainspring follows whatever they report.
 
 When an account hits a limit, the provider answers `429` with the time the window resets. Mainspring rests the account until then, moves the session to another account and records it in the activity log. When the window resets, the account comes back on its own.
 

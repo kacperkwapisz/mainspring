@@ -10,7 +10,7 @@ Mainspring runs on one always-on computer at home and pools the AI subscriptions
 
 - **Logins stay fresh.** Mainspring refreshes tokens before they expire and tells you when a provider rejects one.
 - **Sessions stay put.** Every request of a coding session goes to the same account, so its prompt cache stays warm.
-- **Limits are read, not guessed.** Each response carries the account's quota windows. Accounts that just signed in, or haven't served a request in 15 minutes, are read from the provider's usage endpoint (the one Claude Code's `/usage` and Codex's `/status` use). An account that runs out rests until its window resets, and its sessions move to another account.
+- **Limits are read, not guessed.** Each response carries the account's quota windows. Accounts that just signed in, or haven't served a request in 30 minutes, are read from the provider's usage endpoint (the one Claude Code's `/usage` and Codex's `/status` use). An account that runs out rests until its window resets, and its sessions move to another account.
 - **Soonest reset first.** New sessions go to the account whose limit resets soonest while it still has reserve, so quota you've paid for doesn't expire unused.
 - **One place to look.** The panel shows each account's windows and when they reset, live sessions and their cache hit rate, a usage meter at API list price, and the keys you hand out.
 

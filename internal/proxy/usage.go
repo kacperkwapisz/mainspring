@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
@@ -16,8 +17,13 @@ import (
 // that just signed in, and accounts that have been idle long enough to go stale.
 
 // UsageMaxAge is how old an account's limits may get before Mainspring reads
-// them from the usage endpoint.
-const UsageMaxAge = 15 * time.Minute
+// them from the usage endpoint. Busy accounts never need it: their limits
+// arrive with every response.
+const UsageMaxAge = 30 * time.Minute
+
+// usageBackoff holds, per account, when its usage endpoint may be read again
+// after it answered 429.
+var usageBackoff sync.Map // credential id -> unix ms
 
 // usagePause spaces out background reads so a large pool doesn't burst.
 var usagePause = 2 * time.Second
@@ -25,10 +31,17 @@ var usagePause = 2 * time.Second
 // CheckUsage reads one account's limits from its usage endpoint and records
 // them. It also fills in the account's email when the sign-in didn't report one.
 func CheckUsage(ctx context.Context, hub *Hub, cred domain.Credential) sub.Snapshot {
+	if until, ok := usageBackoff.Load(cred.ID); ok && until.(int64) > time.Now().UnixMilli() {
+		return sub.Snapshot{ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Error: "rate limited", RetryAt: until.(int64)}
+	}
 	snap := sub.Fetch(ctx, hub.Vault, hub.Executors, cred)
 	if !snap.OK {
+		if snap.RetryAt > 0 {
+			usageBackoff.Store(cred.ID, snap.RetryAt)
+		}
 		return snap
 	}
+	usageBackoff.Delete(cred.ID)
 	if ws := UsageWindows(cred.Provider, snap.Windows); len(ws) > 0 {
 		hub.Router.ObserveWindows(cred.ID, "usage", ws)
 	}
@@ -76,6 +89,9 @@ func usageDue(hub *Hub, cred domain.Credential, maxAge time.Duration) bool {
 	}
 	st := hub.Router.Get(cred.ID)
 	if st.NeedsSignIn {
+		return false
+	}
+	if until, ok := usageBackoff.Load(cred.ID); ok && until.(int64) > time.Now().UnixMilli() {
 		return false
 	}
 	return st.ObservedAt == 0 || time.Now().UnixMilli()-st.ObservedAt > maxAge.Milliseconds()
