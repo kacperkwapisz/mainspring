@@ -26,7 +26,7 @@ func (e Executor) Format() domain.ExecutorFormat { return domain.FormatClaude }
 func (e Executor) Models() []domain.ModelInfo    { return provider.CatalogModels(domain.ProviderClaude) }
 
 func (e Executor) Execute(ctx context.Context, credential domain.Credential, body any, opts provider.ExecuteOptions) (provider.ExecuteResult, error) {
-	prepared := PrepareUpstream(body, credential.Tokens.AccessToken, credential.ID, credential.Tokens.AccountID, opts.InboundHeaders, opts.Stream, opts.CountTokens, opts.CallerKey)
+	prepared := prepareUpstream(body, credential.Tokens.AccessToken, credential.ID, credential.Tokens.AccountID, opts.InboundHeaders, opts.Stream, opts.CountTokens, opts.CallerKey, opts.CacheTTL)
 	path := "/v1/messages?beta=true"
 	if opts.CountTokens {
 		path = "/v1/messages/count_tokens"

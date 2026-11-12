@@ -13,6 +13,9 @@ type ExecuteOptions struct {
 	Compact        bool
 	InboundHeaders map[string]string
 	CallerKey      string
+	// CacheTTL "1h" asks Claude to keep this request's prompt cache for an hour
+	// instead of five minutes. The proxy sets it for requests in a session.
+	CacheTTL string
 }
 
 type ExecuteResult struct {

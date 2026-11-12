@@ -48,6 +48,10 @@ var newUUID = func() string {
 }
 
 func PrepareUpstream(body any, accessToken, credentialID, accountID string, inbound map[string]string, stream, countTokens bool, callerKey string) Prepare {
+	return prepareUpstream(body, accessToken, credentialID, accountID, inbound, stream, countTokens, callerKey, "")
+}
+
+func prepareUpstream(body any, accessToken, credentialID, accountID string, inbound map[string]string, stream, countTokens bool, callerKey, cacheTTL string) Prepare {
 	if inbound == nil {
 		inbound = map[string]string{}
 	}
@@ -65,6 +69,9 @@ func PrepareUpstream(body any, accessToken, credentialID, accountID string, inbo
 		aliased, rev := AliasClaudeTools(b, or(callerKey, "cpa-claude-mcp-default-caller"))
 		b = aliased
 		reverse = rev
+	}
+	if cacheTTL != "" && !countTokens {
+		setCacheTTL(b, cacheTTL)
 	}
 	sessionID := sessionFrom(b, inbound, credentialID)
 	applyMetadata(b, credentialID, accountID, sessionID)

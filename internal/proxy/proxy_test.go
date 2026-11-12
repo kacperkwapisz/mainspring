@@ -935,3 +935,23 @@ func TestFailedRequestKeepsItsMessage(t *testing.T) {
 		t.Fatalf("%+v", f)
 	}
 }
+
+func TestCacheTTLIsAnHourForSessionsOnly(t *testing.T) {
+	conv := map[string]any{"tools": []any{map[string]any{"name": "t"}}, "messages": []any{map[string]any{}, map[string]any{}}}
+	title := map[string]any{"messages": []any{map[string]any{"role": "user", "content": "name this"}}}
+	for _, c := range []struct {
+		p    domain.ProviderID
+		key  string
+		body map[string]any
+		want string
+	}{
+		{domain.ProviderClaude, "claude:abc", conv, "1h"},
+		{domain.ProviderClaude, "", conv, ""},
+		{domain.ProviderClaude, "sid:pi-1", title, ""},
+		{domain.ProviderCodex, "codex:abc", conv, ""},
+	} {
+		if got := cacheTTL(c.p, c.key, c.body); got != c.want {
+			t.Fatalf("%s %q: got %q want %q", c.p, c.key, got, c.want)
+		}
+	}
+}

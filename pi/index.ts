@@ -14,6 +14,18 @@ import { PoolView } from "./pool-view.ts";
 
 const PROVIDER = "mainspring";
 
+// pi's thinking levels and the provider value each one sends. pi hides xhigh and
+// max unless a model maps them, and shows the others unless one maps to null,
+// so the map follows the efforts the model really accepts.
+const PI_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+
+export function thinkingLevelMap(efforts: string[] | undefined): Record<string, string | null> | undefined {
+	if (!efforts || !efforts.length) return undefined;
+	const map: Record<string, string | null> = {};
+	for (const level of PI_LEVELS) map[level] = efforts.includes(level) ? level : null;
+	return map;
+}
+
 function modelConfig(config: Config, m: ServedModel) {
 	const id = m.id;
 	const claude = /^claude-/.test(id);
@@ -26,6 +38,7 @@ function modelConfig(config: Config, m: ServedModel) {
 		baseUrl: claude ? config.url : `${config.url}/v1`,
 		input: (m.input ?? ["text"]).includes("image") ? (["text", "image"] as ("text" | "image")[]) : (["text"] as ("text" | "image")[]),
 		reasoning: Boolean(m.reasoning || (m.efforts && m.efforts.length)),
+		thinkingLevelMap: thinkingLevelMap(m.efforts),
 		// Your subscriptions pay for these; pi shows no per-token cost.
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: m.context_length || 200_000,

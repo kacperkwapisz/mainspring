@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.6.0] - 2026-11-12
+
+- Claude sessions keep their prompt cache for an hour instead of five minutes, as long as they stay on their account. A pause over five minutes no longer writes the whole prompt again, which used up limits faster. One-off requests keep five minutes, and a tool that sets its own cache TTL keeps it.
+- The pi extension offers every thinking level a model accepts, including xhigh and max, and hides levels it doesn't. Run `pi update` to get it.
+
 ## [1.5.0] - 2026-11-12
 
 - New Log page. Failed requests lists every request that failed in the last 14 days, with the message its app got and the account, model and key it used. Server log shows what Mainspring wrote, live, with Copy and Download.
