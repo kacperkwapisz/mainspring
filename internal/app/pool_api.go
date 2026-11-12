@@ -25,7 +25,7 @@ func registerPoolAPI(mux *httpx.Mux, hub *proxy.Hub) {
 			}})
 			return
 		}
-		pool := buildPool(hub)
+		pool := buildPool(hub, viewerZone(r))
 		type window struct {
 			Label    string   `json:"label"`
 			Left     *float64 `json:"left"`

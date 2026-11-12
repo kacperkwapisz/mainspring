@@ -1,6 +1,9 @@
 package main
 
 import (
+	// Timezones for the panel's "today": distroless images have no zoneinfo.
+	_ "time/tzdata"
+
 	"context"
 	"flag"
 	"fmt"

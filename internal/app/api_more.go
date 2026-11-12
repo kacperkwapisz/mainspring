@@ -21,7 +21,7 @@ const dayMillis = 24 * 60 * 60 * 1000
 
 // ---- Meter ----
 
-func meterView(hub *proxy.Hub, rng string) map[string]any {
+func meterView(hub *proxy.Hub, rng string, loc *time.Location) map[string]any {
 	days := 1
 	switch rng {
 	case "7d":
@@ -31,7 +31,7 @@ func meterView(hub *proxy.Hub, rng string) map[string]any {
 	default:
 		rng = "today"
 	}
-	from := startOfToday() - int64(days-1)*dayMillis
+	from := startOfDayAgo(loc, days-1)
 	byProvider, _ := hub.Usage.GroupFrom(from, "provider")
 	var input, output, cacheRead, cacheWrite, requests int64
 	var usd float64
@@ -169,7 +169,7 @@ func meterView(hub *proxy.Hub, rng string) map[string]any {
 		return webRows[i].Searches+webRows[i].Fetches > webRows[j].Searches+webRows[j].Fetches
 	})
 
-	daily, _ := hub.Usage.Daily(14)
+	daily, _ := hub.Usage.Daily(14, loc)
 	type dayRow struct {
 		Day    string  `json:"day"`
 		Tokens int64   `json:"tokens"`
@@ -211,10 +211,10 @@ func countKeys(hub *proxy.Hub) int {
 
 // ---- Keys ----
 
-func keysView(hub *proxy.Hub) map[string]any {
+func keysView(hub *proxy.Hub, loc *time.Location) map[string]any {
 	keys, _ := hub.Keys.List()
 	lastUsed, _ := hub.Usage.LastUsed()
-	byKey, _ := hub.Usage.GroupFrom(startOfToday(), "key_id")
+	byKey, _ := hub.Usage.GroupFrom(startOfToday(loc), "key_id")
 	used := map[string]int64{}
 	for _, b := range byKey {
 		used[b.Key] = b.PromptTokens + b.CompletionTokens

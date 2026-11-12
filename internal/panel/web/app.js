@@ -112,8 +112,10 @@
   class APIError extends Error {
     constructor(status, code, message) { super(message || code || "Request failed"); this.status = status; this.code = code; }
   }
+  const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } })();
   async function api(method, path, body) {
-    const opts = { method, headers: { Accept: "application/json" }, credentials: "same-origin" };
+    // X-Timezone: the server counts "today" and chart days on this clock, not its own.
+    const opts = { method, headers: { Accept: "application/json", "X-Timezone": TZ }, credentials: "same-origin" };
     if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
     let res;
     try { res = await fetch(path, opts); } catch { throw new APIError(0, "offline", "Mainspring didn't answer. It may be restarting"); }

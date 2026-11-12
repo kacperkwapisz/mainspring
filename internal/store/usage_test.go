@@ -66,7 +66,7 @@ func TestUsageDailyFillsGaps(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	points, err := usage.Daily(7)
+	points, err := usage.Daily(7, time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,5 +134,39 @@ func TestCursorOverlaySeedsExistingCatalog(t *testing.T) {
 	}
 	if prices.Estimate("cursor", "cursor-auto", 1_000_000, 0, 0, 0) != 0 {
 		t.Fatalf("auto leftover priced: %v", prices.Estimate("cursor", "cursor-auto", 1_000_000, 0, 0, 0))
+	}
+}
+
+// An event late in the UTC evening is already the next day in Warsaw (UTC+1/+2).
+func TestDailyCountsDaysInTheViewersZone(t *testing.T) {
+	d, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	usage := NewUsageStore(d)
+	waw, err := time.LoadLocation("Europe/Warsaw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().In(waw)
+	// 00:30 Warsaw time, three days ago: still the previous day in UTC.
+	ts := time.Date(now.Year(), now.Month(), now.Day()-3, 0, 30, 0, 0, waw)
+	if err := usage.Record(domain.UsageEvent{TS: ts.UnixMilli(), Provider: domain.ProviderClaude, Model: "m", Inbound: domain.InboundOpenAIChat, Status: "ok", USD: 2}); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		loc  *time.Location
+		want string
+	}{{waw, ts.Format("2006-01-02")}, {time.UTC, ts.UTC().Format("2006-01-02")}} {
+		points, err := usage.Daily(7, c.loc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range points {
+			if (p.USD > 0) != (p.Day == c.want) {
+				t.Fatalf("%s: %+v, want the event on %s", c.loc, points, c.want)
+			}
+		}
 	}
 }

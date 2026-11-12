@@ -82,17 +82,36 @@ type poolView struct {
 	today      map[string]store.UsageBreakdown
 }
 
-func startOfToday() int64 {
-	n := time.Now()
-	return time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, n.Location()).UnixMilli()
+// startOfToday is midnight in loc, the viewer's timezone.
+func startOfToday(loc *time.Location) int64 {
+	return startOfDayAgo(loc, 0)
 }
 
-func newPoolView(hub *proxy.Hub) poolView {
+// startOfDayAgo is midnight in loc, days ago. Calendar days, so a DST change
+// in between doesn't shift it by an hour.
+func startOfDayAgo(loc *time.Location, days int) int64 {
+	n := time.Now().In(loc)
+	return time.Date(n.Year(), n.Month(), n.Day()-days, 0, 0, 0, 0, loc).UnixMilli()
+}
+
+// viewerZone is the timezone the panel sent in X-Timezone (an IANA name like
+// Europe/Warsaw), so "today" and chart days match the viewer's clock rather
+// than the server's, which on Umbrel and Docker is UTC.
+func viewerZone(r *http.Request) *time.Location {
+	if name := r.Header.Get("X-Timezone"); name != "" && len(name) < 64 {
+		if loc, err := time.LoadLocation(name); err == nil {
+			return loc
+		}
+	}
+	return time.Local
+}
+
+func newPoolView(hub *proxy.Hub, loc *time.Location) poolView {
 	v := poolView{now: time.Now().UnixMilli(), staleMS: staleMS(hub), sessionsOn: map[string]int{}, today: map[string]store.UsageBreakdown{}}
 	for _, s := range hub.Router.LiveSessions() {
 		v.sessionsOn[s.CredID]++
 	}
-	byCred, _ := hub.Usage.GroupFrom(startOfToday(), "credential_id")
+	byCred, _ := hub.Usage.GroupFrom(startOfToday(loc), "credential_id")
 	for _, b := range byCred {
 		v.today[b.Key] = b
 	}
@@ -232,8 +251,8 @@ func providerName(p domain.ProviderID) string {
 	return string(p)
 }
 
-func buildPool(hub *proxy.Hub) map[string]any {
-	v := newPoolView(hub)
+func buildPool(hub *proxy.Hub, loc *time.Location) map[string]any {
+	v := newPoolView(hub, loc)
 	creds, _ := hub.Vault.List()
 	byProvider := map[domain.ProviderID][]domain.Credential{}
 	for _, c := range creds {
@@ -254,8 +273,8 @@ func buildPool(hub *proxy.Hub) map[string]any {
 			others = append(others, v.account(hub, c, 0))
 		}
 	}
-	totals, _ := hub.Usage.TotalsFrom(startOfToday())
-	activity, _ := hub.Activity.Since(startOfToday(), 50)
+	totals, _ := hub.Usage.TotalsFrom(startOfToday(loc))
+	activity, _ := hub.Activity.Since(startOfToday(loc), 50)
 	needs := 0
 	for _, g := range groups {
 		for _, a := range g.Accounts {
@@ -321,14 +340,14 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		}
 	}
 	mux.Handle(http.MethodGet, "/api/pool", authed(func(w http.ResponseWriter, r *http.Request) {
-		httpx.JSON(w, 200, buildPool(hub))
+		httpx.JSON(w, 200, buildPool(hub, viewerZone(r)))
 	}))
 	mux.Handle(http.MethodGet, "/api/accounts/{id}", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
 		if c == nil {
 			return
 		}
-		httpx.JSON(w, 200, accountDetail(hub, *c))
+		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/rotation", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -339,7 +358,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		on := jsonBool(body, "on")
 		hub.Router.SetBenched(c.ID, !on)
 		hub.Activity.Add(store.ActivityBenched, string(c.Provider), c.ID, map[string]any{"account": c.Label, "in_rotation": on})
-		httpx.JSON(w, 200, accountDetail(hub, *c))
+		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/check", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -369,7 +388,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		if fresh, err := hub.Vault.Get(c.ID); err == nil && fresh != nil {
 			c = fresh
 		}
-		httpx.JSON(w, 200, accountDetail(hub, *c))
+		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/rename", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -384,7 +403,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		}
 		_ = hub.Vault.Rename(c.ID, name)
 		c.Label = name
-		httpx.JSON(w, 200, accountDetail(hub, *c))
+		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/reset-cooldown", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -392,7 +411,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 			return
 		}
 		hub.Router.ClearCooldown(c.ID)
-		httpx.JSON(w, 200, accountDetail(hub, *c))
+		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
 	}))
 	mux.Handle(http.MethodDelete, "/api/accounts/{id}", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -414,10 +433,10 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		httpx.JSON(w, 200, sessionsView(hub))
 	}))
 	mux.Handle(http.MethodGet, "/api/meter", authed(func(w http.ResponseWriter, r *http.Request) {
-		httpx.JSON(w, 200, meterView(hub, r.URL.Query().Get("range")))
+		httpx.JSON(w, 200, meterView(hub, r.URL.Query().Get("range"), viewerZone(r)))
 	}))
 	mux.Handle(http.MethodGet, "/api/keys", authed(func(w http.ResponseWriter, r *http.Request) {
-		httpx.JSON(w, 200, keysView(hub))
+		httpx.JSON(w, 200, keysView(hub, viewerZone(r)))
 	}))
 	mux.Handle(http.MethodPost, "/api/keys", authed(func(w http.ResponseWriter, r *http.Request) {
 		createKey(w, r, hub)
@@ -497,8 +516,8 @@ func jsonBool(body any, key string) bool {
 	return false
 }
 
-func accountDetail(hub *proxy.Hub, c domain.Credential) map[string]any {
-	v := newPoolView(hub)
+func accountDetail(hub *proxy.Hub, c domain.Credential, loc *time.Location) map[string]any {
+	v := newPoolView(hub, loc)
 	rank := 0
 	if p := c.Provider; p == domain.ProviderClaude || p == domain.ProviderCodex {
 		list, _ := hub.Vault.List(p)

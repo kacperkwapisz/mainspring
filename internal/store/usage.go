@@ -135,19 +135,25 @@ func (s *UsageStore) GroupBy(msAgo int64, field string) ([]UsageBreakdown, error
 	return out, rows.Err()
 }
 
-func (s *UsageStore) Daily(days int) ([]UsagePoint, error) {
+// Daily totals for the last days calendar days in loc, oldest first.
+func (s *UsageStore) Daily(days int, loc *time.Location) ([]UsagePoint, error) {
 	if days < 1 {
 		days = 7
 	}
 	if days > 90 {
 		days = 90
 	}
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	start := today.AddDate(0, 0, -(days - 1))
-	until := today.AddDate(0, 0, 1)
+	if loc == nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+	start := time.Date(now.Year(), now.Month(), now.Day()-(days-1), 0, 0, 0, 0, loc)
+	until := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, loc)
+	// Sum per quarter hour in SQL, then put each quarter on its day in loc: every
+	// UTC offset is a multiple of 15 minutes, so no quarter spans two days.
+	const quarter = 15 * 60 * 1000
 	rows, err := s.db.SQL.Query(
-		`SELECT strftime('%Y-%m-%d', ts/1000, 'unixepoch') AS day,
+		`SELECT ts / ? AS q,
 		        COUNT(*) AS requests,
 		        COALESCE(SUM(prompt_tokens),0) AS prompt,
 		        COALESCE(SUM(completion_tokens),0) AS completion,
@@ -156,19 +162,28 @@ func (s *UsageStore) Daily(days int) ([]UsagePoint, error) {
 		        COALESCE(SUM(usd),0) AS usd,
 		        COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END),0) AS errors
 		 FROM usage_events WHERE ts >= ? AND ts < ?
-		 GROUP BY day`, start.UnixMilli(), until.UnixMilli())
+		 GROUP BY q`, quarter, start.UnixMilli(), until.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	byDay := map[string]UsageTotals{}
 	for rows.Next() {
-		var day string
+		var q int64
 		var t UsageTotals
-		if err := rows.Scan(&day, &t.Requests, &t.PromptTokens, &t.CompletionTokens, &t.CacheReadTokens, &t.CacheWriteTokens, &t.USD, &t.Errors); err != nil {
+		if err := rows.Scan(&q, &t.Requests, &t.PromptTokens, &t.CompletionTokens, &t.CacheReadTokens, &t.CacheWriteTokens, &t.USD, &t.Errors); err != nil {
 			return nil, err
 		}
-		byDay[day] = t
+		day := time.UnixMilli(q * quarter).In(loc).Format("2006-01-02")
+		d := byDay[day]
+		d.Requests += t.Requests
+		d.PromptTokens += t.PromptTokens
+		d.CompletionTokens += t.CompletionTokens
+		d.CacheReadTokens += t.CacheReadTokens
+		d.CacheWriteTokens += t.CacheWriteTokens
+		d.USD += t.USD
+		d.Errors += t.Errors
+		byDay[day] = d
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
