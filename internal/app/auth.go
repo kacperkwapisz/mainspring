@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/kacperkwapisz/mainspring/internal/auth"
@@ -274,7 +273,7 @@ func authFail(w http.ResponseWriter, err error) {
 		authError(w, e.Status, e.Code, e.Message)
 		return
 	}
-	log.Printf("auth: %v", err)
+	httpx.Logf("auth: %v", err)
 	authError(w, http.StatusInternalServerError, "internal", "Something went wrong. Check the hub's log")
 }
 

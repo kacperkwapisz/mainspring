@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/httpx"
 	"github.com/kacperkwapisz/mainspring/internal/route"
 	"github.com/kacperkwapisz/mainspring/internal/store"
 )
@@ -197,6 +198,32 @@ func SeedDemo(b *Booted) error {
 			}
 			_ = hub.Usage.Record(domain.UsageEvent{TS: ts, KeyID: keys[rng.Intn(len(keys))], CredentialID: cred, Provider: p, Model: model,
 				Inbound: inbound, PromptTokens: int64(3000 + rng.Intn(6000)), CompletionTokens: int64(200 + rng.Intn(600)), LatencyMs: 4000, Status: "ok"})
+		}
+	}
+
+	// A few failed requests, with what their apps were told, and their log lines.
+	for _, f := range []struct {
+		ago     time.Duration
+		p       domain.ProviderID
+		cred    string
+		model   string
+		key     string
+		status  int
+		message string
+		inbound domain.InboundFormat
+		kind    string
+	}{
+		{26*time.Hour + 17*time.Minute, domain.ProviderCursor, "", "composer-2.5", "devbox", 502, "Cursor answered 502: Bad Gateway", domain.InboundOpenAIChat, httpx.KindUpstream},
+		{20*time.Hour + 32*time.Minute, domain.ProviderCodex, cd.ID, "gpt-5.5", "mini", 401, "Codex rejected this account's sign-in. Sign in again from the Pool page", domain.InboundOpenAIResponses, httpx.KindAuth},
+		{2*time.Hour + 4*time.Minute, domain.ProviderClaude, dubia.ID, "claude-sonnet-5", "t3code", 400, "prompt is too long: 212,410 tokens > 200,000 maximum", domain.InboundClaudeMessages, httpx.KindRequest},
+		{88 * time.Minute, domain.ProviderCodex, ck.ID, "gpt-5.5-codex", "devbox", 0, "the answer stopped before it finished: upstream connection reset", domain.InboundOpenAIResponses, httpx.KindUpstream},
+		{6 * time.Minute, domain.ProviderClaude, "", "claude-opus-5", "macbook", 429, "every Claude account is resting: the first one is back at " + now.Add(50*time.Minute).Format("15:04") + " (in 50 min)", domain.InboundOpenAIChat, httpx.KindCap},
+	} {
+		ts := now.Add(-f.ago)
+		_ = hub.Usage.Record(domain.UsageEvent{TS: ts.UnixMilli(), KeyID: keyIDs[f.key], CredentialID: f.cred, Provider: f.p, Model: f.model,
+			Inbound: f.inbound, LatencyMs: 48000, Status: "error", ErrorStatus: f.status, ErrorMessage: f.message})
+		if f.ago < 3*time.Hour {
+			httpx.Fail{Kind: f.kind, Status: f.status, Provider: string(f.p), Model: f.model, Route: string(f.inbound), Message: f.message}.Log()
 		}
 	}
 

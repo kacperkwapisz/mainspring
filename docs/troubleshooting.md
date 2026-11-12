@@ -47,4 +47,9 @@ Something between Codex and Mainspring may be dropping WebSocket connections. Se
 
 ## Seeing what happened to a request
 
-Turn on **Settings → Request trace** (on failure, or always). Mainspring then logs how each request was routed and what came back. Traces never contain tokens or keys.
+Open **Log** in the panel.
+
+- **Failed requests** lists every request that failed in the last 14 days, with the status and the message its app got, and which account, model and key it used.
+- **Server log** shows the last 1,000 lines Mainspring wrote, live. **Copy** and **Download** take it all, for a bug report.
+
+To add how each request was routed and what came back, turn on **Settings → Request trace** (on failure, or always). Log lines and traces never contain tokens or keys. The server log lives in memory, so it starts empty after a restart; Umbrel's **Troubleshoot** and `docker logs` keep the full output.

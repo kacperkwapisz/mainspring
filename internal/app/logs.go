@@ -16,16 +16,20 @@ func registerLogs(mux *httpx.Mux, hub *proxy.Hub, authed func(func(http.Response
 	// GET /api/log?after=<seq>: the recent log, oldest first.
 	mux.Handle(http.MethodGet, "/api/log", authed(func(w http.ResponseWriter, r *http.Request) {
 		after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
-		httpx.JSON(w, 200, map[string]any{"entries": httpx.RecentLog(after), "trace": httpx.TraceMode()})
+		trace, _ := hub.Settings.Get(proxy.SettingLogTrace)
+		if trace == "" {
+			trace = httpx.TraceOff
+		}
+		httpx.JSON(w, 200, map[string]any{"entries": httpx.RecentLog(after), "trace": trace})
 	}))
-	// GET /api/errors?range=today|7d|14d: failed requests, newest first.
+	// GET /api/errors?range=today|7d|14d: failed requests, newest first. 14 days by default.
 	mux.Handle(http.MethodGet, "/api/errors", authed(func(w http.ResponseWriter, r *http.Request) {
-		days := 1
+		days := 14
 		switch r.URL.Query().Get("range") {
+		case "today":
+			days = 1
 		case "7d":
 			days = 7
-		case "14d":
-			days = 14
 		}
 		failures, err := hub.Usage.Failures(startOfDayAgo(proxy.Zone(hub), days-1), 200)
 		if err != nil {

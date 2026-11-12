@@ -142,6 +142,7 @@
             <span class="ico" x-html="icon(r)"></span><span class="grow label" x-text="r[0].toUpperCase() + r.slice(1)"></span>
             <template x-if="r === 'pool' && attention"><span class="dot" title="An account needs you"></span></template>
             <template x-if="r === 'sessions'"><span class="count" x-text="liveSessions"></span></template>
+            <template x-if="r === 'log' && pool && pool.failed"><span class="count" :title="fmt.plural(pool.failed, 'failed request', 'failed requests') + ' today'" x-text="pool.failed"></span></template>
           </a>
         </template>
       </nav>
@@ -461,6 +462,64 @@
     </div>
   </template>
 
+  <!-- ================= Log ================= -->
+  <template x-if="route === 'log'">
+    <div>
+      <div class="page-head">
+        <div><h1 class="page-title">Log</h1><div class="page-meta" x-text="pool ? (pool.failed ? fmt.plural(pool.failed, 'failed request', 'failed requests') + ' today' : 'Nothing failed today') : ''"></div></div>
+        <div class="segmented" role="group" aria-label="View">
+          <template x-for="t in [['failed','Failed requests'],['server','Server log']]" :key="t[0]"><button :aria-pressed="logTab === t[0]" @click="logTab = t[0]; if (t[0] === 'server') $nextTick(() => { const b = document.querySelector('.log-lines'); if (b) b.scrollTop = b.scrollHeight; })" x-text="t[1]"></button></template>
+        </div>
+      </div>
+      <div class="content">
+        <template x-if="logTab === 'failed'"><div>
+          <template x-if="failuresError && !failures"><div class="card pane-error"><div><div class="strong">Couldn't load failed requests</div><div class="subtle" x-text="failuresError"></div></div><button class="btn btn-secondary btn-sm" @click="loadFailures()">Retry</button></div></template>
+          <template x-if="failures"><section class="card">
+            <div class="card-head">
+              <div class="title-row" style="justify-content:flex-start"><span class="card-title">Failed requests</span><span class="meta" x-text="'Last 14 days · ' + (failures.length ? failures.length + ' failed' : 'none')"></span></div>
+              <div class="reason">Each shows the message its app got, newest first</div>
+            </div>
+            <template x-if="!failures.length"><div class="list-row subtle">Nothing failed in the last 14 days</div></template>
+            <template x-for="g in failureDays()" :key="g.key"><div>
+              <div class="fail-day"><span class="strong-ish" x-text="g.label"></span><span x-text="g.items.length"></span></div>
+              <template x-for="(f, i) in g.items" :key="f.ts + '-' + i">
+                <div class="fail-row">
+                  <div class="fail-status"><span class="badge" :class="{ mono: !!f.status }" x-text="f.status || 'Cut off'"></span></div>
+                  <div class="fail-body">
+                    <div class="fail-msg" :class="{ subtle: !f.message }" x-text="f.message || 'No message saved: this failed before Mainspring kept them'"></div>
+                    <div class="fail-meta" x-html="failureMeta(f)"></div>
+                  </div>
+                  <time class="fail-time mono" :datetime="new Date(f.ts).toISOString()" x-text="logTime(f.ts).slice(0, 5)"></time>
+                </div>
+              </template>
+            </div></template>
+          </section></template>
+        </div></template>
+        <template x-if="logTab === 'server'"><section class="card">
+          <div class="card-head log-head">
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+              <div class="title-row" style="justify-content:flex-start"><span class="card-title">Server log</span><span class="meta" x-text="'Live · last ' + fmt.int(1000) + ' lines'"></span></div>
+              <div class="reason">What Mainspring wrote since it started. Lines never contain tokens or keys</div>
+            </div>
+            <div class="log-actions">
+              <div class="segmented" role="group" aria-label="Lines">
+                <template x-for="t in [['errors','Errors'],['all','Everything']]" :key="t[0]"><button :aria-pressed="logFilter === t[0]" @click="logFilter = t[0]" x-text="t[1]"></button></template>
+              </div>
+              <button class="btn btn-secondary btn-sm" :disabled="!logLines.length" @click="copy(logText(), 'the log', $el)"><span x-html="icon('copy')"></span>Copy</button>
+              <button class="btn btn-secondary btn-sm" :disabled="!logLines.length" @click="downloadLog()"><span x-html="icon('download')"></span>Download</button>
+            </div>
+          </div>
+          <template x-if="logTrace === 'off'"><div class="list-row subtle"><span>Request trace is off. Turn it on under <a href="#/settings">Settings → Request trace</a> to see how each request was routed</span></div></template>
+          <template x-if="logError && !logLoaded"><div class="list-row subtle" x-text="'Couldn\'t load the log: ' + logError"></div></template>
+          <div class="log-lines" role="log" aria-live="off">
+            <template x-if="logLoaded && !logRows().length"><div class="log-line"><span class="t"></span><span class="x" x-text="logFilter === 'errors' ? 'No errors since Mainspring started' : 'Nothing logged yet'"></span></div></template>
+            <template x-for="r in logRows()" :key="r.seq"><div class="log-line" :class="'is-' + r.kind"><span class="t" x-text="r.time"></span><span class="x" x-text="r.text"></span></div></template>
+          </div>
+        </section></template>
+      </div>
+    </div>
+  </template>
+
   <!-- ================= Settings ================= -->
   <template x-if="route === 'settings'">
     <div>
@@ -523,7 +582,7 @@
               </div>
             </div>
             <div class="setting-section">
-              <div class="head"><div class="t">Request trace</div><div class="d">Traces go to the server log. They never contain tokens or keys</div></div>
+              <div class="head"><div class="t">Request trace</div><div class="d">Traces show under <a href="#/log">Log → Server log</a>. They never contain tokens or keys</div></div>
               <div class="card"><div class="setting-row"><div class="name">Trace requests</div><div class="desc">Shows how a request was routed and what came back</div>
                 <div class="segmented"><template x-for="t in [['off','Off'],['errors','On failure'],['always','Always']]" :key="t[0]"><button :aria-pressed="settings.trace === t[0]" @click="saveSetting({trace: t[0]})" x-text="t[1]"></button></template></div></div></div>
             </div>

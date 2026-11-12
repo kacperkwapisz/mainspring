@@ -2,6 +2,12 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.5.0] - 2026-11-12
+
+- New Log page. Failed requests lists every request that failed in the last 14 days, with the message its app got and the account, model and key it used. Server log shows what Mainspring wrote, live, with Copy and Download.
+- The sidebar shows how many requests failed today.
+- Request traces now show in the panel, under Log → Server log.
+
 ## [1.4.1] - 2026-11-12
 
 - The Meter chart's Today label sits centred under its bar, like the other days.

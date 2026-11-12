@@ -1,6 +1,6 @@
 // Mainspring panel. Plain Alpine, no build step.
 (() => {
-  const ROUTES = ["pool", "sessions", "keys", "meter", "sources", "settings"];
+  const ROUTES = ["pool", "sessions", "keys", "meter", "sources", "log", "settings"];
   const DAY = 86400000;
 
   // ---------- formatting ----------
@@ -56,6 +56,8 @@
   // ---------- icons ----------
   // Interface icons: Lucide (ISC), 24px grid. Provider marks: LobeHub icons (MIT), fill-based.
   const ICON = {
+    "log": "<path d=\"M13 12h8\"/> <path d=\"M13 18h8\"/> <path d=\"M13 6h8\"/> <path d=\"M3 12h1\"/> <path d=\"M3 18h1\"/> <path d=\"M3 6h1\"/> <path d=\"M8 12h1\"/> <path d=\"M8 18h1\"/> <path d=\"M8 6h1\"/>",
+    "download": "<path d=\"M12 15V3\"/> <path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/> <path d=\"m7 10 5 5 5-5\"/>",
     "pool": "<path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z\"/> <path d=\"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12\"/> <path d=\"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17\"/>",
     "sessions": "<path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\"/>",
     "keys": "<path d=\"M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z\"/> <circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\"/>",
@@ -231,6 +233,7 @@
       pool: null, poolError: "",
       sessions: null, sessionsError: "",
       meter: null, meterError: "", meterRange: "today",
+      logTab: "failed", failures: null, failuresError: "", logLines: [], logSeq: 0, logLoaded: false, logError: "", logFilter: "all", logTrace: "off",
       keys: null, keysError: "",
       models: null, modelsError: "", modelSearch: "", modelSource: "",
       settings: null, settingsError: "", authKeys: [],
@@ -275,7 +278,7 @@
         if (this.signedIn) { this.startLive(); this.load(this.route); if (!this.updates) this.loadUpdates(); this.seedTimezone(); }
       },
       load(r) {
-        const map = { pool: this.loadPool, sessions: this.loadSessions, keys: this.loadKeys, meter: this.loadMeter, sources: this.loadSources, settings: this.loadSettings };
+        const map = { pool: this.loadPool, sessions: this.loadSessions, keys: this.loadKeys, meter: this.loadMeter, sources: this.loadSources, log: this.loadLogPage, settings: this.loadSettings };
         (map[r] || (() => {})).call(this);
         if (r !== "pool" && !this.pool) this.loadPool();
       },
@@ -345,6 +348,81 @@
         if (need && d[need]) this.load(this.route);
         if (this.drawer && (d.pool || d.sessions)) this.openDrawer(this.drawer, true);
         if (d.updates) this.loadUpdates();
+        if (this.route === "log") {
+          if (d.meter) this.loadFailures();
+          if (d.log) this.loadServerLog();
+        }
+      },
+
+      // ----- log -----
+      loadLogPage() { this.loadFailures(); this.loadServerLog(); },
+      async loadFailures() {
+        try { this.failures = (await api("GET", "/api/errors")).errors || []; this.failuresError = ""; }
+        catch (e) { this.failuresError = e.message; }
+      },
+      // Fetches only lines newer than the last one shown, and keeps the view
+      // pinned to the bottom when it already was.
+      async loadServerLog() {
+        let res;
+        try { res = await api("GET", "/api/log?after=" + this.logSeq); this.logError = ""; }
+        catch (e) { this.logError = e.message; return; }
+        this.logTrace = res.trace || "off";
+        const box = document.querySelector(".log-lines");
+        const pinned = !box || box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+        if (res.entries.length) {
+          this.logLines = this.logLines.concat(res.entries).slice(-1000);
+          this.logSeq = res.entries[res.entries.length - 1].seq;
+        }
+        this.logLoaded = true;
+        if (pinned) this.$nextTick(() => { const b = document.querySelector(".log-lines"); if (b) b.scrollTop = b.scrollHeight; });
+      },
+      // Failures grouped by day, newest first.
+      failureDays() {
+        const out = [];
+        const today = new Date(this.now).toDateString();
+        const yesterday = new Date(this.now - 864e5).toDateString();
+        for (const f of this.failures || []) {
+          const d = new Date(f.ts).toDateString();
+          let g = out[out.length - 1];
+          if (!g || g.key !== d) {
+            g = { key: d, label: d === today ? "Today" : d === yesterday ? "Yesterday" : fmt.day(f.ts), items: [] };
+            out.push(g);
+          }
+          g.items.push(f);
+        }
+        return out;
+      },
+      failureMeta(f) {
+        const parts = [this.esc(f.provider_name || f.provider)];
+        if (f.account) parts.push(this.esc(f.account));
+        if (f.model) parts.push(`<span class="mono">${this.esc(f.model)}</span>`);
+        if (f.key) parts.push("key " + this.esc(f.key));
+        if (!f.status && f.latency_ms) parts.push("after " + Math.max(1, Math.round(f.latency_ms / 1000)) + " s");
+        return parts.join(" · ");
+      },
+      // A trace's detail lines start with two spaces and belong to the line above.
+      logRows() {
+        const rows = [];
+        let keep = false;
+        for (const e of this.logLines) {
+          const detail = e.line.startsWith("  ");
+          const text = e.line.replace(/^mainspring /, "");
+          if (!detail) keep = e.level === "error" || text.startsWith("trace ");
+          if (this.logFilter === "errors" && !keep) continue;
+          rows.push({ seq: e.seq, time: detail ? "" : this.logTime(e.ts), text, kind: detail ? "detail" : e.level });
+        }
+        return rows;
+      },
+      logTime(ms) { const d = new Date(ms); return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":"); },
+      logText() { return this.logLines.map((e) => new Date(e.ts).toISOString() + " " + e.line).join("\n") + "\n"; },
+      downloadLog() {
+        const url = URL.createObjectURL(new Blob([this.logText()], { type: "text/plain" }));
+        const a = document.createElement("a");
+        const d = new Date();
+        a.href = url;
+        a.download = `mainspring-log-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}.txt`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       },
 
       // ----- tailnet -----

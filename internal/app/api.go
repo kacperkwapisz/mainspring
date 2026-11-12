@@ -277,6 +277,7 @@ func buildPool(hub *proxy.Hub, loc *time.Location) map[string]any {
 		"others":    others,
 		"sessions":  len(hub.Router.LiveSessions()),
 		"requests":  totals.Requests,
+		"failed":    totals.Errors,
 		"activity":  activity,
 		"stale_ms":  v.staleMS,
 		"attention": needs,
