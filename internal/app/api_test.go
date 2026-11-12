@@ -59,7 +59,7 @@ func saveCred(t *testing.T, b *Booted, p domain.ProviderID, label string) domain
 
 func TestAPIRequiresPanelSession(t *testing.T) {
 	b := bootAPI(t)
-	for _, path := range []string{"/api/pool", "/api/sessions", "/api/meter", "/api/keys", "/api/settings", "/api/models", "/api/updates", "/api/changelog"} {
+	for _, path := range []string{"/api/pool", "/api/sessions", "/api/meter", "/api/keys", "/api/settings", "/api/models", "/api/updates", "/api/changelog", "/api/log", "/api/errors"} {
 		res := httptest.NewRecorder()
 		b.Handler.ServeHTTP(res, httptest.NewRequest(http.MethodGet, path, nil))
 		if res.Code != 401 || !strings.Contains(res.Body.String(), "panel_signed_out") {

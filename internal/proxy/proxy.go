@@ -206,9 +206,10 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 				if moreHops {
 					break
 				}
-				record(hub, req, hop.Provider, hop.Model, cred.ID, started, "error", usageCounts{}, "")
+				res := failFromExec(req, hop.Provider, hop.Model, result)
+				recordFail(hub, req, hop.Provider, hop.Model, cred.ID, started, res)
 				httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s status=%d", hop.Provider, hop.Model, result.Status))
-				return failFromExec(req, hop.Provider, hop.Model, result), nil
+				return res, nil
 			}
 			router.Succeeded(cred.ID)
 			movedFrom := router.Bind(hop.Provider, sessionKey, cred.ID)
@@ -257,7 +258,15 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 					u := usageCounts{state.PromptTokens, state.CompletionTokens, state.CacheRead, state.CacheWrite}
 					touch.InputTokens, touch.CacheRead = InputTokens(hop.Provider, u.prompt, u.cacheRead, u.cacheWrite), u.cacheRead
 					router.Touch(touch)
-					record(hub, req, hop.Provider, hop.Model, cred.ID, started, status, u, state.RoutedModel)
+					if status == "error" {
+						msg := "the answer stopped before it finished"
+						if state.Error != "" {
+							msg += ": " + httpx.CleanMessage(state.Error)
+						}
+						recordEvent(hub, req, hop.Provider, hop.Model, cred.ID, started, status, u, state.RoutedModel, 0, msg)
+					} else {
+						record(hub, req, hop.Provider, hop.Model, cred.ID, started, status, u, state.RoutedModel)
+					}
 				}()
 				return Result{OK: true, Status: 200, Stream: out, Header: passthrough}, nil
 			}
@@ -277,8 +286,9 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 		lastHop = chain[0]
 	}
 	if restingProvider != "" && (last.Status == 429 || !attempted) {
-		record(hub, req, lastHop.Provider, lastHop.Model, "", started, "error", usageCounts{}, "")
-		return allResting(req, restingProvider, lastHop.Model, restingUntil), nil
+		res := allResting(req, restingProvider, lastHop.Model, restingUntil)
+		recordFail(hub, req, lastHop.Provider, lastHop.Model, "", started, res)
+		return res, nil
 	}
 	if last.Status == 0 {
 		if attempted {
@@ -290,9 +300,10 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 			last.Message = "all credentials failed"
 		}
 	}
-	record(hub, req, lastHop.Provider, lastHop.Model, "", started, "error", usageCounts{}, "")
+	res := failFromExec(req, lastHop.Provider, lastHop.Model, last)
+	recordFail(hub, req, lastHop.Provider, lastHop.Model, "", started, res)
 	httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s status=%d", lastHop.Provider, lastHop.Model, last.Status))
-	return failFromExec(req, lastHop.Provider, lastHop.Model, last), nil
+	return res, nil
 }
 
 func ListModels(hub *Hub) []domain.ModelInfo {
@@ -626,7 +637,16 @@ func usageFrom(translated, upstream any) (pt, ct, cr, cw int64) {
 	return
 }
 
+// recordFail records a failed request with what its client was told.
+func recordFail(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, res Result) {
+	recordEvent(hub, req, providerID, model, credID, started, "error", usageCounts{}, "", res.Status, httpx.ExtractErrorMessage(res.Body))
+}
+
 func record(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, status string, u usageCounts, routed string) {
+	recordEvent(hub, req, providerID, model, credID, started, status, u, routed, 0, "")
+}
+
+func recordEvent(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, status string, u usageCounts, routed string, errStatus int, errMessage string) {
 	pt, ct, cr, cw := u.prompt, u.completion, u.cacheRead, u.cacheWrite
 	priceProvider := map[domain.ProviderID]string{
 		domain.ProviderClaude:   "anthropic",
@@ -650,6 +670,7 @@ func record(hub *Hub, req Request, providerID domain.ProviderID, model, credID s
 		TS: time.Now().UnixMilli(), KeyID: req.Key.ID, CredentialID: credID, Provider: providerID, Model: meterModel, Inbound: req.Inbound,
 		PromptTokens: pt, CompletionTokens: ct, CacheReadTokens: cr, CacheWriteTokens: cw,
 		LatencyMs: time.Now().UnixMilli() - started, Status: status, USD: usd,
+		ErrorStatus: errStatus, ErrorMessage: errMessage,
 	})
 }
 

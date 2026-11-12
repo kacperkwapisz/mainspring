@@ -71,11 +71,13 @@ func LogOK(provider, model, route string) {
 
 func logln(min logLevel, line string) {
 	logMu.Lock()
-	defer logMu.Unlock()
 	if current < min || logWriter == nil {
+		logMu.Unlock()
 		return
 	}
 	fmt.Fprintln(logWriter, line)
+	logMu.Unlock()
+	keepLine(min, line)
 }
 
 // Logf writes one info line, like the tailnet sign-in link.

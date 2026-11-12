@@ -92,8 +92,8 @@ func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, inbound domain.I
 			observe(hub, cred, result)
 			req := Request{Key: key, Inbound: inbound}
 			if !result.OK {
-				record(hub, req, plan.provider, model, cred.ID, started, "error", usageCounts{}, "")
 				last = fmt.Errorf("%s answered %d: %s", providerLabel(plan.provider), result.Status, result.Message)
+				recordEvent(hub, req, plan.provider, model, cred.ID, started, "error", usageCounts{}, "", result.Status, last.Error())
 				if result.Retryable || result.Status == 429 || result.Status >= 500 {
 					continue
 				}

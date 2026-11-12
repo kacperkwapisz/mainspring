@@ -68,6 +68,7 @@ func Create(source map[string]string) (*Booted, error) {
 	authSvc := auth.New(e, store.NewWebAuthnStore(d), settings)
 	bus := live.New()
 	vault.Live, keys.Live, usage.Live, settings.Live, router.Live, activity.Live = bus, bus, bus, bus, bus, bus
+	httpx.SetLogHook(func() { bus.Publish(live.Log) })
 	hub := &proxy.Hub{
 		Env:      e,
 		Vault:    vault,

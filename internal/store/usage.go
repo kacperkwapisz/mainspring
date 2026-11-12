@@ -37,6 +37,8 @@ type UsageStore struct {
 
 func NewUsageStore(d *db.DB) *UsageStore {
 	ensureColumn(d, "usage_events", "credential_id", "TEXT")
+	ensureColumn(d, "usage_events", "error_status", "INTEGER")
+	ensureColumn(d, "usage_events", "error_message", "TEXT")
 	return &UsageStore{db: d}
 }
 
@@ -67,11 +69,11 @@ func (s *UsageStore) Record(event domain.UsageEvent) error {
 		credID = event.CredentialID
 	}
 	_, err := s.db.SQL.Exec(
-		`INSERT INTO usage_events(ts, key_id, credential_id, provider, model, inbound, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, latency_ms, status, usd)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO usage_events(ts, key_id, credential_id, provider, model, inbound, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, latency_ms, status, usd, error_status, error_message)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		event.TS, keyID, credID, string(event.Provider), event.Model, string(event.Inbound),
 		event.PromptTokens, event.CompletionTokens, event.CacheReadTokens, event.CacheWriteTokens,
-		event.LatencyMs, event.Status, event.USD,
+		event.LatencyMs, event.Status, event.USD, nullInt(event.ErrorStatus), nullStr(event.ErrorMessage),
 	)
 	if err == nil {
 		s.Live.Publish(live.Meter, live.Pool, live.Keys, live.Sessions)
@@ -286,4 +288,55 @@ func (s *UsageStore) FirstEvent() int64 {
 	var ts int64
 	_ = s.db.SQL.QueryRow(`SELECT COALESCE(MIN(ts),0) FROM usage_events`).Scan(&ts)
 	return ts
+}
+
+func nullInt(n int) any {
+	if n == 0 {
+		return nil
+	}
+	return n
+}
+
+func nullStr(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// Failure is one request that failed, as the Meter's error list shows it.
+type Failure struct {
+	TS           int64  `json:"ts"`
+	KeyID        string `json:"key_id,omitempty"`
+	CredentialID string `json:"credential_id,omitempty"`
+	Provider     string `json:"provider"`
+	Model        string `json:"model"`
+	Inbound      string `json:"inbound"`
+	LatencyMs    int64  `json:"latency_ms"`
+	Status       int    `json:"status,omitempty"`  // HTTP status the client got; 0 when a stream broke off
+	Message      string `json:"message,omitempty"` // what the client was told; empty for rows from before 1.5
+}
+
+// Failures lists failed requests since from, newest first.
+func (s *UsageStore) Failures(from int64, limit int) ([]Failure, error) {
+	if limit < 1 || limit > 500 {
+		limit = 200
+	}
+	rows, err := s.db.SQL.Query(
+		`SELECT ts, COALESCE(key_id,''), COALESCE(credential_id,''), provider, model, inbound, latency_ms,
+		        COALESCE(error_status,0), COALESCE(error_message,'')
+		 FROM usage_events WHERE status = 'error' AND ts >= ? ORDER BY ts DESC LIMIT ?`, from, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Failure{}
+	for rows.Next() {
+		var f Failure
+		if err := rows.Scan(&f.TS, &f.KeyID, &f.CredentialID, &f.Provider, &f.Model, &f.Inbound, &f.LatencyMs, &f.Status, &f.Message); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
 }

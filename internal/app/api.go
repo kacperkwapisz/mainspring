@@ -420,6 +420,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 	mux.Handle(http.MethodGet, "/api/sessions", authed(func(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, 200, sessionsView(hub))
 	}))
+	registerLogs(mux, hub, authed)
 	mux.Handle(http.MethodGet, "/api/meter", authed(func(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, 200, meterView(hub, r.URL.Query().Get("range"), proxy.Zone(hub)))
 	}))

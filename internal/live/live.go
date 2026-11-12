@@ -16,6 +16,7 @@ const (
 	Keys     = "keys"
 	Settings = "settings"
 	Updates  = "updates"
+	Log      = "log" // a line was logged; the panel's log viewer reads /api/log
 )
 
 // Bus fans change notifications out to subscribers. A nil *Bus is valid and

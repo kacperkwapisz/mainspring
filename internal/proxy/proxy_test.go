@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -900,3 +901,37 @@ func AsArr(v any) []any {
 	return a
 }
 func AsStr(v any) string { s, _ := v.(string); return s }
+
+// A failed request keeps its status and the message its client got, so the
+// panel can list what went wrong.
+func TestFailedRequestKeepsItsMessage(t *testing.T) {
+	defer httpx.SetLogOutput(io.Discard)()
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
+		domain.ProviderCursor: fakeExec{
+			id: domain.ProviderCursor, format: domain.FormatCursor,
+			models: []domain.ModelInfo{{ID: "gpt-5.6-terra-medium", Object: "model", OwnedBy: "cursor"}},
+			fn: func(domain.Credential) provider.ExecuteResult {
+				return provider.ExecuteResult{OK: false, Status: 400, Message: "prompt is too long"}
+			},
+		},
+	})
+	defer d.Close()
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "c1", Provider: domain.ProviderCursor, Label: "Cursor", Tokens: domain.CredentialTokens{AccessToken: "t", Extra: map[string]any{"kind": "oauth"}}})
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	res, err := Proxy(context.Background(), hub, Request{
+		Inbound: domain.InboundOpenAIChat,
+		Body:    map[string]any{"model": "gpt-5.6-terra-medium", "messages": []any{map[string]any{"role": "user", "content": "hi"}}},
+		Key:     *key,
+	})
+	if err != nil || res.OK {
+		t.Fatalf("%v %+v", err, res)
+	}
+	got, err := hub.Usage.Failures(0, 10)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("%v %+v", err, got)
+	}
+	if f := got[0]; f.Status != 400 || !strings.Contains(f.Message, "prompt is too long") || f.CredentialID != "c1" || f.KeyID != key.ID {
+		t.Fatalf("%+v", f)
+	}
+}

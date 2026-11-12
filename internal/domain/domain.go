@@ -92,6 +92,8 @@ type UsageEvent struct {
 	LatencyMs        int64
 	Status           string
 	USD              float64
+	ErrorStatus      int    // for failures: the HTTP status the client got, 0 when a stream broke off
+	ErrorMessage     string // for failures: what the client was told
 }
 
 type ModelPrice struct {
