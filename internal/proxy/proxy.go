@@ -92,12 +92,12 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 		tr.Add("hop %s/%s", h.Provider, h.Model)
 	}
 	if req.Key.DailyCap != nil {
-		used, err := hub.Usage.TodayTokensForKey(req.Key.ID)
+		used, err := hub.Usage.TodayTokensForKey(req.Key.ID, Zone(hub))
 		if err != nil {
 			return Result{}, err
 		}
 		if used >= *req.Key.DailyCap {
-			return failOut(req, 429, httpx.KindCap, "", model, "daily token cap reached", "wait until UTC midnight, or raise the key's cap in the panel"), nil
+			return failOut(req, 429, httpx.KindCap, "", model, "daily token cap reached", "wait until midnight ("+Zone(hub).String()+"), or raise the key's cap in the panel"), nil
 		}
 	}
 

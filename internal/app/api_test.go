@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/proxy"
 	"github.com/kacperkwapisz/mainspring/internal/route"
 	"github.com/kacperkwapisz/mainspring/internal/store"
 )
@@ -174,6 +175,22 @@ func TestAPISettingsRoundTrip(t *testing.T) {
 	}
 	if code, _ = apiCall(t, b, http.MethodPut, "/api/settings", map[string]any{"hub_enabled": true}); code != 400 {
 		t.Fatal("hub needs a key first")
+	}
+}
+
+func TestAPITimezoneSetting(t *testing.T) {
+	b := bootAPI(t)
+	if proxy.Zone(b.Hub) != time.UTC {
+		t.Fatal("days count in UTC until a timezone is set")
+	}
+	code, out := apiCall(t, b, http.MethodPut, "/api/settings", map[string]any{"timezone": "Europe/Warsaw"})
+	if code != 200 || out["timezone"] != "Europe/Warsaw" || proxy.Zone(b.Hub).String() != "Europe/Warsaw" {
+		t.Fatalf("%d %v", code, out)
+	}
+	for _, bad := range []string{"", "Local", "Mars/Olympus", "../etc/passwd"} {
+		if code, _ := apiCall(t, b, http.MethodPut, "/api/settings", map[string]any{"timezone": bad}); code != 400 {
+			t.Fatalf("%q must fail", bad)
+		}
 	}
 }
 

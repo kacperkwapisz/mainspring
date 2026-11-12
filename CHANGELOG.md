@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.4.0] - 2026-11-12
+
+- New setting, Settings → Timezone: where days start for Today in the panel, the Meter's days and each key's daily cap. The first time you open the panel it's set to your browser's timezone.
+- A key's daily cap now resets at midnight in that timezone instead of midnight UTC.
+
 ## [1.3.3] - 2026-11-12
 
 - Today, and the days on the Meter chart, follow your own clock. They used the server's, which on Umbrel and Docker is UTC, so just after midnight Today still showed yesterday.

@@ -23,7 +23,7 @@ Every account of that provider hit a limit. `Retry-After` says when the first on
 
 ## `429` daily token cap reached
 
-The key's daily cap is used up. It resets at midnight UTC, or raise the cap on the Keys page.
+The key's daily cap is used up. It resets at midnight in the timezone under **Settings → Timezone**, or raise the cap on the Keys page.
 
 ## An account says Needs sign-in
 

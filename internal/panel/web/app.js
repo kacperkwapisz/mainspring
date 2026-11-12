@@ -114,8 +114,7 @@
   }
   const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } })();
   async function api(method, path, body) {
-    // X-Timezone: the server counts "today" and chart days on this clock, not its own.
-    const opts = { method, headers: { Accept: "application/json", "X-Timezone": TZ }, credentials: "same-origin" };
+    const opts = { method, headers: { Accept: "application/json" }, credentials: "same-origin" };
     if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
     let res;
     try { res = await fetch(path, opts); } catch { throw new APIError(0, "offline", "Mainspring didn't answer. It may be restarting"); }
@@ -273,7 +272,7 @@
         this.route = ROUTES.includes(h) ? h : "pool";
         this.closeDrawer();
         this.dirty = {};
-        if (this.signedIn) { this.startLive(); this.load(this.route); if (!this.updates) this.loadUpdates(); }
+        if (this.signedIn) { this.startLive(); this.load(this.route); if (!this.updates) this.loadUpdates(); this.seedTimezone(); }
       },
       load(r) {
         const map = { pool: this.loadPool, sessions: this.loadSessions, keys: this.loadKeys, meter: this.loadMeter, sources: this.loadSources, settings: this.loadSettings };
@@ -711,6 +710,39 @@
       snippetPath(tab) { return tab === "claude" ? "Merge into ~/.claude/settings.json" : tab === "codex" ? "Add to ~/.codex/config.toml" : "Any tool that speaks the OpenAI API"; },
 
       // ----- settings -----
+      // The first signed-in visit sets Mainspring's timezone to this browser's.
+      async seedTimezone() {
+        if (this.tzSeeded || !TZ) return;
+        this.tzSeeded = true;
+        try {
+          const s = this.settings || await api("GET", "/api/settings");
+          if (!s.timezone) this.settings = await api("PUT", "/api/settings", { timezone: TZ });
+        } catch { this.tzSeeded = false; }
+      },
+      // Every IANA zone the browser knows, grouped by region, with its current UTC offset.
+      timezoneGroups() {
+        if (this._tzGroups) return this._tzGroups;
+        let names = [];
+        try { names = Intl.supportedValuesOf("timeZone"); } catch { names = []; }
+        if (!names.includes("UTC")) names.push("UTC");
+        const cur = this.settings && this.settings.timezone;
+        if (cur && !names.includes(cur)) names.push(cur);
+        const offset = (z) => {
+          try {
+            const p = new Intl.DateTimeFormat("en-US", { timeZone: z, timeZoneName: "longOffset" }).formatToParts(new Date());
+            const v = (p.find((x) => x.type === "timeZoneName") || {}).value || "";
+            return v === "GMT" ? "UTC" : v.replace("GMT", "UTC");
+          } catch { return ""; }
+        };
+        const groups = {};
+        for (const z of names.sort()) {
+          const region = z.includes("/") ? z.split("/")[0] : "Other";
+          const city = (z.includes("/") ? z.slice(region.length + 1) : z).replace(/_/g, " ").replace(/\//g, " / ");
+          (groups[region] ||= []).push({ value: z, label: city + " (" + offset(z) + ")" });
+        }
+        this._tzGroups = Object.keys(groups).sort().map((r) => ({ region: r, zones: groups[r] }));
+        return this._tzGroups;
+      },
       async saveSetting(patch, msg) {
         try { this.settings = await api("PUT", "/api/settings", patch); if (msg) T.ok(msg); }
         catch (e) { T.err("Couldn't save that setting", e.message); this.loadSettings(); }

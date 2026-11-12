@@ -170,3 +170,33 @@ func TestDailyCountsDaysInTheViewersZone(t *testing.T) {
 		}
 	}
 }
+
+// A key's daily cap counts from midnight in the given zone.
+func TestTodayTokensForKeyCountsFromMidnightInZone(t *testing.T) {
+	d, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	usage := NewUsageStore(d)
+	// A zone 14 hours ahead and one 11 hours behind: an event 13 hours ago is
+	// before midnight in one of them whatever the time now.
+	east, _ := time.LoadLocation("Pacific/Kiritimati")
+	west, _ := time.LoadLocation("Pacific/Pago_Pago")
+	ts := time.Now().Add(-13 * time.Hour)
+	if err := usage.Record(domain.UsageEvent{TS: ts.UnixMilli(), KeyID: "k", Provider: domain.ProviderClaude, Model: "m", Inbound: domain.InboundOpenAIChat, Status: "ok", PromptTokens: 7}); err != nil {
+		t.Fatal(err)
+	}
+	for _, loc := range []*time.Location{east, west, time.UTC} {
+		n := time.Now().In(loc)
+		midnight := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, loc)
+		want := int64(0)
+		if !ts.Before(midnight) {
+			want = 7
+		}
+		got, err := usage.TodayTokensForKey("k", loc)
+		if err != nil || got != want {
+			t.Fatalf("%s: got %d want %d (%v)", loc, got, want, err)
+		}
+	}
+}

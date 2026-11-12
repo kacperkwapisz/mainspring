@@ -397,6 +397,7 @@ func settingsView(hub *proxy.Hub) map[string]any {
 		"update_check":       settingOn(hub, SettingUpdateCheck, true),
 		"web_tools":          settingOn(hub, SettingWebTools, true),
 		"share_pool":         proxy.SharePool(hub),
+		"timezone":           settingString(hub, proxy.SettingTimezone),
 	}
 }
 
@@ -444,6 +445,12 @@ func updateSettings(hub *proxy.Hub, body any) error {
 		}
 		setBool("hub_enabled", SettingHubEnabled)
 	}
+	if tz, ok := m["timezone"].(string); ok {
+		if _, valid := proxy.LoadZone(tz); !valid {
+			return fmt.Errorf("pick a timezone from the list")
+		}
+		_ = hub.Settings.Set(proxy.SettingTimezone, tz)
+	}
 	if t, ok := m["trace"].(string); ok {
 		switch t {
 		case httpx.TraceOff, httpx.TraceErrors, httpx.TraceAlways:
@@ -465,4 +472,9 @@ func newHubKey(hub *proxy.Hub) string {
 	_ = hub.Settings.Set(SettingHubKeyCreated, strconv.FormatInt(time.Now().UnixMilli(), 10))
 	_ = hub.Settings.Set(SettingHubEnabled, "1")
 	return secret
+}
+
+func settingString(hub *proxy.Hub, key string) string {
+	v, _ := hub.Settings.Get(key)
+	return v
 }

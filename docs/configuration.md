@@ -24,6 +24,7 @@ Mainspring needs no configuration to start. Environment variables change where i
 
 | Section | Setting | Default |
 |---|---|---|
+| Timezone | Where days start: Today in the panel, the Meter's days, each key's daily cap | Your browser's, set the first time you open the panel |
 | Tailnet address | Mainspring's own device on your tailnet; see [Tailnet address](tailnet.md) | Off |
 | Routing | Keep sessions on their account for this long after their last request | 1 hour |
 | Routing | Mark an account's limits stale after this long without reading them | 1 hour |

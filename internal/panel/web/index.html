@@ -494,6 +494,16 @@
               </div>
             </div></template>
             <div class="setting-section">
+              <div class="head"><div class="t">Timezone</div></div>
+              <div class="card">
+                <div class="setting-row"><div class="name">Days start at midnight in</div><div class="desc">Today in the panel, the Meter's days and each key's daily cap</div>
+                  <select class="input" style="width:240px;height:32px" aria-label="Timezone" @change="saveSetting({timezone: $event.target.value})">
+                    <template x-if="!settings.timezone"><option value="" selected>UTC (not set)</option></template>
+                    <template x-for="g in timezoneGroups()" :key="g.region"><optgroup :label="g.region"><template x-for="z in g.zones" :key="z.value"><option :value="z.value" x-text="z.label" :selected="settings.timezone === z.value"></option></template></optgroup></template>
+                  </select></div>
+              </div>
+            </div>
+            <div class="setting-section">
               <div class="head"><div class="t">Routing</div><div class="d">New sessions go to the account whose limit resets soonest while it still has reserve left</div></div>
               <div class="card">
                 <div class="setting-row"><div class="name">Keep sessions on their account</div><div class="desc">For this long after the last request, so prompt caches stay warm</div>

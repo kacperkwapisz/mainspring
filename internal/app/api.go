@@ -94,18 +94,6 @@ func startOfDayAgo(loc *time.Location, days int) int64 {
 	return time.Date(n.Year(), n.Month(), n.Day()-days, 0, 0, 0, 0, loc).UnixMilli()
 }
 
-// viewerZone is the timezone the panel sent in X-Timezone (an IANA name like
-// Europe/Warsaw), so "today" and chart days match the viewer's clock rather
-// than the server's, which on Umbrel and Docker is UTC.
-func viewerZone(r *http.Request) *time.Location {
-	if name := r.Header.Get("X-Timezone"); name != "" && len(name) < 64 {
-		if loc, err := time.LoadLocation(name); err == nil {
-			return loc
-		}
-	}
-	return time.Local
-}
-
 func newPoolView(hub *proxy.Hub, loc *time.Location) poolView {
 	v := poolView{now: time.Now().UnixMilli(), staleMS: staleMS(hub), sessionsOn: map[string]int{}, today: map[string]store.UsageBreakdown{}}
 	for _, s := range hub.Router.LiveSessions() {
@@ -340,14 +328,14 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		}
 	}
 	mux.Handle(http.MethodGet, "/api/pool", authed(func(w http.ResponseWriter, r *http.Request) {
-		httpx.JSON(w, 200, buildPool(hub, viewerZone(r)))
+		httpx.JSON(w, 200, buildPool(hub, proxy.Zone(hub)))
 	}))
 	mux.Handle(http.MethodGet, "/api/accounts/{id}", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
 		if c == nil {
 			return
 		}
-		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
+		httpx.JSON(w, 200, accountDetail(hub, *c, proxy.Zone(hub)))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/rotation", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -358,7 +346,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		on := jsonBool(body, "on")
 		hub.Router.SetBenched(c.ID, !on)
 		hub.Activity.Add(store.ActivityBenched, string(c.Provider), c.ID, map[string]any{"account": c.Label, "in_rotation": on})
-		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
+		httpx.JSON(w, 200, accountDetail(hub, *c, proxy.Zone(hub)))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/check", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -388,7 +376,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		if fresh, err := hub.Vault.Get(c.ID); err == nil && fresh != nil {
 			c = fresh
 		}
-		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
+		httpx.JSON(w, 200, accountDetail(hub, *c, proxy.Zone(hub)))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/rename", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -403,7 +391,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		}
 		_ = hub.Vault.Rename(c.ID, name)
 		c.Label = name
-		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
+		httpx.JSON(w, 200, accountDetail(hub, *c, proxy.Zone(hub)))
 	}))
 	mux.Handle(http.MethodPost, "/api/accounts/{id}/reset-cooldown", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -411,7 +399,7 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 			return
 		}
 		hub.Router.ClearCooldown(c.ID)
-		httpx.JSON(w, 200, accountDetail(hub, *c, viewerZone(r)))
+		httpx.JSON(w, 200, accountDetail(hub, *c, proxy.Zone(hub)))
 	}))
 	mux.Handle(http.MethodDelete, "/api/accounts/{id}", authed(func(w http.ResponseWriter, r *http.Request) {
 		c := credOr404(w, hub, httpx.Param(r, "id"))
@@ -433,10 +421,10 @@ func registerAPI(mux *httpx.Mux, hub *proxy.Hub, gate Gate) {
 		httpx.JSON(w, 200, sessionsView(hub))
 	}))
 	mux.Handle(http.MethodGet, "/api/meter", authed(func(w http.ResponseWriter, r *http.Request) {
-		httpx.JSON(w, 200, meterView(hub, r.URL.Query().Get("range"), viewerZone(r)))
+		httpx.JSON(w, 200, meterView(hub, r.URL.Query().Get("range"), proxy.Zone(hub)))
 	}))
 	mux.Handle(http.MethodGet, "/api/keys", authed(func(w http.ResponseWriter, r *http.Request) {
-		httpx.JSON(w, 200, keysView(hub, viewerZone(r)))
+		httpx.JSON(w, 200, keysView(hub, proxy.Zone(hub)))
 	}))
 	mux.Handle(http.MethodPost, "/api/keys", authed(func(w http.ResponseWriter, r *http.Request) {
 		createKey(w, r, hub)

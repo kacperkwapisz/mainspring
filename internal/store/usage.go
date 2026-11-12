@@ -196,8 +196,13 @@ func (s *UsageStore) Daily(days int, loc *time.Location) ([]UsagePoint, error) {
 	return out, nil
 }
 
-func (s *UsageStore) TodayTokensForKey(keyID string) (int64, error) {
-	start := startOfUTCDay(nowMs())
+// TodayTokensForKey counts a key's tokens since midnight in loc.
+func (s *UsageStore) TodayTokensForKey(keyID string, loc *time.Location) (int64, error) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).UnixMilli()
 	var n int64
 	err := s.db.SQL.QueryRow(
 		`SELECT COALESCE(SUM(prompt_tokens + completion_tokens),0) FROM usage_events WHERE key_id = ? AND ts >= ?`,
@@ -210,11 +215,6 @@ func scanTotals(row rowScanner) (UsageTotals, error) {
 	var t UsageTotals
 	err := row.Scan(&t.Requests, &t.PromptTokens, &t.CompletionTokens, &t.CacheReadTokens, &t.CacheWriteTokens, &t.USD, &t.Errors)
 	return t, err
-}
-
-func startOfUTCDay(ts int64) int64 {
-	t := time.UnixMilli(ts).UTC()
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).UnixMilli()
 }
 
 var groupColumns = map[string]string{
