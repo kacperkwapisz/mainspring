@@ -499,9 +499,10 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
 
 .web-stats { display: flex; gap: 32px; padding: 4px 15px 12px; }
 .web-stats > div { display: flex; align-items: baseline; gap: 6px; }
-/* Today sits at the right edge: keep its value and label inside the card. */
+/* Today sits at the right edge: keep its value inside the card. */
 .chart-col:last-child .chart-tip { left: auto; right: 0; transform: none; }
-.chart-labels span.today { display: flex; justify-content: flex-end; white-space: nowrap; }
+/* Centred under its bar like the other days; on narrow charts "Today" may spill evenly into the gaps. */
+.chart-labels span.today { display: flex; justify-content: center; white-space: nowrap; }
 
 /* Sessions: below 1100px each session stacks instead of ten squeezed columns. */
 .sessions-table td.c-meta { display: none; }
