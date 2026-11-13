@@ -127,7 +127,7 @@ The pool as a client sees it: every account with its status and limits, which on
 
 `status` is `next`, `active`, `cooling`, `benched` or `needs_sign_in`.
 
-`incidents` lists open incidents on a provider's status page that affect requests, newest first: `provider`, `company`, `name`, `impact`, `status`, `started_at` and `url`. It's empty when there are none. Only Anthropic's status page is followed.
+`incidents` lists open incidents on a provider's status page that affect requests, newest first: `provider`, `company`, `name`, `impact`, `status`, `started_at` and `url`. It's empty when there are none. Anthropic's, OpenAI's and Cursor's status pages are followed.
 
 ## Response headers
 

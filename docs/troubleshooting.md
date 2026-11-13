@@ -21,7 +21,15 @@ The key is limited to other providers or models. See [Keys](keys.md).
 
 Messages like `503 credential validation failed` or `overloaded_error` come from the provider, not from Mainspring. Mainspring tries your other accounts first, but an outage usually hits all of them.
 
-Mainspring follows Anthropic's status page every two minutes while you have a Claude account. During an incident that affects the Claude API or Claude Code, the Pool and Log pages show it with a link to the status page, the failed request's message names it, and the server log notes when it opens and closes. pi's `/mainspring` shows it too. Other providers don't publish their incidents in a form Mainspring can read.
+Mainspring follows the status pages of Anthropic, OpenAI and Cursor every two minutes, for the providers you have accounts with. It keeps the incidents that affect requests through Mainspring:
+
+| Provider | Status page | Incidents that affect |
+|---|---|---|
+| Claude | status.claude.com | Claude API, Claude Code |
+| Codex | status.openai.com | Responses, Codex API, CLI, Login |
+| Cursor | status.cursor.com | IDE, CLI, Third-party models |
+
+During one, the Pool and Log pages show it with a link to the status page, the failed request's message names it, and the server log notes when it opens and closes. pi's `/mainspring` shows it too. Grok and OpenCode have no status page Mainspring can read.
 
 ## `429` every account is resting
 

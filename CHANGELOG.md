@@ -2,6 +2,10 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.7.1] - 2026-11-13
+
+- Mainspring also follows OpenAI's and Cursor's status pages, so Codex and Cursor incidents show on the Pool and Log pages and in failed requests' messages, like Claude's.
+
 ## [1.7.0] - 2026-11-13
 
 - Mainspring follows Anthropic's status page. During an incident that affects the Claude API or Claude Code, the Pool and Log pages say so with a link, a failed request's message names the incident, and the server log notes when it opens and closes.

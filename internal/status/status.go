@@ -1,8 +1,9 @@
 // Package status follows providers' public status pages, so the panel can say
 // when a failure is the provider's outage rather than something to fix here.
 //
-// Only Anthropic publishes its incidents as Statuspage JSON; OpenAI, xAI,
-// Cursor and OpenCode don't, so only Claude is followed.
+// Anthropic and Cursor publish Statuspage JSON and OpenAI publishes
+// incident.io's; xAI's page names no component for the Grok API and OpenCode
+// has none, so Grok and OpenCode aren't followed.
 package status
 
 import (
@@ -35,9 +36,10 @@ type Incident struct {
 }
 
 type page struct {
-	provider domain.ProviderID
-	company  string
-	url      string // Statuspage /api/v2/incidents/unresolved.json
+	provider   domain.ProviderID
+	company    string
+	url        string // Statuspage incidents JSON, or an incident.io page's /proxy/ summary
+	incidentIO bool
 	// components that matter to requests through Mainspring; an incident
 	// touching only others (claude.ai connectors, the Console) is left out.
 	components []string
@@ -48,6 +50,18 @@ var pages = []page{{
 	company:    "Anthropic",
 	url:        "https://status.claude.com/api/v2/incidents/unresolved.json",
 	components: []string{"Claude API", "Claude Code"},
+}, {
+	// OpenAI's Statuspage-style feed lists no components, so read incident.io's own.
+	provider:   domain.ProviderCodex,
+	company:    "OpenAI",
+	url:        "https://status.openai.com/proxy/status.openai.com",
+	incidentIO: true,
+	components: []string{"Responses", "Codex API", "CLI", "Login"},
+}, {
+	provider:   domain.ProviderCursor,
+	company:    "Cursor",
+	url:        "https://status.cursor.com/api/v2/incidents.json",
+	components: []string{"IDE", "CLI", "Third-party models"},
 }}
 
 // Watcher holds the open incidents.
@@ -161,6 +175,13 @@ func (w *Watcher) fetch(ctx context.Context, pg page) ([]Incident, error) {
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s answered %d", pg.url, res.StatusCode)
 	}
+	if pg.incidentIO {
+		var body incidentIOPage
+		if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		return parseIncidentIO(pg, body), nil
+	}
 	var body statuspage
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		return nil, err
@@ -191,24 +212,106 @@ func parse(pg page, body statuspage) []Incident {
 		if in.Status == "resolved" || in.Status == "postmortem" {
 			continue
 		}
-		relevant := false
+		var names []string
 		for _, c := range in.Components {
-			for _, want := range pg.components {
-				if strings.HasPrefix(c.Name, want) {
-					relevant = true
-				}
-			}
+			names = append(names, c.Name)
 		}
-		if !relevant {
+		if !pg.relevant(names) {
 			continue
 		}
 		x := Incident{Provider: pg.provider, Company: pg.company, Name: in.Name, Impact: in.Impact, Status: in.Status,
 			StartedAt: in.CreatedAt.UnixMilli(), UpdatedAt: in.UpdatedAt.UnixMilli(), URL: in.Shortlink}
 		if x.URL == "" {
-			x.URL = strings.TrimSuffix(strings.TrimSuffix(pg.url, "/api/v2/incidents/unresolved.json"), "/")
+			x.URL = pg.home()
 		}
 		if len(in.Updates) > 0 {
 			x.Update = strings.TrimSpace(in.Updates[0].Body)
+		}
+		out = append(out, x)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt > out[j].StartedAt })
+	return out
+}
+
+func (pg page) relevant(components []string) bool {
+	for _, c := range components {
+		for _, want := range pg.components {
+			if c == want || strings.HasPrefix(c, want+" ") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// home is the status page itself.
+func (pg page) home() string {
+	u := pg.url
+	if i := strings.Index(u, "/api/"); i > 0 {
+		return u[:i]
+	}
+	if i := strings.Index(u, "/proxy/"); i > 0 {
+		return u[:i]
+	}
+	return u
+}
+
+// incidentIOPage is the part of an incident.io status page summary we read.
+type incidentIOPage struct {
+	Summary struct {
+		Components []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"components"`
+		Ongoing []struct {
+			ID          string    `json:"id"`
+			Name        string    `json:"name"`
+			Status      string    `json:"status"`
+			PublishedAt time.Time `json:"published_at"`
+			Affected    []struct {
+				ComponentID string `json:"component_id"`
+				Status      string `json:"current_status"`
+			} `json:"affected_components"`
+			Updates []struct {
+				PublishedAt time.Time `json:"published_at"`
+				Text        string    `json:"message_string"`
+			} `json:"updates"`
+		} `json:"ongoing_incidents"`
+	} `json:"summary"`
+}
+
+func parseIncidentIO(pg page, body incidentIOPage) []Incident {
+	names := map[string]string{}
+	for _, c := range body.Summary.Components {
+		names[c.ID] = c.Name
+	}
+	var out []Incident
+	for _, in := range body.Summary.Ongoing {
+		if in.Status == "resolved" {
+			continue
+		}
+		var affected []string
+		impact := "minor"
+		for _, a := range in.Affected {
+			affected = append(affected, names[a.ComponentID])
+			switch a.Status {
+			case "full_outage":
+				impact = "critical"
+			case "partial_outage":
+				if impact != "critical" {
+					impact = "major"
+				}
+			}
+		}
+		if !pg.relevant(affected) {
+			continue
+		}
+		x := Incident{Provider: pg.provider, Company: pg.company, Name: in.Name, Impact: impact, Status: in.Status,
+			StartedAt: in.PublishedAt.UnixMilli(), UpdatedAt: in.PublishedAt.UnixMilli(), URL: pg.home() + "/incidents/" + in.ID}
+		for _, u := range in.Updates {
+			if u.PublishedAt.UnixMilli() >= x.UpdatedAt {
+				x.UpdatedAt, x.Update = u.PublishedAt.UnixMilli(), strings.TrimSpace(u.Text)
+			}
 		}
 		out = append(out, x)
 	}
