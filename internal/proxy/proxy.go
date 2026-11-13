@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/kacperkwapisz/mainspring/internal/live"
+	"github.com/kacperkwapisz/mainspring/internal/status"
 	"github.com/kacperkwapisz/mainspring/internal/update"
 	"net/http"
 	"strings"
@@ -44,6 +45,7 @@ type Hub struct {
 	Activity  *store.ActivityStore
 	Live      *live.Bus // tells open panels what changed
 	Updates   *update.Checker
+	Status    *status.Watcher // open incidents on providers' status pages
 }
 
 type Request struct {
@@ -207,7 +209,7 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 				if moreHops {
 					break
 				}
-				res := failFromExec(req, hop.Provider, hop.Model, result)
+				res := withIncident(hub, hop.Provider, result.Status, failFromExec(req, hop.Provider, hop.Model, result))
 				recordFail(hub, req, hop.Provider, hop.Model, cred.ID, started, res)
 				httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s status=%d", hop.Provider, hop.Model, result.Status))
 				return res, nil
@@ -264,6 +266,9 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 						if state.Error != "" {
 							msg += ": " + httpx.CleanMessage(state.Error)
 						}
+						if in, ok := hub.Status.For(hop.Provider); ok {
+							msg += " (" + in.Company + " reports an incident: " + in.Name + ", " + in.URL + ")"
+						}
 						recordEvent(hub, req, hop.Provider, hop.Model, cred.ID, started, status, u, state.RoutedModel, 0, msg)
 					} else {
 						record(hub, req, hop.Provider, hop.Model, cred.ID, started, status, u, state.RoutedModel)
@@ -301,7 +306,7 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 			last.Message = "all credentials failed"
 		}
 	}
-	res := failFromExec(req, lastHop.Provider, lastHop.Model, last)
+	res := withIncident(hub, lastHop.Provider, last.Status, failFromExec(req, lastHop.Provider, lastHop.Model, last))
 	recordFail(hub, req, lastHop.Provider, lastHop.Model, "", started, res)
 	httpx.DumpTrace(ctx, true, fmt.Sprintf("%s/%s status=%d", lastHop.Provider, lastHop.Model, last.Status))
 	return res, nil

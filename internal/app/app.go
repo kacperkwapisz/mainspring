@@ -1,7 +1,9 @@
 package app
 
 import (
+	"context"
 	"github.com/kacperkwapisz/mainspring/internal/live"
+	"github.com/kacperkwapisz/mainspring/internal/status"
 	"github.com/kacperkwapisz/mainspring/internal/tailnet"
 	"github.com/kacperkwapisz/mainspring/internal/update"
 	"net/http"
@@ -80,6 +82,7 @@ func Create(source map[string]string) (*Booted, error) {
 		Activity: activity,
 		Live:     bus,
 		Updates:  update.NewChecker(Version, e.Install),
+		Status:   status.NewWatcher(),
 		Executors: map[domain.ProviderID]provider.Executor{
 			domain.ProviderClaude:   claudeexec.Executor{ClientID: e.ClaudeClientID},
 			domain.ProviderCodex:    codexexec.Executor{ClientID: e.CodexClientID},
@@ -135,6 +138,39 @@ func applyRoutingSettings(r *route.Engine, settings *store.SettingsStore) {
 	if v, ok := settings.Get(SettingAffinityTTL); ok {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			r.SetAffinityTTL(time.Duration(n) * time.Minute)
+		}
+	}
+}
+
+// WatchStatus follows providers' status pages for the providers in the pool,
+// tells open panels when incidents open, change or close, and logs them.
+func WatchStatus(ctx context.Context, hub *proxy.Hub) {
+	hub.Status.OnChange = func(opened, resolved []status.Incident) {
+		for _, in := range opened {
+			httpx.Logf("status: %s reports an incident: %s (%s)", in.Company, in.Name, in.URL)
+		}
+		for _, in := range resolved {
+			httpx.Logf("status: %s resolved: %s", in.Company, in.Name)
+		}
+		hub.Live.Publish(live.Pool)
+	}
+	inPool := func(p domain.ProviderID) bool {
+		creds, _ := hub.Vault.List()
+		for _, c := range creds {
+			if c.Provider == p {
+				return true
+			}
+		}
+		return false
+	}
+	t := time.NewTicker(status.Every)
+	defer t.Stop()
+	for {
+		hub.Status.Check(ctx, inPool)
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
 		}
 	}
 }

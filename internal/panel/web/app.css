@@ -551,3 +551,10 @@ select.input { appearance: none; padding-right: 28px; background-image: url("dat
   .log-line .t { width: 56px; }
   .log-lines { max-height: calc(100dvh - 320px); }
 }
+
+/* A notice with a button: on phones the button goes under the text. */
+@media (max-width: 759px) {
+  .notice.has-action { flex-wrap: wrap; row-gap: 8px; }
+  .notice.has-action .body { flex-basis: calc(100% - 28px); }
+  .notice.has-action > .btn { margin-left: 22px; }
+}

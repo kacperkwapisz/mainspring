@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.7.0] - 2026-11-13
+
+- Mainspring follows Anthropic's status page. During an incident that affects the Claude API or Claude Code, the Pool and Log pages say so with a link, a failed request's message names the incident, and the server log notes when it opens and closes.
+- pi's `/mainspring` shows open incidents too, closes on Esc in every terminal, sits in a frame and groups live sessions by account. Run `pi update` to get it.
+
 ## [1.6.1] - 2026-11-12
 
 - Fixes Claude refusing some requests with "A maximum of 4 blocks with cache_control may be provided". Requests Mainspring reshapes for Claude now keep at most four cache breakpoints, keeping the ones at the start and at the end of the conversation.

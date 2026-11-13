@@ -189,6 +189,13 @@
           </div>
         </template>
 
+        <!-- Provider incidents (service-wide) -->
+        <template x-if="pool && pool.incidents && pool.incidents.length">
+          <template x-for="inc in pool.incidents" :key="inc.url + inc.started_at">
+            <div class="notice has-action"><span x-html="icon('alert')"></span><div class="body"><div class="title" x-text="inc.name"></div><div class="subtle" x-text="(inc.company || 'The provider') + ' is ' + (inc.status === 'monitoring' ? 'watching a fix' : inc.status === 'identified' ? 'fixing it' : 'investigating') + ', since ' + fmt.clock(inc.started_at) + '. ' + (PROVIDERS[inc.provider]?.name || '') + ' requests may fail until it\'s resolved; Mainspring tries your other accounts first'"></div></div><a class="btn btn-ghost btn-sm" :href="inc.url" target="_blank" rel="noopener">Status page<span x-html="icon('external')"></span></a></div>
+          </template>
+        </template>
+
         <!-- Everything out notice (service-wide) -->
         <template x-if="pool">
           <template x-for="g in pool.groups.filter(g => !g.next_up)" :key="'out'+g.provider">
@@ -472,6 +479,11 @@
         </div>
       </div>
       <div class="content">
+        <template x-if="pool && pool.incidents && pool.incidents.length">
+          <template x-for="inc in pool.incidents" :key="inc.url + inc.started_at">
+            <div class="notice has-action"><span x-html="icon('alert')"></span><div class="body"><div class="title" x-text="inc.name"></div><div class="subtle" x-text="(inc.company || 'The provider') + ' is ' + (inc.status === 'monitoring' ? 'watching a fix' : inc.status === 'identified' ? 'fixing it' : 'investigating') + ', since ' + fmt.clock(inc.started_at) + '. ' + (PROVIDERS[inc.provider]?.name || '') + ' requests may fail until it\'s resolved; Mainspring tries your other accounts first'"></div></div><a class="btn btn-ghost btn-sm" :href="inc.url" target="_blank" rel="noopener">Status page<span x-html="icon('external')"></span></a></div>
+          </template>
+        </template>
         <template x-if="logTab === 'failed'"><div>
           <template x-if="failuresError && !failures"><div class="card pane-error"><div><div class="strong">Couldn't load failed requests</div><div class="subtle" x-text="failuresError"></div></div><button class="btn btn-secondary btn-sm" @click="loadFailures()">Retry</button></div></template>
           <template x-if="failures"><section class="card">

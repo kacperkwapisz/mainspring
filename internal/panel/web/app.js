@@ -349,6 +349,7 @@
         if (this.drawer && (d.pool || d.sessions)) this.openDrawer(this.drawer, true);
         if (d.updates) this.loadUpdates();
         if (this.route === "log") {
+          if (d.pool && !this.pool) this.loadPool();
           if (d.meter) this.loadFailures();
           if (d.log) this.loadServerLog();
         }

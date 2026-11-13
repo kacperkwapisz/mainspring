@@ -93,3 +93,23 @@ func looksLikeNoCred(msg string) bool {
 func looksLikeMissingProvider(msg string) bool {
 	return strings.Contains(strings.ToLower(msg), "is not available")
 }
+
+// withIncident adds the provider's open incident to a failure it may explain:
+// a 5xx, or a stream that broke off (status 0).
+func withIncident(hub *Hub, providerID domain.ProviderID, status int, res Result) Result {
+	if hub == nil || (status < 500 && status != 0) {
+		return res
+	}
+	in, ok := hub.Status.For(providerID)
+	if !ok {
+		return res
+	}
+	note := " (" + in.Company + " reports an incident: " + in.Name + ", " + in.URL + ")"
+	for _, m := range []map[string]any{asMap(res.Body), asMap(asMap(res.Body)["error"])} {
+		if msg, ok := m["message"].(string); ok {
+			m["message"] = msg + note
+			return res
+		}
+	}
+	return res
+}

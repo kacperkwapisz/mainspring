@@ -282,6 +282,7 @@ func buildPool(hub *proxy.Hub, loc *time.Location) map[string]any {
 		"stale_ms":  v.staleMS,
 		"attention": needs,
 		"empty":     len(creds) == 0,
+		"incidents": hub.Status.Open(),
 	}
 }
 

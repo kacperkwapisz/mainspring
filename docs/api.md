@@ -120,11 +120,14 @@ The pool as a client sees it: every account with its status and limits, which on
     }
   ],
   "others": [],
-  "sessions": [{ "provider": "claude", "account": "alex@example.com", "model": "claude-sonnet-5-5", "client": "pi", "requests": 14, "last_at": 1794358700000 }]
+  "sessions": [{ "provider": "claude", "account": "alex@example.com", "model": "claude-sonnet-5-5", "client": "pi", "requests": 14, "last_at": 1794358700000 }],
+  "incidents": []
 }
 ```
 
 `status` is `next`, `active`, `cooling`, `benched` or `needs_sign_in`.
+
+`incidents` lists open incidents on a provider's status page that affect requests, newest first: `provider`, `company`, `name`, `impact`, `status`, `started_at` and `url`. It's empty when there are none. Only Anthropic's status page is followed.
 
 ## Response headers
 

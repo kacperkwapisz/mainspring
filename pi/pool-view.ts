@@ -123,6 +123,10 @@ export class PoolView {
 			out.push(t.fg("dim", "Loading…"));
 		} else {
 			const p = this.pool;
+			for (const inc of p.incidents ?? []) {
+				out.push(`${t.fg("warning", "!")} ${t.bold(inc.name)}`);
+				out.push(t.fg("dim", `  ${inc.company} is on it, since ${inTime(now, inc.started_at)} ago · ${inc.url}`), "");
+			}
 			if (this.o.current) out.push(`${t.fg("muted", "This session")}  ${t.fg("accent", "●")} ${this.o.current}`, "");
 			for (const g of p.groups) {
 				const next = g.back_at ? t.fg("warning", `every account is out · first back in ${inTime(g.back_at, now)}`) : "";

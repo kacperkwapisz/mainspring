@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/kacperkwapisz/mainspring/internal/status"
 	"math/rand"
 	"time"
 
@@ -225,6 +226,15 @@ func SeedDemo(b *Booted) error {
 		if f.ago < 3*time.Hour {
 			httpx.Fail{Kind: f.kind, Status: f.status, Provider: string(f.p), Model: f.model, Route: string(f.inbound), Message: f.message}.Log()
 		}
+	}
+
+	// Anthropic has an incident open.
+	if hub.Status != nil {
+		hub.Status.Set(domain.ProviderClaude, []status.Incident{{
+			Provider: domain.ProviderClaude, Company: "Anthropic", Name: "Elevated errors on claude.ai, the Claude API, and Claude Code",
+			Impact: "major", Status: "investigating", Update: "We are investigating reports of degraded performance affecting claude.ai, the Claude API, and Claude Code.",
+			StartedAt: now.Add(-23 * time.Minute).UnixMilli(), UpdatedAt: now.Add(-23 * time.Minute).UnixMilli(), URL: "https://status.claude.com",
+		}})
 	}
 
 	// What happened today.

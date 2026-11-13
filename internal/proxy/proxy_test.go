@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/kacperkwapisz/mainspring/internal/provider"
 	"github.com/kacperkwapisz/mainspring/internal/provider/cursor"
 	"github.com/kacperkwapisz/mainspring/internal/route"
+	"github.com/kacperkwapisz/mainspring/internal/status"
 	"github.com/kacperkwapisz/mainspring/internal/store"
 )
 
@@ -953,5 +955,22 @@ func TestCacheTTLIsAnHourForSessionsOnly(t *testing.T) {
 		if got := cacheTTL(c.p, c.key, c.body); got != c.want {
 			t.Fatalf("%s %q: got %q want %q", c.p, c.key, got, c.want)
 		}
+	}
+}
+
+func TestFailureNamesTheProvidersIncident(t *testing.T) {
+	hub := &Hub{Status: status.NewWatcher()}
+	res := Result{Status: 503, Body: map[string]any{"error": map[string]any{"message": "credential validation failed"}}}
+	if got := withIncident(hub, domain.ProviderClaude, 503, res); strings.Contains(fmt.Sprint(got.Body), "incident") {
+		t.Fatal("no incident open, nothing to add")
+	}
+	hub.Status.Set(domain.ProviderClaude, []status.Incident{{Provider: domain.ProviderClaude, Company: "Anthropic", Name: "Elevated errors", URL: "https://stspg.io/a"}})
+	got := withIncident(hub, domain.ProviderClaude, 503, res)
+	if msg := fmt.Sprint(got.Body); !strings.Contains(msg, "Anthropic reports an incident: Elevated errors, https://stspg.io/a") {
+		t.Fatal(msg)
+	}
+	limit := Result{Status: 429, Body: map[string]any{"error": map[string]any{"message": "limit"}}}
+	if got := withIncident(hub, domain.ProviderClaude, 429, limit); strings.Contains(fmt.Sprint(got.Body), "incident") {
+		t.Fatal("a 429 is the account's limit, not the outage")
 	}
 }

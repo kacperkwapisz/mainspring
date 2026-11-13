@@ -115,6 +115,8 @@ export interface Pool {
 	groups: { provider: string; name: string; next_up: string; back_at?: number; accounts: PoolAccount[] }[];
 	others: { provider: string; name: string; label: string; status: string }[];
 	sessions: { provider: string; account: string; model: string; client: string; requests: number; last_at: number }[];
+	/** Open incidents on providers' status pages (Mainspring 1.7.0 and later). */
+	incidents?: { provider: string; company: string; name: string; status: string; started_at: number; url: string }[];
 }
 
 export function fetchPool(config: Config): Promise<Pool> {

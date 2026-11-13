@@ -78,7 +78,7 @@ func registerPoolAPI(mux *httpx.Mux, hub *proxy.Hub) {
 			}
 			sessions = append(sessions, map[string]any{"provider": s.Provider, "account": label, "model": s.Model, "client": s.Client, "requests": s.Requests, "last_at": s.LastAt})
 		}
-		httpx.JSON(w, http.StatusOK, map[string]any{"now": pool["now"], "groups": nonNil(groups), "others": nonNil(others), "sessions": nonNil(sessions)})
+		httpx.JSON(w, http.StatusOK, map[string]any{"now": pool["now"], "groups": nonNil(groups), "others": nonNil(others), "sessions": nonNil(sessions), "incidents": hub.Status.Open()})
 	})
 }
 

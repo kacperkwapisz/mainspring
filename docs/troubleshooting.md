@@ -17,6 +17,12 @@ The model ID isn't one Mainspring can serve. Check the spelling against `GET /v1
 
 The key is limited to other providers or models. See [Keys](keys.md).
 
+## Errors from the provider during an outage
+
+Messages like `503 credential validation failed` or `overloaded_error` come from the provider, not from Mainspring. Mainspring tries your other accounts first, but an outage usually hits all of them.
+
+Mainspring follows Anthropic's status page every two minutes while you have a Claude account. During an incident that affects the Claude API or Claude Code, the Pool and Log pages show it with a link to the status page, the failed request's message names it, and the server log notes when it opens and closes. pi's `/mainspring` shows it too. Other providers don't publish their incidents in a form Mainspring can read.
+
 ## `429` every account is resting
 
 Every account of that provider hit a limit. `Retry-After` says when the first one is back. Add another account, or use a model from another provider until then.

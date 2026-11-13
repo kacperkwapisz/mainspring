@@ -87,6 +87,7 @@ func main() {
 		}
 	}()
 	go proxy.WatchResets(context.Background(), booted.Hub)
+	go app.WatchStatus(context.Background(), booted.Hub)
 	go func() {
 		time.Sleep(15 * time.Second)
 		app.CheckForUpdates(context.Background(), booted.Hub, false)
