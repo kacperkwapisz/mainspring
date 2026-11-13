@@ -1,5 +1,5 @@
 // The /mainspring overlay: every account, its limits and when they reset.
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { fetchPool, type Config, type Pool, type PoolAccount, type PoolWindow } from "./client.ts";
 
 type Theme = { fg(color: string, text: string): string; bold(text: string): string };
@@ -50,8 +50,10 @@ export class PoolView {
 		this.o.requestRender();
 	}
 
+	// matchesKey understands every keyboard protocol pi supports; terminals
+	// with the kitty protocol don't send Escape as a bare \x1b.
 	handleInput(data: string) {
-		if (data === "\x1b" || data === "q" || data === "\x03") {
+		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c") || data === "q") {
 			clearInterval(this.timer);
 			this.o.close();
 		} else if (data === "r") void this.load();
@@ -63,15 +65,16 @@ export class PoolView {
 		const t = this.o.theme;
 		const left = w.left ?? 0;
 		const used = Math.min(width, Math.round(((100 - left) / 100) * width));
-		const cells = Array.from({ length: width }, (_, i) => (i < used ? "█" : "░"));
+		// Thin line glyphs: block shades render as solid grey in many fonts.
+		const tone = left <= 10 ? "error" : left <= 25 ? "warning" : "success";
+		const cells = Array.from({ length: width }, (_, i) => (i < used ? t.fg(tone, "━") : t.fg("dim", "─")));
 		// The pace marker: how much of the window has passed.
 		if (w.period_ms && w.resets_at) {
 			const passed = 1 - (w.resets_at - now) / w.period_ms;
 			const at = Math.round(Math.min(1, Math.max(0, passed)) * (width - 1));
-			cells[at] = at < used ? "•" : "◦";
+			cells[at] = t.fg("text", "┃");
 		}
-		const tone = left <= 10 ? "error" : left <= 25 ? "warning" : "success";
-		return t.fg(tone, cells.slice(0, used).join("")) + t.fg("muted", cells.slice(used).join(""));
+		return cells.join("");
 	}
 
 	private windowLine(w: PoolWindow, now: number, barWidth: number): string {
@@ -99,6 +102,15 @@ export class PoolView {
 	render(width: number): string[] {
 		const t = this.o.theme;
 		const inner = Math.max(20, width - 4);
+		const box = Math.max(4, width - 2);
+		const frame = (lines: string[]) => [
+			t.fg("border", `╭${"─".repeat(box)}╮`),
+			...lines.map((l) => {
+				const cell = truncateToWidth(` ${l}`, box);
+				return t.fg("border", "│") + cell + " ".repeat(Math.max(0, box - visibleWidth(cell))) + t.fg("border", "│");
+			}),
+			t.fg("border", `╰${"─".repeat(box)}╯`),
+		];
 		const now = Date.now();
 		const out: string[] = [];
 		const host = this.o.config.url.replace(/^https?:\/\//, "");
@@ -129,10 +141,24 @@ export class PoolView {
 			}
 			if (p.sessions.length) {
 				out.push(t.bold("Your live sessions"));
-				for (const s of p.sessions) out.push(`  ${s.model} ${t.fg("dim", `on ${s.account || s.provider} · ${s.requests} request${s.requests === 1 ? "" : "s"} · last ${inTime(now, s.last_at)} ago`)}`);
+				const groups = new Map<string, { model: string; on: string; n: number; requests: number; last: number }>();
+				for (const s of p.sessions) {
+					const on = s.account || s.provider;
+					const k = `${on}\u0000${s.model}`;
+					const g = groups.get(k) ?? { model: s.model, on, n: 0, requests: 0, last: 0 };
+					g.n++;
+					g.requests += s.requests;
+					g.last = Math.max(g.last, s.last_at);
+					groups.set(k, g);
+				}
+				const rows = [...groups.values()].sort((a, b) => b.last - a.last);
+				for (const g of rows) {
+					const what = g.n === 1 ? `${g.requests} request${g.requests === 1 ? "" : "s"}` : `${g.n} sessions · ${g.requests} requests`;
+					out.push(`  ${g.model} ${t.fg("dim", `on ${g.on} · ${what} · last ${inTime(now, g.last)} ago`)}`);
+				}
 			}
 			if (this.loading) out.push(t.fg("dim", "Refreshing…"));
 		}
-		return out.map((l) => truncateToWidth(`  ${l}`, width));
+		return frame(out);
 	}
 }

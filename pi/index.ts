@@ -192,7 +192,7 @@ export default async function (pi: ExtensionAPI) {
 			const session = ctx.sessionManager.getSessionId();
 			await ctx.ui.custom<void>(
 				(tui, theme, _kb, done) => new PoolView({ config: c, theme, current: usesMainspring(ctx) ? lastAccount.get(session) : undefined, requestRender: () => tui.requestRender(), close: () => done(undefined) }),
-				{ overlay: true, overlayOptions: { anchor: "center", width: "80%", minWidth: 56, maxHeight: "85%", margin: 2 } } as any,
+				{ overlay: true, overlayOptions: { anchor: "center", width: Math.min(100, Math.max(60, Math.floor((process.stdout.columns || 100) * 0.9))), maxHeight: "85%", margin: 1 } },
 			);
 		},
 	});
