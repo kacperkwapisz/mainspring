@@ -73,6 +73,7 @@ func prepareUpstream(body any, accessToken, credentialID, accountID string, inbo
 	if cacheTTL != "" && !countTokens {
 		setCacheTTL(b, cacheTTL)
 	}
+	capBreakpoints(b)
 	sessionID := sessionFrom(b, inbound, credentialID)
 	applyMetadata(b, credentialID, accountID, sessionID)
 	raw, _ := json.Marshal(b)
@@ -373,7 +374,11 @@ func insertMidSystem(body map[string]any, texts []string) {
 	}
 	blocks := make([]any, len(texts))
 	for i, text := range texts {
-		blocks[i] = map[string]any{"role": "system", "content": []any{map[string]any{"type": "text", "text": text, "cache_control": map[string]any{"type": "ephemeral"}}}}
+		part := map[string]any{"type": "text", "text": text}
+		if i == len(texts)-1 {
+			part["cache_control"] = map[string]any{"type": "ephemeral"}
+		}
+		blocks[i] = map[string]any{"role": "system", "content": []any{part}}
 	}
 	next := append([]any{}, messages[:insertAt]...)
 	next = append(next, blocks...)

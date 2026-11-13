@@ -2,6 +2,10 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.6.1] - 2026-11-12
+
+- Fixes Claude refusing some requests with "A maximum of 4 blocks with cache_control may be provided". Requests Mainspring reshapes for Claude now keep at most four cache breakpoints, keeping the ones at the start and at the end of the conversation.
+
 ## [1.6.0] - 2026-11-12
 
 - Claude sessions keep their prompt cache for an hour instead of five minutes, as long as they stay on their account. A pause over five minutes no longer writes the whole prompt again, which used up limits faster. One-off requests keep five minutes, and a tool that sets its own cache TTL keeps it.
