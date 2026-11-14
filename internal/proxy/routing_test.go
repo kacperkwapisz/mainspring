@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -166,4 +167,70 @@ func TestSessionsStickAndBenchedIsSkipped(t *testing.T) {
 
 func routeLimit(until int64) route.Limit {
 	return route.Limit{Until: until, Account: true, Label: "5 hours"}
+}
+
+func TestParallelRequestsNearExpiryRefreshOnce(t *testing.T) {
+	var mu sync.Mutex
+	valid, calls := "r0", 0
+	hub, d := testHub(t, claudeOnly(func(c domain.Credential) provider.ExecuteResult {
+		return okClaude()
+	}, func(c domain.Credential) (domain.Credential, error) {
+		time.Sleep(10 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		// Claude rotates refresh tokens: the old one stops working.
+		if c.Tokens.RefreshToken != valid {
+			return c, &provider.RefreshError{Provider: domain.ProviderClaude, Status: 400}
+		}
+		valid = "r" + strconv.Itoa(calls)
+		c.Tokens.AccessToken, c.Tokens.RefreshToken = "a"+strconv.Itoa(calls), valid
+		exp := time.Now().Add(8 * time.Hour).UnixMilli()
+		c.ExpiresAt = &exp
+		return c, nil
+	}))
+	defer d.Close()
+	exp := time.Now().Add(time.Minute).UnixMilli()
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "a", Provider: domain.ProviderClaude, Label: "a@x",
+		Tokens: domain.CredentialTokens{AccessToken: "a0", RefreshToken: "r0", Extra: map[string]any{}}, ExpiresAt: &exp})
+	var wg sync.WaitGroup
+	for range 6 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if res := call(t, hub, nil); !res.OK {
+				t.Errorf("%+v", res)
+			}
+		}()
+	}
+	wg.Wait()
+	if calls != 1 {
+		t.Fatalf("token endpoint called %d times, want 1", calls)
+	}
+	if hub.Router.Get("a").NeedsSignIn {
+		t.Fatal("racing refreshes flagged a working account for sign-in")
+	}
+}
+
+func TestKeepaliveRefreshesAheadOfTheNextRun(t *testing.T) {
+	refreshed := 0
+	hub, d := testHub(t, claudeOnly(func(domain.Credential) provider.ExecuteResult { return okClaude() },
+		func(c domain.Credential) (domain.Credential, error) {
+			refreshed++
+			c.Tokens.AccessToken = "new"
+			exp := time.Now().Add(8 * time.Hour).UnixMilli()
+			c.ExpiresAt = &exp
+			return c, nil
+		}))
+	defer d.Close()
+	soon := time.Now().Add(UsageMaxAge + 10*time.Minute).UnixMilli()
+	later := time.Now().Add(4 * time.Hour).UnixMilli()
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "soon", Provider: domain.ProviderClaude, Label: "soon",
+		Tokens: domain.CredentialTokens{AccessToken: "old", RefreshToken: "r", Extra: map[string]any{}}, ExpiresAt: &soon})
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "later", Provider: domain.ProviderClaude, Label: "later",
+		Tokens: domain.CredentialTokens{AccessToken: "old", RefreshToken: "r", Extra: map[string]any{}}, ExpiresAt: &later})
+	n, err := KeepaliveCredentials(context.Background(), hub)
+	if err != nil || n != 1 || refreshed != 1 {
+		t.Fatalf("n=%d refreshed=%d err=%v", n, refreshed, err)
+	}
 }

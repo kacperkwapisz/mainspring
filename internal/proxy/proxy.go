@@ -165,9 +165,8 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 		for i, cand := range candidates {
 			cred := cand.Credential
 			if nearExpiry(cred) {
-				if refreshed, err := executor.Refresh(ctx, cred); err == nil {
+				if refreshed, err := refreshCredential(ctx, hub, executor, cred); err == nil {
 					cred = refreshed
-					saveRefreshed(hub, cred)
 				} else {
 					logRefresh(hop.Provider, cred.Label, routeName, err)
 					if signInRejected(hub, cred, err) {
@@ -186,9 +185,8 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 				result = provider.FailFromErr(err)
 			}
 			if !result.OK && result.Status == 401 {
-				if refreshed, err := executor.Refresh(ctx, cred); err == nil {
+				if refreshed, err := refreshCredential(ctx, hub, executor, cred); err == nil {
 					cred = refreshed
-					saveRefreshed(hub, cred)
 					result, err = executor.Execute(ctx, cred, translated.Body, opts)
 					if err != nil {
 						result = provider.FailFromErr(err)
@@ -568,8 +566,18 @@ func requestedModel(body any) string {
 }
 
 func nearExpiry(c domain.Credential) bool {
-	return c.ExpiresAt != nil && *c.ExpiresAt-time.Now().UnixMilli() < 5*60*1000
+	return expiresWithin(c, 5*time.Minute)
 }
+
+func expiresWithin(c domain.Credential, d time.Duration) bool {
+	return c.ExpiresAt != nil && *c.ExpiresAt-time.Now().UnixMilli() < d.Milliseconds()
+}
+
+// KeepaliveAhead is how long before expiry the keepalive refreshes a token.
+// It runs every UsageMaxAge, so anything expiring before the next run plus a
+// margin is refreshed now, in the background and one account at a time,
+// instead of inside a burst of requests.
+const KeepaliveAhead = UsageMaxAge + 30*time.Minute
 
 const keepaliveSkewMS = 5 * 60 * 1000
 
@@ -583,28 +591,20 @@ func KeepaliveCredentials(ctx context.Context, hub *Hub) (int, error) {
 	}
 	n := 0
 	for _, cred := range creds {
-		if !nearExpiry(cred) {
+		if !expiresWithin(cred, KeepaliveAhead) || hub.router().Get(cred.ID).NeedsSignIn {
 			continue
 		}
 		ex := hub.Executors[cred.Provider]
 		if ex == nil {
 			continue
 		}
-		refreshed, err := ex.Refresh(ctx, cred)
+		refreshed, err := refreshCredential(ctx, hub, ex, cred)
 		if err != nil {
 			logRefresh(cred.Provider, cred.Label, "keepalive", err)
+			signInRejected(hub, cred, err)
 			continue
 		}
 		if !credentialAdvanced(cred, refreshed) {
-			continue
-		}
-		if _, err := hub.Vault.Save(store.SaveCredential{
-			ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Tokens: refreshed.Tokens, ExpiresAt: refreshed.ExpiresAt,
-		}); err != nil {
-			httpx.Fail{
-				Kind: httpx.KindInternal, Provider: string(cred.Provider), Model: cred.Label,
-				Route: "keepalive", Message: "could not save refreshed credential",
-			}.Log()
 			continue
 		}
 		n++

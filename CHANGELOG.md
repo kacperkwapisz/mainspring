@@ -2,6 +2,12 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.7.2] - 2026-11-14
+
+- Fixes Claude accounts asking you to sign in again after a few days. When several requests reached an account just as its token expired, each one refreshed it with the same refresh token. Claude accepts a refresh token once, so all but the first were refused and the account was marked **Needs sign-in**. Mainspring now refreshes each account once, and the other requests use the new token.
+- The usage endpoint for dashboards (`/v0/management/api-call`) now saves a token it refreshes. Before, it threw the new token away, so the account's next refresh failed.
+- Tokens are refreshed in the background up to an hour before they expire, so refreshes rarely happen while requests are waiting.
+
 ## [1.7.1] - 2026-11-13
 
 - Mainspring also follows OpenAI's and Cursor's status pages, so Codex and Cursor incidents show on the Pool and Log pages and in failed requests' messages, like Claude's.

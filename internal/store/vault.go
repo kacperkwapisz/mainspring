@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"github.com/kacperkwapisz/mainspring/internal/live"
+	"sync"
 
 	fcrypto "github.com/kacperkwapisz/mainspring/internal/crypto"
 	"github.com/kacperkwapisz/mainspring/internal/db"
@@ -14,6 +15,8 @@ type Vault struct {
 	Live *live.Bus // told when accounts change
 	db   *db.DB
 	key  []byte
+
+	refreshLocks sync.Map // credential id -> *sync.Mutex, see Refresh
 }
 
 func NewVault(d *db.DB, key []byte) *Vault { return &Vault{db: d, key: key} }

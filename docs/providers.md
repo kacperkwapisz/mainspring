@@ -3,7 +3,7 @@ title: Accounts and providers
 summary: What each provider needs to sign in, what Mainspring does with the account, and how to sign in again.
 ---
 
-Add accounts from **Add account** on the Pool page. Each sign-in is stored encrypted, and Mainspring refreshes it before it expires.
+Add accounts from **Add account** on the Pool page. Each sign-in is stored encrypted, and Mainspring refreshes it in the background before it expires, one account at a time.
 
 | Provider | How you sign in | Notes |
 |---|---|---|

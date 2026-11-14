@@ -81,9 +81,8 @@ func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, inbound domain.I
 				continue
 			}
 			if nearExpiry(cred) {
-				if refreshed, err := hub.Executors[plan.provider].Refresh(ctx, cred); err == nil {
+				if refreshed, err := refreshCredential(ctx, hub, hub.Executors[plan.provider], cred); err == nil {
 					cred = refreshed
-					saveRefreshed(hub, cred)
 				} else if signInRejected(hub, cred, err) {
 					continue
 				}

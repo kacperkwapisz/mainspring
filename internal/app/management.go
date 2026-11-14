@@ -106,7 +106,7 @@ func registerManagement(mux *httpx.Mux, hub *proxy.Hub) {
 		cred := *c
 		if cred.ExpiresAt != nil && *cred.ExpiresAt-time.Now().UnixMilli() < 5*60*1000 {
 			if ex := hub.Executors[cred.Provider]; ex != nil {
-				if refreshed, err := ex.Refresh(r.Context(), cred); err == nil {
+				if refreshed, err := hub.Vault.Refresh(r.Context(), cred, ex.Refresh); err == nil {
 					cred = refreshed
 				}
 			}

@@ -95,11 +95,8 @@ func fetchOne(ctx context.Context, vault *store.Vault, executors map[domain.Prov
 	defer cancel()
 	if nearExpiry(cred) {
 		if ex := executors[cred.Provider]; ex != nil {
-			if refreshed, err := ex.Refresh(ctx, cred); err == nil {
+			if refreshed, err := vault.Refresh(ctx, cred, ex.Refresh); err == nil {
 				cred = refreshed
-				_, _ = vault.Save(store.SaveCredential{
-					ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Tokens: cred.Tokens, ExpiresAt: cred.ExpiresAt,
-				})
 			}
 		}
 	}

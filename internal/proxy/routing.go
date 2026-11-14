@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -65,10 +66,10 @@ func hopCredentials(hub *Hub, providerID domain.ProviderID, model string) ([]dom
 	return all, nil
 }
 
-func saveRefreshed(hub *Hub, cred domain.Credential) {
-	_, _ = hub.Vault.Save(store.SaveCredential{
-		ID: cred.ID, Provider: cred.Provider, Label: cred.Label, Tokens: cred.Tokens, ExpiresAt: cred.ExpiresAt,
-	})
+// refreshCredential refreshes cred through the vault, which runs one refresh
+// per account at a time and saves the result.
+func refreshCredential(ctx context.Context, hub *Hub, ex provider.Executor, cred domain.Credential) (domain.Credential, error) {
+	return hub.Vault.Refresh(ctx, cred, ex.Refresh)
 }
 
 // signInRejected marks a credential as needing a fresh sign-in when the
