@@ -2,6 +2,24 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.8.0] - 2026-11-16
+
+- pi shows what each session would cost at API list prices, including long-context pricing. Your subscriptions pay for the tokens; the figure is the value you get. Run `pi update` to get it.
+- The Meter's dollar figures are right for every provider:
+  - Codex, Grok, Cursor and OpenAI-compatible sources no longer count cached tokens twice. Their old Meter rows are corrected once when you update.
+  - Claude's one-hour cache writes cost twice the input price, as Anthropic charges them, and web searches add $0.01 each.
+  - Claude used from an OpenAI-format client, such as Codex CLI, counts its cache reads and writes again. Before, they were dropped.
+  - OpenAI-compatible sources report token usage on streamed requests, and Codex requests that stop early keep their tokens.
+  - Long-context pricing applies above each model's threshold. Cursor's own names for Claude, Gemini and GLM models, Cursor's fast models and models from OpenAI-compatible sources now get prices.
+- Token counts sent back to clients follow each API's rules. OpenAI-format clients get input that includes the cache, and Anthropic-format clients get input without it, so Codex CLI and Claude Code see how full their context really is.
+- A key's daily token cap now leaves cached input out for every provider, as it already did for Claude.
+- Token counting (`/v1/messages/count_tokens`) on Codex, Grok and Cursor models answers with an estimate instead of running the request, and token counts no longer show up on the Meter.
+- Choosing a thinking effort in an OpenAI-format client sets Claude's effort on models that support it, rather than a thinking budget. pi does the same for Mainspring's Claude models.
+- System prompts sent as `developer` messages reach Cursor, Grok, Claude and OpenAI-compatible sources as system prompts. Before, Cursor ignored them and Claude got them as user messages.
+- pi's web tools run on the account your session is using, not on another session's.
+- `GET /v1/models` lists each model's long-context prices (`cost.tiers`) and the API that suits it best (`api`).
+- pi starts without waiting for Mainspring, keeps a separate model list for each Mainspring it connects to, and says which account a session moved from and to. Leaving the address empty in `/mainspring setup` keeps the saved one.
+
 ## [1.7.2] - 2026-11-14
 
 - Fixes Claude accounts asking you to sign in again after a few days. When several requests reached an account just as its token expired, each one refreshed it with the same refresh token. Claude accepts a refresh token once, so all but the first were refused and the account was marked **Needs sign-in**. Mainspring now refreshes each account once, and the other requests use the new token.

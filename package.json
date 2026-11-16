@@ -1,6 +1,6 @@
 {
   "name": "pi-mainspring",
-  "version": "1.0.0",
+  "version": "1.8.0",
   "description": "Mainspring for pi: your pooled subscriptions as a provider, web search and fetch on them, and the pool at /mainspring.",
   "type": "module",
   "license": "MIT",
