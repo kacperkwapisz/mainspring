@@ -14,23 +14,34 @@ type RequestResult struct {
 }
 
 type StreamState struct {
-	ID               string
-	Started          bool
-	Finished         bool
-	Error            string
-	HasTools         bool
-	ToolIndex        int
-	BlockIndex       int
-	BlockKind        string
-	Text             string
-	Reasoning        string
-	Tools            []any
+	ID         string
+	Started    bool
+	Finished   bool
+	Error      string
+	HasTools   bool
+	ToolIndex  int
+	BlockIndex int
+	BlockKind  string
+	Text       string
+	Reasoning  string
+	Tools      []any
+	// Usage so far, in Anthropic's convention: PromptTokens is the uncached
+	// input only (see Usage).
 	PromptTokens     int64
 	CompletionTokens int64
 	CacheRead        int64
 	CacheWrite       int64
+	CacheWrite1h     int64
 	ReasoningTokens  int64
+	WebSearches      int64
 	RoutedModel      string
+	UsageSeen        bool
+
+	// pending holds a stream's closing events while it waits for the usage
+	// that OpenAI-style streams send after the finish; FlushStream emits them
+	// if the usage never comes.
+	pending  func() []string
+	doneSent bool
 }
 
 func EmptyStreamState() StreamState {

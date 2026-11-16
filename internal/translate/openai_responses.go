@@ -243,9 +243,13 @@ func claudeToResponses(model string, _, upstream any) any {
 func codexStreamToResponses(_ string, _ any, chunk any, state *StreamState) []string {
 	ev := AsMap(chunk)
 	typ := AsStr(ev["type"], "message")
-	if typ == "response.completed" || typ == "response.done" {
+	switch typ {
+	case "response.completed", "response.done", "response.incomplete":
+		// An incomplete response stopped at a limit, but it did finish.
 		captureResponsesUsage(state, AsMap(ev["response"])["usage"])
 		state.Finished = true
+	case "response.failed":
+		captureResponsesFailure(state, AsMap(ev["response"]))
 	}
 	return []string{"event: " + typ + "\ndata: " + mustJSON(chunk)}
 }
@@ -278,12 +282,19 @@ func grokStreamToResponses(model string, _ any, chunk any, state *StreamState) [
 		if AsStr(choice["finish_reason"]) == "error" {
 			status = "failed"
 		}
-		lines = append(lines, responsesCompletedEvent(model, status, state))
+		// The completed event carries the usage, which OpenAI-style streams
+		// send after the finish; hold it until then.
+		closing := func() []string { return []string{responsesCompletedEvent(model, status, state)} }
+		if state.UsageSeen || status == "failed" {
+			lines = append(lines, closing()...)
+		} else {
+			state.pending = closing
+		}
 		if AsStr(choice["finish_reason"]) != "error" {
 			state.Finished = true
 		}
 	}
-	return lines
+	return append(lines, releasePending(state)...)
 }
 
 func claudeStreamToResponses(model string, _ any, chunk any, state *StreamState) []string {
@@ -297,9 +308,7 @@ func claudeStreamToResponses(model string, _ any, chunk any, state *StreamState)
 		if id := AsStr(msg["id"]); id != "" {
 			state.ID = id
 		}
-		u := mapClaudeUsage(msg["usage"])
-		state.PromptTokens = int64(numOf(u["prompt_tokens"]))
-		state.CompletionTokens = int64(numOf(u["completion_tokens"]))
+		mergeClaudeUsage(state, msg["usage"])
 		lines = append(lines, sse("response.created", map[string]any{"type": "response.created", "response": map[string]any{"id": state.ID, "object": "response", "model": model, "status": "in_progress"}}))
 	case "content_block_start":
 		block := AsMap(ev["content_block"])
@@ -332,9 +341,7 @@ func claudeStreamToResponses(model string, _ any, chunk any, state *StreamState)
 			}
 		}
 	case "message_delta":
-		if n, ok := AsNum(AsMap(ev["usage"])["output_tokens"]); ok {
-			state.CompletionTokens = int64(n)
-		}
+		mergeClaudeUsage(state, ev["usage"])
 	case "message_stop":
 		lines = append(lines, responsesCompletedEvent(model, "completed", state))
 		state.Finished = true

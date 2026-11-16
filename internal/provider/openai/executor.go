@@ -66,7 +66,12 @@ func (e *Executor) Execute(ctx context.Context, credential domain.Credential, bo
 	if base == "" {
 		return provider.ExecuteResult{OK: false, Status: 503, Retryable: false, Body: map[string]any{"error": map[string]any{"message": "openai source is missing a base URL", "type": "server_error"}}, Message: "missing base URL"}, nil
 	}
-	rec := translate.AsMap(body)
+	// A copy: the body can be the client's own map, and each retry starts
+	// from it again.
+	rec := map[string]any{}
+	for k, v := range translate.AsMap(body) {
+		rec[k] = v
+	}
 	slug := SourceSlug(credential)
 	if model := translate.AsStr(rec["model"]); model != "" {
 		rec["model"] = StripSlug(slug, model)
@@ -83,6 +88,7 @@ func (e *Executor) Execute(ctx context.Context, credential domain.Credential, bo
 	}
 	if opts.Stream {
 		rec["stream"] = true
+		rec["stream_options"] = provider.WithStreamUsage(rec["stream_options"])
 		headers["Accept"] = "text/event-stream"
 	} else {
 		rec["stream"] = false

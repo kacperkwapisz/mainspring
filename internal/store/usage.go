@@ -198,7 +198,9 @@ func (s *UsageStore) Daily(days int, loc *time.Location) ([]UsagePoint, error) {
 	return out, nil
 }
 
-// TodayTokensForKey counts a key's tokens since midnight in loc.
+// TodayTokensForKey counts a key's tokens since midnight in loc, for its daily
+// cap. Cached input isn't counted: prompt_tokens holds the uncached input for
+// every provider, with cache reads and writes in their own columns.
 func (s *UsageStore) TodayTokensForKey(keyID string, loc *time.Location) (int64, error) {
 	if loc == nil {
 		loc = time.UTC

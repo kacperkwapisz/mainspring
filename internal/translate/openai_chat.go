@@ -309,9 +309,7 @@ func claudeStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState
 		if id := AsStr(msg["id"]); id != "" {
 			state.ID = id
 		}
-		u := mapClaudeUsage(msg["usage"])
-		state.PromptTokens = int64(numOf(u["prompt_tokens"]))
-		state.CompletionTokens = int64(numOf(u["completion_tokens"]))
+		mergeClaudeUsage(state, msg["usage"])
 		lines = append(lines, chunkLine(openaiChatChunk(state.ID, model, map[string]any{"role": "assistant"}, nil, nil)))
 	case "content_block_start":
 		block := AsMap(ev["content_block"])
@@ -340,10 +338,7 @@ func claudeStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState
 			state.ToolIndex++
 		}
 	case "message_delta":
-		usage := AsMap(ev["usage"])
-		if n, ok := AsNum(usage["output_tokens"]); ok {
-			state.CompletionTokens = int64(n)
-		}
+		mergeClaudeUsage(state, ev["usage"])
 		stop := mapClaudeStop(AsStr(AsMap(ev["delta"])["stop_reason"]))
 		lines = append(lines, chunkLine(openaiChatChunk(state.ID, model, map[string]any{}, stop, state)))
 	case "message_stop":
@@ -355,16 +350,27 @@ func claudeStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState
 	return lines
 }
 
-func grokStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState) []string {
+func grokStreamToOpenaiChat(model string, original any, chunk any, state *StreamState) []string {
 	c := AsMap(chunk)
 	captureUsage(state, c["usage"])
-	if c["choices"] == nil {
-		return nil
-	}
+	wantsUsage := chatWantsUsage(original)
 	out := cloneMap(c)
 	out["model"] = model
 	if AsStr(c["id"]) == "" {
 		out["id"] = state.ID
+	}
+	if len(AsArr(c["choices"])) == 0 {
+		// The usage-only chunk that include_usage asks for. Mainspring asks
+		// for it to meter the request; the client gets it only if it asked.
+		if len(AsMap(c["usage"])) == 0 || !wantsUsage {
+			return nil
+		}
+		lines := []string{chunkLine(out)}
+		if state.Finished && !state.doneSent {
+			state.doneSent = true
+			lines = append(lines, "data: [DONE]")
+		}
+		return lines
 	}
 	normalizeChatReasoning(out)
 	lines := []string{chunkLine(out)}
@@ -373,9 +379,20 @@ func grokStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState) 
 	fr := AsStr(choice["finish_reason"])
 	if fr != "" && fr != "error" && !state.Finished {
 		state.Finished = true
-		lines = append(lines, "data: [DONE]")
+		// A client that asked for usage gets [DONE] after the usage chunk,
+		// which comes after the finish; the proxy sends it if none comes.
+		if !wantsUsage || state.UsageSeen {
+			state.doneSent = true
+			lines = append(lines, "data: [DONE]")
+		}
 	}
 	return lines
+}
+
+// chatWantsUsage reports whether a Chat client asked for the usage chunk.
+func chatWantsUsage(original any) bool {
+	v, _ := AsMap(AsMap(original)["stream_options"])["include_usage"].(bool)
+	return v
 }
 
 func captureStreamError(state *StreamState, choice map[string]any) {
@@ -391,34 +408,8 @@ func captureStreamError(state *StreamState, choice map[string]any) {
 	}
 }
 
-func captureUsage(state *StreamState, raw any) {
-	if state == nil {
-		return
-	}
-	u := AsMap(raw)
-	if len(u) == 0 {
-		return
-	}
-	if n, ok := AsNum(u["prompt_tokens"]); ok {
-		state.PromptTokens = int64(n)
-	}
-	if n, ok := AsNum(u["completion_tokens"]); ok {
-		state.CompletionTokens = int64(n)
-	}
-	details := AsMap(u["prompt_tokens_details"])
-	if n, ok := AsNum(details["cached_tokens"]); ok {
-		state.CacheRead = int64(n)
-	}
-	if n, ok := AsNum(details["cache_write_tokens"]); ok {
-		state.CacheWrite = int64(n)
-	}
-	if n, ok := AsNum(AsMap(u["completion_tokens_details"])["reasoning_tokens"]); ok {
-		state.ReasoningTokens = int64(n)
-	}
-	if routed := AsStr(u["routed_model"]); routed != "" {
-		state.RoutedModel = routed
-	}
-}
+// captureUsage reads an OpenAI-style stream's usage into the state.
+func captureUsage(state *StreamState, raw any) { setStreamUsage(state, raw) }
 
 func codexStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState) []string {
 	ev := AsMap(chunk)
@@ -459,7 +450,9 @@ func codexStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState)
 		if AsStr(AsMap(ev["item"])["type"]) == "function_call" {
 			state.ToolIndex++
 		}
-	case "response.completed", "response.done":
+	case "response.failed":
+		captureResponsesFailure(state, AsMap(ev["response"]))
+	case "response.completed", "response.done", "response.incomplete":
 		resp := AsMap(ev["response"])
 		captureResponsesUsage(state, resp["usage"])
 		hasTools := false
@@ -471,6 +464,8 @@ func codexStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState)
 		finish := "stop"
 		if hasTools {
 			finish = "tool_calls"
+		} else if typ == "response.incomplete" {
+			finish = "length"
 		}
 		lines = append(lines, chunkLine(openaiChatChunk(state.ID, model, map[string]any{}, finish, state)))
 		if !state.Finished {
@@ -537,10 +532,7 @@ func openaiChatChunk(id, model string, delta map[string]any, finish any, state *
 		"choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": finish}},
 	}
 	if finish != nil && state != nil {
-		out["usage"] = map[string]any{
-			"prompt_tokens": state.PromptTokens, "completion_tokens": state.CompletionTokens,
-			"total_tokens": state.PromptTokens + state.CompletionTokens,
-		}
+		out["usage"] = chatUsage(state.Usage())
 	}
 	return out
 }
@@ -562,129 +554,48 @@ func mapClaudeStop(reason string) any {
 	return reason
 }
 
+// mapClaudeUsage renders Claude's usage for a Chat client.
 func mapClaudeUsage(usage any) map[string]any {
-	u := AsMap(usage)
-	prompt, _ := AsNum(u["input_tokens"])
-	completion, _ := AsNum(u["output_tokens"])
-	cacheRead, _ := AsNum(u["cache_read_input_tokens"])
-	cacheWrite, _ := AsNum(u["cache_creation_input_tokens"])
-	out := map[string]any{"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": prompt + completion}
-	if cacheRead != 0 || cacheWrite != 0 {
-		out["prompt_tokens_details"] = map[string]any{"cached_tokens": cacheRead, "cache_write_tokens": cacheWrite}
-	}
-	return out
+	u, _ := ParseUsage(usage)
+	return chatUsage(u)
 }
 
+// mapResponsesUsage renders a Responses (or Chat) usage object for a Chat
+// client.
 func mapResponsesUsage(usage any) map[string]any {
-	u := AsMap(usage)
-	prompt, ok := AsNum(u["input_tokens"])
-	if !ok {
-		prompt, _ = AsNum(u["prompt_tokens"])
-	}
-	completion, ok := AsNum(u["output_tokens"])
-	if !ok {
-		completion, _ = AsNum(u["completion_tokens"])
-	}
-	details := AsMap(u["input_tokens_details"])
-	if len(details) == 0 {
-		details = AsMap(u["prompt_tokens_details"])
-	}
-	cacheRead, _ := AsNum(details["cached_tokens"])
-	reasoning, _ := AsNum(AsMap(firstNonNil(u["output_tokens_details"], u["completion_tokens_details"]))["reasoning_tokens"])
-	out := map[string]any{"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": prompt + completion}
-	if cacheRead != 0 {
-		out["prompt_tokens_details"] = map[string]any{"cached_tokens": cacheRead}
-	}
-	if reasoning != 0 {
-		out["completion_tokens_details"] = map[string]any{"reasoning_tokens": reasoning}
-	}
-	return out
+	u, _ := ParseUsage(usage)
+	return chatUsage(u)
 }
 
-func captureResponsesUsage(state *StreamState, usage any) {
+// captureResponsesUsage reads a Responses stream's final usage into the state.
+func captureResponsesUsage(state *StreamState, usage any) { setStreamUsage(state, usage) }
+
+// captureResponsesFailure keeps a failed response's usage, so the tokens it
+// spent are metered, and its error message.
+func captureResponsesFailure(state *StreamState, resp map[string]any) {
 	if state == nil {
 		return
 	}
-	u := mapResponsesUsage(usage)
-	state.PromptTokens = int64(numOf(u["prompt_tokens"]))
-	state.CompletionTokens = int64(numOf(u["completion_tokens"]))
-	details := AsMap(u["prompt_tokens_details"])
-	if n, ok := AsNum(details["cached_tokens"]); ok {
-		state.CacheRead = int64(n)
-	}
-	if n, ok := AsNum(AsMap(u["completion_tokens_details"])["reasoning_tokens"]); ok {
-		state.ReasoningTokens = int64(n)
+	setStreamUsage(state, resp["usage"])
+	if state.Error == "" {
+		state.Error = AsStr(AsMap(resp["error"])["message"], "response failed")
 	}
 }
 
+// usageToResponses renders any provider's usage for a Responses client.
 func usageToResponses(raw any) map[string]any {
-	u := AsMap(raw)
-	prompt, ok := AsNum(u["prompt_tokens"])
-	if !ok {
-		prompt, _ = AsNum(u["input_tokens"])
-	}
-	completion, ok := AsNum(u["completion_tokens"])
-	if !ok {
-		completion, _ = AsNum(u["output_tokens"])
-	}
-	details := AsMap(u["prompt_tokens_details"])
-	if len(details) == 0 {
-		details = AsMap(u["input_tokens_details"])
-	}
-	cacheRead, _ := AsNum(details["cached_tokens"])
-	if cacheRead == 0 {
-		cacheRead, _ = AsNum(u["cache_read_input_tokens"])
-	}
-	reasoning, _ := AsNum(AsMap(firstNonNil(u["completion_tokens_details"], u["output_tokens_details"]))["reasoning_tokens"])
-	out := map[string]any{"input_tokens": prompt, "output_tokens": completion}
-	if cacheRead != 0 {
-		out["input_tokens_details"] = map[string]any{"cached_tokens": cacheRead}
-	}
-	if reasoning != 0 {
-		out["output_tokens_details"] = map[string]any{"reasoning_tokens": reasoning}
-	}
-	return out
+	u, _ := ParseUsage(raw)
+	return responsesUsage(u)
 }
 
+// usageToClaude renders any provider's usage for an Anthropic client.
 func usageToClaude(raw any) map[string]any {
-	u := AsMap(raw)
-	prompt, ok := AsNum(u["prompt_tokens"])
-	if !ok {
-		prompt, _ = AsNum(u["input_tokens"])
-	}
-	completion, ok := AsNum(u["completion_tokens"])
-	if !ok {
-		completion, _ = AsNum(u["output_tokens"])
-	}
-	details := AsMap(u["prompt_tokens_details"])
-	cacheRead, _ := AsNum(details["cached_tokens"])
-	cacheWrite, _ := AsNum(details["cache_write_tokens"])
-	if cacheRead == 0 {
-		cacheRead, _ = AsNum(u["cache_read_input_tokens"])
-	}
-	if cacheWrite == 0 {
-		cacheWrite, _ = AsNum(u["cache_creation_input_tokens"])
-	}
-	out := map[string]any{"input_tokens": prompt, "output_tokens": completion}
-	if cacheRead != 0 {
-		out["cache_read_input_tokens"] = cacheRead
-	}
-	if cacheWrite != 0 {
-		out["cache_creation_input_tokens"] = cacheWrite
-	}
-	return out
+	u, _ := ParseUsage(raw)
+	return claudeUsage(u)
 }
 
 func usageFromState(state *StreamState) map[string]any {
-	if state == nil {
-		return map[string]any{"input_tokens": 0, "output_tokens": 0}
-	}
-	return usageToResponses(map[string]any{
-		"prompt_tokens":             state.PromptTokens,
-		"completion_tokens":         state.CompletionTokens,
-		"prompt_tokens_details":     map[string]any{"cached_tokens": state.CacheRead, "cache_write_tokens": state.CacheWrite},
-		"completion_tokens_details": map[string]any{"reasoning_tokens": state.ReasoningTokens},
-	})
+	return responsesUsage(state.Usage())
 }
 
 func effortToBudget(effort string) int {

@@ -50,7 +50,7 @@ Session affinity follows Claude Code's session ID or `metadata.user_id`; see [Ho
 
 ## POST /v1/messages/count_tokens
 
-Counts a Messages request's input tokens without running it. Same body as `/v1/messages`.
+Counts a Messages request's input tokens without running it. Same body as `/v1/messages`. Counts aren't recorded on the Meter.
 
 ## POST /v1/chat/completions
 
@@ -128,6 +128,15 @@ The pool as a client sees it: every account with its status and limits, which on
 `status` is `next`, `active`, `cooling`, `benched` or `needs_sign_in`.
 
 `incidents` lists open incidents on a provider's status page that affect requests, newest first: `provider`, `company`, `name`, `impact`, `status`, `started_at` and `url`. It's empty when there are none. Anthropic's, OpenAI's and Cursor's status pages are followed.
+
+## Token usage
+
+Every answer reports its tokens the way the API you called does, whichever provider served it:
+
+- **Messages**: `input_tokens` is the input that wasn't read from or written to the prompt cache. `cache_read_input_tokens` and `cache_creation_input_tokens` count the rest.
+- **Chat Completions and Responses**: `prompt_tokens` (Chat) or `input_tokens` (Responses) counts all input. Its `cached_tokens` detail says how much was read from the cache, and `cache_write_tokens`, when present, how much was written to it.
+
+To get usage in a Chat Completions stream, set `"stream_options": {"include_usage": true}`. It comes in the last chunks, before `data: [DONE]`.
 
 ## Response headers
 

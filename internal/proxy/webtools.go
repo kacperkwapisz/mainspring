@@ -9,6 +9,7 @@ import (
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
 	"github.com/kacperkwapisz/mainspring/internal/provider"
+	"github.com/kacperkwapisz/mainspring/internal/translate"
 )
 
 // Web tools run on the pool the same way requests do. A search goes to the
@@ -92,14 +93,13 @@ func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, inbound domain.I
 			req := Request{Key: key, Inbound: inbound}
 			if !result.OK {
 				last = fmt.Errorf("%s answered %d: %s", providerLabel(plan.provider), result.Status, result.Message)
-				recordEvent(hub, req, plan.provider, model, cred.ID, started, "error", usageCounts{}, "", result.Status, last.Error())
+				recordEvent(hub, req, plan.provider, model, cred.ID, started, "error", translate.Usage{}, "", result.Status, last.Error())
 				if result.Retryable || result.Status == 429 || result.Status >= 500 {
 					continue
 				}
 				return WebResult{}, last
 			}
-			pt, ct, cr, cw := usageFrom(nil, result.Body)
-			record(hub, req, plan.provider, model, cred.ID, started, "ok", usageCounts{pt, ct, cr, cw}, "")
+			record(hub, req, plan.provider, model, cred.ID, started, "ok", upstreamUsage(result.Body), "")
 			if answer.Text == "" && len(answer.Sources) == 0 {
 				return WebResult{}, fmt.Errorf("%s returned nothing for that", providerLabel(plan.provider))
 			}

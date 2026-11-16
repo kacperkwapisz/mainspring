@@ -36,8 +36,7 @@ func meterView(hub *proxy.Hub, rng string, loc *time.Location) map[string]any {
 	var input, output, cacheRead, cacheWrite, requests int64
 	var usd float64
 	for _, b := range byProvider {
-		p := domain.ProviderID(b.Key)
-		input += proxy.InputTokens(p, b.PromptTokens, b.CacheReadTokens, b.CacheWriteTokens)
+		input += proxy.InputTokens(b.PromptTokens, b.CacheReadTokens, b.CacheWriteTokens)
 		output += b.CompletionTokens
 		cacheRead += b.CacheReadTokens
 		cacheWrite += b.CacheWriteTokens
@@ -71,7 +70,7 @@ func meterView(hub *proxy.Hub, rng string, loc *time.Location) map[string]any {
 			row = &providerRow{Provider: p, Name: providerName(p), Models: []modelRow{}}
 			prov[p] = row
 		}
-		tokens := proxy.InputTokens(p, b.PromptTokens, b.CacheReadTokens, b.CacheWriteTokens) + b.CompletionTokens
+		tokens := proxy.InputTokens(b.PromptTokens, b.CacheReadTokens, b.CacheWriteTokens) + b.CompletionTokens
 		row.Models = append(row.Models, modelRow{Model: parts[1], USD: b.USD, Requests: b.Requests, Tokens: tokens})
 		row.USD += b.USD
 		row.Requests += b.Requests
@@ -149,7 +148,7 @@ func meterView(hub *proxy.Hub, rng string, loc *time.Location) map[string]any {
 			web[p] = row
 		}
 		ok := b.Requests - b.Errors
-		tokens := proxy.InputTokens(p, b.PromptTokens, b.CacheReadTokens, b.CacheWriteTokens) + b.CompletionTokens
+		tokens := proxy.InputTokens(b.PromptTokens, b.CacheReadTokens, b.CacheWriteTokens) + b.CompletionTokens
 		for _, r := range []*webRow{row, &webTotal} {
 			if parts[0] == "mcp.web_search" {
 				r.Searches += ok
@@ -177,7 +176,7 @@ func meterView(hub *proxy.Hub, rng string, loc *time.Location) map[string]any {
 	}
 	chart := []dayRow{}
 	for _, d := range daily {
-		chart = append(chart, dayRow{Day: d.Day, Tokens: d.PromptTokens + d.CompletionTokens + d.CacheReadTokens + d.CacheWriteTokens, USD: d.USD})
+		chart = append(chart, dayRow{Day: d.Day, Tokens: proxy.InputTokens(d.PromptTokens, d.CacheReadTokens, d.CacheWriteTokens) + d.CompletionTokens, USD: d.USD})
 	}
 	return map[string]any{
 		"range": rng, "from": from, "requests": requests, "usd": usd,

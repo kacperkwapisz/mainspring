@@ -307,17 +307,9 @@ func codexToClaude(model string, _, upstream any) any {
 	if id == "" {
 		id = "msg_" + itoa(nowUnix())
 	}
-	in, ok := AsNum(usage["input_tokens"])
-	if !ok {
-		in, _ = AsNum(usage["prompt_tokens"])
-	}
-	outn, ok := AsNum(usage["output_tokens"])
-	if !ok {
-		outn, _ = AsNum(usage["completion_tokens"])
-	}
 	return map[string]any{
 		"id": id, "type": "message", "role": "assistant", "model": model, "content": content, "stop_reason": stop,
-		"usage": map[string]any{"input_tokens": in, "output_tokens": outn},
+		"usage": usageToClaude(usage),
 	}
 }
 
@@ -329,32 +321,15 @@ func claudeStreamIdentity(_ string, _ any, chunk any, state *StreamState) []stri
 	switch AsStr(c["type"]) {
 	case "message_start":
 		state.Started = true
-		claudeStreamUsage(state, AsMap(AsMap(c["message"])["usage"]))
+		mergeClaudeUsage(state, AsMap(c["message"])["usage"])
 	case "message_delta":
-		claudeStreamUsage(state, AsMap(c["usage"]))
+		mergeClaudeUsage(state, c["usage"])
 	case "message_stop":
 		state.Finished = true
 	case "error":
 		state.Error = AsStr(AsMap(c["error"])["message"], "stream error")
 	}
 	return []string{"event: " + AsStr(c["type"], "message") + "\ndata: " + mustJSON(chunk)}
-}
-
-// claudeStreamUsage keeps the latest value of each usage field: message_start
-// carries the input side, message_delta the running output count.
-func claudeStreamUsage(state *StreamState, u map[string]any) {
-	if n, ok := AsNum(u["input_tokens"]); ok {
-		state.PromptTokens = int64(n)
-	}
-	if n, ok := AsNum(u["output_tokens"]); ok {
-		state.CompletionTokens = int64(n)
-	}
-	if n, ok := AsNum(u["cache_read_input_tokens"]); ok {
-		state.CacheRead = int64(n)
-	}
-	if n, ok := AsNum(u["cache_creation_input_tokens"]); ok {
-		state.CacheWrite = int64(n)
-	}
 }
 
 func grokStreamToClaude(model string, _ any, chunk any, state *StreamState) []string {
@@ -391,13 +366,25 @@ func grokStreamToClaude(model string, _ any, chunk any, state *StreamState) []st
 	if choice["finish_reason"] != nil {
 		captureStreamError(state, choice)
 		lines = append(lines, claudeFinishBlocks(state)...)
-		lines = append(lines, sse("message_delta", map[string]any{"type": "message_delta", "delta": map[string]any{"stop_reason": claudeStopReason(state, AsStr(choice["finish_reason"]))}, "usage": claudeUsageFromState(state)}))
-		lines = append(lines, sse("message_stop", map[string]any{"type": "message_stop"}))
-		if AsStr(choice["finish_reason"]) != "error" {
+		finish := AsStr(choice["finish_reason"])
+		// message_delta carries the usage, which OpenAI-style streams send
+		// after the finish; hold it until then.
+		closing := func() []string {
+			return []string{
+				sse("message_delta", map[string]any{"type": "message_delta", "delta": map[string]any{"stop_reason": claudeStopReason(state, finish)}, "usage": claudeUsageFromState(state)}),
+				sse("message_stop", map[string]any{"type": "message_stop"}),
+			}
+		}
+		if state.UsageSeen || finish == "error" {
+			lines = append(lines, closing()...)
+		} else {
+			state.pending = closing
+		}
+		if finish != "error" {
 			state.Finished = true
 		}
 	}
-	return lines
+	return append(lines, releasePending(state)...)
 }
 
 func codexStreamToClaude(model string, _ any, chunk any, state *StreamState) []string {
@@ -431,10 +418,16 @@ func codexStreamToClaude(model string, _ any, chunk any, state *StreamState) []s
 		lines = append(lines, emitResponsesToolToClaude(AsMap(ev["item"]), state)...)
 	} else if typ == "response.function_call_arguments.delta" {
 		lines = append(lines, claudeToolDelta(state, AsStr(ev["delta"]))...)
-	} else if typ == "response.completed" || typ == "response.done" {
+	} else if typ == "response.failed" {
+		captureResponsesFailure(state, AsMap(ev["response"]))
+	} else if typ == "response.completed" || typ == "response.done" || typ == "response.incomplete" {
 		captureResponsesUsage(state, AsMap(ev["response"])["usage"])
+		finish := ""
+		if typ == "response.incomplete" {
+			finish = "length"
+		}
 		lines = append(lines, claudeFinishBlocks(state)...)
-		lines = append(lines, sse("message_delta", map[string]any{"type": "message_delta", "delta": map[string]any{"stop_reason": claudeStopReason(state, "")}, "usage": claudeUsageFromState(state)}))
+		lines = append(lines, sse("message_delta", map[string]any{"type": "message_delta", "delta": map[string]any{"stop_reason": claudeStopReason(state, finish)}, "usage": claudeUsageFromState(state)}))
 		lines = append(lines, sse("message_stop", map[string]any{"type": "message_stop"}))
 		state.Finished = true
 	}
