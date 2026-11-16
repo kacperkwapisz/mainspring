@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -82,6 +83,50 @@ var migrations = []string{
    )`,
 }
 
+// dataMigrations rewrite existing rows. Each runs once: SQLite's
+// user_version counts how many have been applied, and a migration and its
+// version bump share one transaction. Append only; never reorder.
+var dataMigrations = []string{
+	// Rows from before the meter read the provider's own usage stored
+	// OpenAI-style providers' prompt_tokens with the cached tokens included.
+	// prompt_tokens is uncached input now, so take the cache out. Cursor
+	// counted cache writes as input too. Claude was already uncached, and
+	// OpenCode mixed conventions per model family, so both are left alone.
+	`UPDATE usage_events SET prompt_tokens = MAX(prompt_tokens - cache_read_tokens - cache_write_tokens, 0)
+	   WHERE provider = 'cursor'`,
+	`UPDATE usage_events SET prompt_tokens = MAX(prompt_tokens - cache_read_tokens, 0)
+	   WHERE provider IN ('codex', 'grok', 'openai')`,
+}
+
+// runDataMigrations applies the data migrations this database hasn't had.
+func runDataMigrations(sqlDB *sql.DB) error {
+	for {
+		tx, err := sqlDB.Begin()
+		if err != nil {
+			return err
+		}
+		var version int
+		if err := tx.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if version >= len(dataMigrations) {
+			return tx.Rollback()
+		}
+		if _, err := tx.Exec(dataMigrations[version]); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", version+1)); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+}
+
 type DB struct {
 	SQL *sql.DB
 }
@@ -123,6 +168,10 @@ func Open(path string) (*DB, error) {
 			sqlDB.Close()
 			return nil, err
 		}
+	}
+	if err := runDataMigrations(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, err
 	}
 	return &DB{SQL: sqlDB}, nil
 }

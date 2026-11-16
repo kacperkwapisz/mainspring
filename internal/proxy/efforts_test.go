@@ -13,11 +13,17 @@ import (
 // each request was sent with.
 type effortExec struct {
 	fakeExec
-	live []domain.ModelInfo
-	sent *[]map[string]any
+	live   []domain.ModelInfo
+	sent   *[]map[string]any
+	lookup *int // model-list lookups, when set
 }
 
-func (e effortExec) ModelsFor(context.Context, domain.Credential) []domain.ModelInfo { return e.live }
+func (e effortExec) ModelsFor(context.Context, domain.Credential) []domain.ModelInfo {
+	if e.lookup != nil {
+		*e.lookup++
+	}
+	return e.live
+}
 func (e effortExec) Execute(_ context.Context, _ domain.Credential, body any, _ provider.ExecuteOptions) (provider.ExecuteResult, error) {
 	*e.sent = append(*e.sent, AsMap(body))
 	return provider.ExecuteResult{OK: true, Status: 200, Body: map[string]any{
@@ -58,6 +64,43 @@ func TestReasoningEffortBecomesAdaptiveThinkingOnClaude(t *testing.T) {
 	}
 	if th := AsMap(sent[1]["thinking"]); th["type"] != "enabled" || th["budget_tokens"] == nil || sent[1]["output_config"] != nil {
 		t.Fatalf("model without efforts: %v %v", sent[1]["thinking"], sent[1]["output_config"])
+	}
+}
+
+func TestEffortsAreLookedUpOnlyWhenTheRequestAsksForReasoning(t *testing.T) {
+	var sent []map[string]any
+	lookups := 0
+	ex := effortExec{
+		fakeExec: fakeExec{id: domain.ProviderClaude, format: domain.FormatClaude},
+		live:     []domain.ModelInfo{{ID: "claude-opus-5-5", Efforts: []string{"low", "high"}}},
+		sent:     &sent, lookup: &lookups,
+	}
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{domain.ProviderClaude: ex})
+	defer d.Close()
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "a", Provider: domain.ProviderClaude, Label: "A", Tokens: domain.CredentialTokens{AccessToken: "a"}})
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	msgs := []any{map[string]any{"role": "user", "content": "hi"}}
+	cases := []struct {
+		name    string
+		inbound domain.InboundFormat
+		body    map[string]any
+		lookup  bool
+	}{
+		{"chat without effort", domain.InboundOpenAIChat, map[string]any{"model": "claude-opus-5-5", "messages": msgs}, false},
+		{"responses without reasoning", domain.InboundOpenAIResponses, map[string]any{"model": "claude-opus-5-5", "input": "hi"}, false},
+		{"chat with effort", domain.InboundOpenAIChat, map[string]any{"model": "claude-opus-5-5", "messages": msgs, "reasoning_effort": "low"}, true},
+		{"responses with reasoning", domain.InboundOpenAIResponses, map[string]any{"model": "claude-opus-5-5", "input": "hi", "reasoning": map[string]any{"effort": "high"}}, true},
+	}
+	for _, tc := range cases {
+		lookups = 0
+		res, err := Proxy(context.Background(), hub, Request{Inbound: tc.inbound, Key: *key, Body: tc.body})
+		if err != nil || !res.OK {
+			t.Fatalf("%s: %+v %v", tc.name, res, err)
+		}
+		if (lookups > 0) != tc.lookup {
+			t.Errorf("%s: %d model-list lookups, want lookup=%v", tc.name, lookups, tc.lookup)
+		}
 	}
 }
 

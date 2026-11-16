@@ -10,13 +10,27 @@ import (
 )
 
 // requestHints tells the translator what the hop's model accepts. Only
-// OpenAI-format requests to Claude need it: they carry a reasoning effort that
-// has to become Claude's adaptive thinking when the model takes efforts.
-func requestHints(ctx context.Context, hub *Hub, ex provider.Executor, inbound domain.InboundFormat, providerID domain.ProviderID, model string) translate.RequestHints {
-	if providerID != domain.ProviderClaude || inbound == domain.InboundClaudeMessages {
+// OpenAI-format requests to Claude that ask for reasoning need it: their
+// effort has to become Claude's adaptive thinking when the model takes
+// efforts. Every other request skips the model-list lookup.
+func requestHints(ctx context.Context, hub *Hub, ex provider.Executor, inbound domain.InboundFormat, body any, providerID domain.ProviderID, model string) translate.RequestHints {
+	if providerID != domain.ProviderClaude || !asksForReasoning(inbound, body) {
 		return translate.RequestHints{}
 	}
 	return translate.RequestHints{Efforts: claudeEfforts(ctx, hub, ex, model)}
+}
+
+// asksForReasoning reports whether an OpenAI-format body sets a reasoning
+// effort: chat's reasoning_effort, or a Responses reasoning object.
+func asksForReasoning(inbound domain.InboundFormat, body any) bool {
+	m := translate.AsMap(body)
+	switch inbound {
+	case domain.InboundOpenAIChat:
+		return translate.AsStr(m["reasoning_effort"]) != ""
+	case domain.InboundOpenAIResponses:
+		return m["reasoning"] != nil
+	}
+	return false
 }
 
 // claudeEfforts reads the model's effort levels from the accounts' own model

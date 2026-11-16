@@ -148,3 +148,23 @@ func TestTokenCountAnswersPassThrough(t *testing.T) {
 		}
 	}
 }
+
+func TestDeveloperBecomesSystemForOpenAICompatibleChat(t *testing.T) {
+	client := map[string]any{"model": "local/m", "messages": []any{
+		map[string]any{"role": "developer", "content": "you are pi"},
+		map[string]any{"role": "user", "content": "hi"},
+	}}
+	res := TranslateRequest(domain.InboundOpenAIChat, domain.FormatOpenAI, "local/m", true, client)
+	msgs := AsArr(AsMap(res.Body)["messages"])
+	if AsStr(AsMap(msgs[0])["role"]) != "system" || AsStr(AsMap(msgs[1])["role"]) != "user" {
+		t.Fatalf("roles %v", msgs)
+	}
+	if AsStr(AsMap(AsArr(client["messages"])[0])["role"]) != "developer" {
+		t.Fatalf("client's body changed: %v", client)
+	}
+	// Codex (Responses) keeps developer.
+	codex := TranslateRequest(domain.InboundOpenAIChat, domain.FormatCodex, "gpt-5.5", false, client)
+	if r := AsStr(AsMap(AsArr(AsMap(codex.Body)["input"])[0])["role"]); r != "developer" {
+		t.Fatalf("codex role %q", r)
+	}
+}

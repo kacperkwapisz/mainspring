@@ -42,6 +42,9 @@ type StreamState struct {
 	// if the usage never comes.
 	pending  func() []string
 	doneSent bool
+	// closed is set once a stream's closing events were sent or held back,
+	// so a repeated finish_reason doesn't send them twice.
+	closed bool
 }
 
 func EmptyStreamState() StreamState {
