@@ -27,7 +27,10 @@ export class PoolView {
 	private pool?: Pool;
 	private error = "";
 	private loading = true;
-	private timer: ReturnType<typeof setInterval>;
+	private timer: ReturnType<typeof setInterval> | undefined;
+	// Each load takes a number; only the newest one may write its answer.
+	private loadSeq = 0;
+	private disposed = false;
 	private o: { config: Config; theme: Theme; current?: string; requestRender(): void; close(): void };
 
 	constructor(o: { config: Config; theme: Theme; current?: string; requestRender(): void; close(): void }) {
@@ -38,23 +41,37 @@ export class PoolView {
 	}
 
 	private async load() {
+		const seq = ++this.loadSeq;
 		this.loading = true;
 		this.o.requestRender();
+		let pool: Pool | undefined;
+		let error = "";
 		try {
-			this.pool = await fetchPool(this.o.config);
-			this.error = "";
+			pool = await fetchPool(this.o.config);
 		} catch (err) {
-			this.error = (err as Error).message;
+			error = (err as Error).message;
 		}
+		// A newer load started, or the overlay closed: this answer is out of date.
+		if (seq !== this.loadSeq || this.disposed) return;
+		if (pool) this.pool = pool;
+		this.error = error;
 		this.loading = false;
 		this.o.requestRender();
+	}
+
+	// pi calls this whenever the overlay closes, however it closes.
+	dispose() {
+		this.disposed = true;
+		this.loadSeq++;
+		if (this.timer) clearInterval(this.timer);
+		this.timer = undefined;
 	}
 
 	// matchesKey understands every keyboard protocol pi supports; terminals
 	// with the kitty protocol don't send Escape as a bare \x1b.
 	handleInput(data: string) {
 		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c") || data === "q") {
-			clearInterval(this.timer);
+			this.dispose();
 			this.o.close();
 		} else if (data === "r") void this.load();
 	}
