@@ -31,10 +31,6 @@ func (h *Hub) router() *route.Engine {
 	return fallbackRouter.e
 }
 
-type usageCounts struct {
-	prompt, completion, cacheRead, cacheWrite int64
-}
-
 // hopCredentials lists the credentials that can serve model on providerID.
 func hopCredentials(hub *Hub, providerID domain.ProviderID, model string) ([]domain.Credential, error) {
 	all, err := hub.Vault.List(providerID)
@@ -242,14 +238,13 @@ func providerName(p domain.ProviderID) string {
 	return string(p)
 }
 
-// InputTokens returns all input tokens of a request, cached or not. Claude
-// reports cache reads and writes separately from input_tokens; OpenAI-style
-// providers include cached tokens in prompt_tokens already.
-func InputTokens(p domain.ProviderID, prompt, cacheRead, cacheWrite int64) int64 {
-	if p == domain.ProviderClaude {
-		return prompt + cacheRead + cacheWrite
-	}
-	return prompt + cacheWrite
+// InputTokens returns all input tokens of a request, cached or not. The
+// meter stores prompt tokens without the cache for every provider (Anthropic's
+// convention), so the cache is added back. Older rows stored OpenAI-style
+// providers' prompt tokens with the cache included, so their cache counts
+// twice here until they age out.
+func InputTokens(prompt, cacheRead, cacheWrite int64) int64 {
+	return prompt + cacheRead + cacheWrite
 }
 
 // ServedBy returns which providers would serve a model id, in order, and the

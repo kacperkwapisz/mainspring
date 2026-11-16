@@ -6,6 +6,7 @@ import (
 	"github.com/kacperkwapisz/mainspring/internal/live"
 	"github.com/kacperkwapisz/mainspring/internal/status"
 	"github.com/kacperkwapisz/mainspring/internal/update"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -244,6 +245,9 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 							out <- line
 						}
 					}
+					for _, line := range translate.FlushStream(&state) {
+						out <- line + "\n\n"
+					}
 					if done := translate.DoneLine(req.Inbound); done != "" && !sentDone {
 						out <- done + "\n\n"
 					}
@@ -256,8 +260,10 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 						httpx.LogOK(string(hop.Provider), hop.Model, routeName)
 						httpx.DumpTrace(ctx, false, fmt.Sprintf("%s/%s ok", hop.Provider, hop.Model))
 					}
-					u := usageCounts{state.PromptTokens, state.CompletionTokens, state.CacheRead, state.CacheWrite}
-					touch.InputTokens, touch.CacheRead = InputTokens(hop.Provider, u.prompt, u.cacheRead, u.cacheWrite), u.cacheRead
+					// The state holds the provider's own usage, read before
+					// translation, in the one convention the meter stores.
+					u := state.Usage()
+					touch.InputTokens, touch.CacheRead = u.AllInput(), u.CacheRead
 					router.Touch(touch)
 					if status == "error" {
 						msg := "the answer stopped before it finished"
@@ -275,14 +281,16 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 				return Result{OK: true, Status: 200, Stream: out, Header: passthrough}, nil
 			}
 			body := translate.TranslateResponse(req.Inbound, execFormat, hop.Model, req.Body, result.Body)
-			pt, ct, cr, cw := usageFrom(body, result.Body)
+			// Meter the provider's own usage: translations reshape it for
+			// the client and may leave fields out.
+			u := upstreamUsage(result.Body)
 			httpx.LogOK(string(hop.Provider), hop.Model, routeName)
 			httpx.DumpTrace(ctx, false, fmt.Sprintf("%s/%s ok", hop.Provider, hop.Model))
-			touch.InputTokens, touch.CacheRead = InputTokens(hop.Provider, pt, cr, cw), cr
+			touch.InputTokens, touch.CacheRead = u.AllInput(), u.CacheRead
 			if !req.CountTokens {
 				router.Touch(touch)
 			}
-			record(hub, req, hop.Provider, hop.Model, cred.ID, started, "ok", usageCounts{pt, ct, cr, cw}, routedModel(body, result.Body))
+			record(hub, req, hop.Provider, hop.Model, cred.ID, started, "ok", u, routedModel(body, result.Body))
 			return Result{OK: true, Status: 200, Body: body, Header: passthrough}, nil
 		}
 	}
@@ -625,35 +633,36 @@ func credentialAdvanced(before, after domain.Credential) bool {
 	return *after.ExpiresAt > *before.ExpiresAt+keepaliveSkewMS/2
 }
 
-func usageFrom(translated, upstream any) (pt, ct, cr, cw int64) {
-	t := asMap(translated)
-	u := asMap(upstream)
-	usage := asMap(t["usage"])
-	if len(usage) == 0 {
-		usage = asMap(u["usage"])
-	}
-	details := asMap(usage["prompt_tokens_details"])
-	if len(details) == 0 {
-		details = asMap(usage["input_tokens_details"])
-	}
-	pt = int64From(usage["prompt_tokens"], usage["input_tokens"])
-	ct = int64From(usage["completion_tokens"], usage["output_tokens"])
-	cr = int64From(details["cached_tokens"], usage["cache_read_input_tokens"])
-	cw = int64From(details["cache_write_tokens"], usage["cache_creation_input_tokens"])
-	return
+// upstreamUsage reads a provider's non-streamed response usage, in whichever
+// convention the provider reports it.
+func upstreamUsage(upstream any) translate.Usage {
+	u, _ := translate.ParseUsage(asMap(upstream)["usage"])
+	return u
 }
+
+// webSearchUSD is Anthropic's fee per server-side web search ($10 per 1,000),
+// charged on top of the tokens.
+const webSearchUSD = 0.01
 
 // recordFail records a failed request with what its client was told.
 func recordFail(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, res Result) {
-	recordEvent(hub, req, providerID, model, credID, started, "error", usageCounts{}, "", res.Status, httpx.ExtractErrorMessage(res.Body))
+	recordEvent(hub, req, providerID, model, credID, started, "error", translate.Usage{}, "", res.Status, httpx.ExtractErrorMessage(res.Body))
 }
 
-func record(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, status string, u usageCounts, routed string) {
+func record(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, status string, u translate.Usage, routed string) {
 	recordEvent(hub, req, providerID, model, credID, started, status, u, routed, 0, "")
 }
 
-func recordEvent(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, status string, u usageCounts, routed string, errStatus int, errMessage string) {
-	pt, ct, cr, cw := u.prompt, u.completion, u.cacheRead, u.cacheWrite
+// recordEvent stores one request on the meter. u is in Anthropic's
+// convention for every provider: PromptTokens is the uncached input, with
+// cache reads and writes in their own columns. Token counts (count_tokens)
+// aren't requests for an answer, so they aren't recorded.
+func recordEvent(hub *Hub, req Request, providerID domain.ProviderID, model, credID string, started int64, status string, u translate.Usage, routed string, errStatus int, errMessage string) {
+	if req.CountTokens {
+		return
+	}
+	pt, ct, cr, cw := u.Input, u.Output, u.CacheRead, u.CacheWrite
+	price := store.PriceUsage{Input: pt, Output: ct, CacheRead: cr, CacheWrite: cw, CacheWrite1h: u.CacheWrite1h}
 	priceProvider := map[domain.ProviderID]string{
 		domain.ProviderClaude:   "anthropic",
 		domain.ProviderCodex:    "openai",
@@ -666,11 +675,14 @@ func recordEvent(hub *Hub, req Request, providerID domain.ProviderID, model, cre
 	if routed != "" {
 		meterModel = routed
 	}
-	usd := hub.Prices.Estimate(priceProvider, meterModel, store.PriceUsage{Input: pt, Output: ct, CacheRead: cr, CacheWrite: cw})
+	usd := hub.Prices.Estimate(priceProvider, meterModel, price)
 	if usd == 0 && (providerID == domain.ProviderOpenAI || providerID == domain.ProviderOpenCode) {
 		if i := strings.Index(meterModel, "/"); i >= 0 {
-			usd = hub.Prices.Estimate(priceProvider, meterModel[i+1:], store.PriceUsage{Input: pt, Output: ct, CacheRead: cr, CacheWrite: cw})
+			usd = hub.Prices.Estimate(priceProvider, meterModel[i+1:], price)
 		}
+	}
+	if providerID == domain.ProviderClaude && u.WebSearches > 0 {
+		usd = math.Round((usd+float64(u.WebSearches)*webSearchUSD)*1_000_000) / 1_000_000
 	}
 	_ = hub.Usage.Record(domain.UsageEvent{
 		TS: time.Now().UnixMilli(), KeyID: req.Key.ID, CredentialID: credID, Provider: providerID, Model: meterModel, Inbound: req.Inbound,
@@ -696,20 +708,6 @@ func asMap(v any) map[string]any {
 		return map[string]any{}
 	}
 	return m
-}
-
-func int64From(vals ...any) int64 {
-	for _, v := range vals {
-		switch n := v.(type) {
-		case float64:
-			return int64(n)
-		case int64:
-			return n
-		case int:
-			return int64(n)
-		}
-	}
-	return 0
 }
 
 // accountModels is the union of what the provider's accounts offer, in the

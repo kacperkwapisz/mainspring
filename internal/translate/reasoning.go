@@ -258,12 +258,7 @@ func claudeStopReason(state *StreamState, finish string) string {
 }
 
 func claudeUsageFromState(state *StreamState) map[string]any {
-	return usageToClaude(map[string]any{
-		"prompt_tokens":             state.PromptTokens,
-		"completion_tokens":         state.CompletionTokens,
-		"prompt_tokens_details":     map[string]any{"cached_tokens": state.CacheRead, "cache_write_tokens": state.CacheWrite},
-		"completion_tokens_details": map[string]any{"reasoning_tokens": state.ReasoningTokens},
-	})
+	return claudeUsage(state.Usage())
 }
 
 func normalizeChatReasoning(rec map[string]any) {

@@ -13,7 +13,7 @@ A key can be limited when you create it:
 
 - **Providers**: only these providers, for example only Claude.
 - **Models**: a comma-separated list of model IDs, exactly as `/v1/models` lists them.
-- **Daily cap**: a number of tokens per day, like `20M` or `500k`. It counts input and output tokens and resets at midnight in the timezone under **Settings → Timezone**.
+- **Daily cap**: a number of tokens per day, like `20M` or `500k`. It counts input and output tokens, leaving out input read from or written to the prompt cache, and resets at midnight in the timezone under **Settings → Timezone**.
 
 A request outside a key's limits gets `403`. One over the daily cap gets `429` until midnight.
 

@@ -76,7 +76,12 @@ func (e *Executor) ModelsFor(ctx context.Context, credential domain.Credential) 
 }
 
 func (e *Executor) Execute(ctx context.Context, credential domain.Credential, body any, opts provider.ExecuteOptions) (provider.ExecuteResult, error) {
-	rec := translate.AsMap(body)
+	// A copy: the body can be the client's own map, and each retry starts
+	// from it again.
+	rec := map[string]any{}
+	for k, v := range translate.AsMap(body) {
+		rec[k] = v
+	}
 	model := translate.AsStr(rec["model"])
 	wire := StripPrefix(model)
 	if wire == "" {
@@ -109,6 +114,9 @@ func (e *Executor) Execute(ctx context.Context, credential domain.Credential, bo
 		switch family {
 		case FamilyChat, FamilyResponses:
 			rec["stream"] = true
+			if family == FamilyChat {
+				rec["stream_options"] = provider.WithStreamUsage(rec["stream_options"])
+			}
 			headers["Accept"] = "text/event-stream"
 		case FamilyMessages:
 			rec["stream"] = true
