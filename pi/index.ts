@@ -46,6 +46,16 @@ function registerProvider(pi: ExtensionAPI, config: Config, models: ServedModel[
 	} as any);
 }
 
+// The headers that key this session on Mainspring, matching its chat requests:
+// the extension adds X-Session-ID to every request, and pi's Responses client
+// also sends session-id, which Mainspring reads first.
+function sessionHeaders(ctx: ExtensionContext): Record<string, string> {
+	const id = ctx.sessionManager.getSessionId();
+	const headers: Record<string, string> = { "X-Session-ID": `pi-${id}` };
+	if (usesMainspring(ctx) && ctx.model?.api === "openai-responses") headers["session-id"] = id;
+	return headers;
+}
+
 function usesMainspring(ctx: ExtensionContext): boolean {
 	return ctx.model?.provider === PROVIDER;
 }
@@ -76,7 +86,7 @@ function registerWebTools(pi: ExtensionAPI, getConfig: () => Config | undefined)
 			const query = params.query.trim();
 			if (!query) throw new Error("A search query is required.");
 			if (params.allowed_domains?.length && params.blocked_domains?.length) throw new Error("Use allowed_domains or blocked_domains, not both.");
-			const r = await callTool(need(), "web_search", { query, allowed_domains: params.allowed_domains, blocked_domains: params.blocked_domains }, signal, ctx.sessionManager.getSessionId());
+			const r = await callTool(need(), "web_search", { query, allowed_domains: params.allowed_domains, blocked_domains: params.blocked_domains }, signal, sessionHeaders(ctx));
 			return { ...answer(r), details: { query, sources: r.sources, provider: r.provider, model: r.model } };
 		},
 	});
@@ -94,7 +104,7 @@ function registerWebTools(pi: ExtensionAPI, getConfig: () => Config | undefined)
 		async execute(_id, params, signal, _onUpdate, ctx) {
 			let url = params.url.trim();
 			if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-			const r = await callTool(need(), "web_fetch", { url, prompt: params.prompt?.trim() || undefined }, signal, ctx.sessionManager.getSessionId());
+			const r = await callTool(need(), "web_fetch", { url, prompt: params.prompt?.trim() || undefined }, signal, sessionHeaders(ctx));
 			return { ...answer(r), details: { url, sources: r.sources, provider: r.provider, model: r.model } };
 		},
 	});

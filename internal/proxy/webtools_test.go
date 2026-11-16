@@ -143,3 +143,25 @@ func TestHTMLToTextKeepsReadableContent(t *testing.T) {
 		}
 	}
 }
+
+func TestWebSearchWithoutASessionUsesTheMostRecentlyActiveOne(t *testing.T) {
+	var used []string
+	ex := searchExec{fakeExec: fakeExec{id: domain.ProviderClaude, format: domain.FormatClaude, models: []domain.ModelInfo{{ID: "claude-haiku-5-5"}}}, used: &used, status: map[string]int{}}
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{domain.ProviderClaude: ex})
+	defer d.Close()
+	created, _ := hub.Keys.Create("laptop", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	for _, label := range []string{"old", "new"} {
+		c, _ := hub.Vault.Save(store.SaveCredential{Provider: domain.ProviderClaude, Label: label, Tokens: domain.CredentialTokens{AccessToken: "t"}})
+		hub.Router.Bind(domain.ProviderClaude, "s-"+label, c.ID)
+		hub.Router.Touch(route.Touch{Provider: domain.ProviderClaude, SessionKey: "s-" + label, CredID: c.ID, LocalKeyID: key.ID, Model: "claude-opus-5-5"})
+		time.Sleep(3 * time.Millisecond)
+	}
+	// "old" started first; "new" sent the last request.
+	if _, err := WebSearch(context.Background(), hub, *key, nil, "q", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(used) != 1 || used[0] != "new/claude-opus-5-5" {
+		t.Fatalf("want the most recently active session's account, got %v", used)
+	}
+}

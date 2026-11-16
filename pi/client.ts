@@ -167,13 +167,13 @@ export interface WebResult {
 }
 
 /** Calls one of Mainspring's MCP tools (stateless JSON-RPC over HTTP). */
-export async function callTool(config: Config, name: string, args: Record<string, unknown>, signal?: AbortSignal, sessionId?: string): Promise<WebResult> {
+export async function callTool(config: Config, name: string, args: Record<string, unknown>, signal?: AbortSignal, sessionHeaders: Record<string, string> = {}): Promise<WebResult> {
 	const body = await call<any>(config, "/mcp", {
 		method: "POST",
 		signal,
 		timeoutMs: 150_000,
-		// The same session id chat requests send, so the tool runs on this session's account.
-		headers: { Accept: "application/json, text/event-stream", ...(sessionId ? { "X-Session-ID": `pi-${sessionId}` } : {}) },
+		// The same session headers chat requests send, so the tool runs on this session's account.
+		headers: { Accept: "application/json, text/event-stream", ...sessionHeaders },
 		body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
 	});
 	if (body.error) throw new MainspringError(body.error.message ?? "Mainspring's web tools failed");

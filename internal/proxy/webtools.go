@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -113,7 +114,7 @@ func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, headers map[stri
 }
 
 // webPlans orders where a call may run. The calling session comes first when
-// it is a live Claude or Codex session, else the key's newest such session,
+// it is a live Claude or Codex session, else the key's most recently active one,
 // with its model and session key, so the call lands on the account that session
 // is bound to. sessionKey is the caller's route.SessionKey; the key-wide
 // fallback ("key:<id>") names no particular session.
@@ -134,7 +135,11 @@ func webPlans(hub *Hub, key domain.LocalKey, sessionKey string) []webPlan {
 			break
 		}
 	}
-	for _, s := range live { // newest first
+	// Fall back to the key's most recently active session. LiveSessions lists
+	// sessions oldest first, for the panel.
+	recent := append([]route.Session(nil), live...)
+	sort.SliceStable(recent, func(i, j int) bool { return recent[i].LastAt > recent[j].LastAt })
+	for _, s := range recent {
 		if len(plans) > 0 {
 			break // the calling session was found above
 		}
