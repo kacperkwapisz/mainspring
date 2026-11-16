@@ -2,7 +2,8 @@
 
 A [pi](https://pi.dev) extension for [Mainspring](https://github.com/kacperkwapisz/mainspring).
 
-- **Provider.** Adds Mainspring as the `mainspring` provider, with the models your subscriptions offer. Claude models speak the Anthropic API and GPT models the Responses API, so prompt caching and sessions behave as they do directly. Each pi session stays on one Mainspring account.
+- **Provider.** Adds Mainspring as the `mainspring` provider, with the models your subscriptions offer. Each model uses the API Mainspring names for it (Claude on Messages, GPT and Grok on Responses), so prompt caching and sessions behave as they do directly. Each pi session stays on one Mainspring account.
+- **Costs.** pi shows what each request's tokens would cost at the providers' API list prices, including long-context tiers. Your subscriptions pay for them, so the figure is what the same use would cost on the API.
 - **Web tools.** Registers `web_search` and `web_fetch`. They run on the Claude or Codex account your session already uses. They replace pi-claude-web, which registers the same names; remove it first.
 - **Account moves.** When Mainspring moves your session to another account, pi tells you which and why.
 - **`/mainspring`.** Shows the pool: every account, its limits as bars with how far into the window you are, when each resets, which goes next, and your live sessions. `r` refreshes, `esc` closes.

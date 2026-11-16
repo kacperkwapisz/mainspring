@@ -1,56 +1,31 @@
 // Mainspring for pi.
 //
 // - Registers Mainspring as the "mainspring" provider, with the models your
-//   subscriptions offer. Claude models speak the Anthropic API and GPT models
-//   the Responses API, so caching and sessions behave as they do directly.
+//   subscriptions offer. Each model uses the API Mainspring names for it (Claude
+//   on Messages, GPT and Grok on Responses), so caching and sessions behave as
+//   they do directly.
 // - Registers web_search and web_fetch, which run on the subscription account
 //   your session already uses.
 // - Tells you when Mainspring moves the session to another account.
 // - /mainspring shows the pool; /mainspring setup connects to a Mainspring.
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { cachedModels, callTool, fetchModels, loadConfig, saveConfig, saveModels, type Config, type ServedModel } from "./client.ts";
+import {
+	cachedModels,
+	callTool,
+	envOverrides,
+	fetchModels,
+	loadConfig,
+	savedConfig,
+	saveConfig,
+	saveModels,
+	type Config,
+	type ServedModel,
+} from "./client.ts";
+import { modelConfig } from "./models.ts";
 import { PoolView } from "./pool-view.ts";
 
 const PROVIDER = "mainspring";
-
-// pi's thinking levels and the provider value each one sends. pi hides xhigh and
-// max unless a model maps them, and shows the others unless one maps to null,
-// so the map follows the efforts the model really accepts.
-const PI_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
-
-export function thinkingLevelMap(efforts: string[] | undefined): Record<string, string | null> | undefined {
-	if (!efforts || !efforts.length) return undefined;
-	const map: Record<string, string | null> = {};
-	for (const level of PI_LEVELS) map[level] = efforts.includes(level) ? level : null;
-	return map;
-}
-
-function modelConfig(config: Config, m: ServedModel) {
-	const id = m.id;
-	const claude = /^claude-/.test(id);
-	const responses = /^(gpt-|o\d)/.test(id);
-	return {
-		id,
-		name: m.name || id,
-		api: claude ? "anthropic-messages" : responses ? "openai-responses" : "openai-completions",
-		// Anthropic's client adds /v1 itself.
-		baseUrl: claude ? config.url : `${config.url}/v1`,
-		input: (m.input ?? ["text"]).includes("image") ? (["text", "image"] as ("text" | "image")[]) : (["text"] as ("text" | "image")[]),
-		reasoning: Boolean(m.reasoning || (m.efforts && m.efforts.length)),
-		thinkingLevelMap: thinkingLevelMap(m.efforts),
-		// API list prices from Mainspring, so pi shows what the tokens would cost
-		// on the API. Your subscriptions pay for them.
-		cost: {
-			input: m.cost?.input ?? 0,
-			output: m.cost?.output ?? 0,
-			cacheRead: m.cost?.cache_read ?? 0,
-			cacheWrite: m.cost?.cache_write ?? 0,
-		},
-		contextWindow: m.context_length || 200_000,
-		maxTokens: m.max_output_tokens || 32_000,
-	};
-}
 
 function registerProvider(pi: ExtensionAPI, config: Config, models: ServedModel[]) {
 	pi.registerProvider(PROVIDER, {
@@ -59,10 +34,14 @@ function registerProvider(pi: ExtensionAPI, config: Config, models: ServedModel[
 		apiKey: config.key,
 		api: "openai-completions",
 		models: models.map((m) => modelConfig(config, m)) as any,
-		async refreshModels({ signal }: { signal: AbortSignal }) {
+		// pi asks twice: first without network (startup from the cache), then with it.
+		async refreshModels({ allowNetwork, signal }: { allowNetwork: boolean; signal: AbortSignal }) {
+			if (!allowNetwork) return cachedModels(config.url).map((m) => modelConfig(config, m)) as any;
 			const fresh = await fetchModels(config, signal);
-			saveModels(fresh);
-			return fresh.map((m) => modelConfig(config, m)) as any;
+			saveModels(config.url, fresh);
+			// An empty answer doesn't wipe a list that worked.
+			const served = fresh.length ? fresh : cachedModels(config.url);
+			return served.map((m) => modelConfig(config, m)) as any;
 		},
 	} as any);
 }
@@ -93,11 +72,11 @@ function registerWebTools(pi: ExtensionAPI, getConfig: () => Config | undefined)
 			allowed_domains: Type.Optional(Type.Array(Type.String(), { description: "Only use results from these domains. Not with blocked_domains." })),
 			blocked_domains: Type.Optional(Type.Array(Type.String(), { description: "Never use results from these domains. Not with allowed_domains." })),
 		}),
-		async execute(_id, params, signal) {
+		async execute(_id, params, signal, _onUpdate, ctx) {
 			const query = params.query.trim();
 			if (!query) throw new Error("A search query is required.");
 			if (params.allowed_domains?.length && params.blocked_domains?.length) throw new Error("Use allowed_domains or blocked_domains, not both.");
-			const r = await callTool(need(), "web_search", { query, allowed_domains: params.allowed_domains, blocked_domains: params.blocked_domains }, signal);
+			const r = await callTool(need(), "web_search", { query, allowed_domains: params.allowed_domains, blocked_domains: params.blocked_domains }, signal, ctx.sessionManager.getSessionId());
 			return { ...answer(r), details: { query, sources: r.sources, provider: r.provider, model: r.model } };
 		},
 	});
@@ -112,36 +91,57 @@ function registerWebTools(pi: ExtensionAPI, getConfig: () => Config | undefined)
 			url: Type.String({ description: "The page to read, e.g. https://vitejs.dev/guide/migration" }),
 			prompt: Type.Optional(Type.String({ description: "What you need from the page. Leave it out to get the page's text." })),
 		}),
-		async execute(_id, params, signal) {
+		async execute(_id, params, signal, _onUpdate, ctx) {
 			let url = params.url.trim();
 			if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-			const r = await callTool(need(), "web_fetch", { url, prompt: params.prompt?.trim() || undefined }, signal);
+			const r = await callTool(need(), "web_fetch", { url, prompt: params.prompt?.trim() || undefined }, signal, ctx.sessionManager.getSessionId());
 			return { ...answer(r), details: { url, sources: r.sources, provider: r.provider, model: r.model } };
 		},
 	});
 }
 
+// Without a terminal there's no notification area, so print.
+function tell(ctx: ExtensionContext, message: string, level: "info" | "warning" | "error" = "info") {
+	if (ctx.hasUI) ctx.ui.notify(message, level);
+	else if (level === "info") console.log(message);
+	else console.error(message);
+}
+
+// Sessions whose account we remember; the oldest go when there are more.
+const MAX_REMEMBERED_SESSIONS = 100;
+
 export default async function (pi: ExtensionAPI) {
 	let config = loadConfig();
-	// Which account served this session last, to notice when it moves.
+	// Which account served each session last, to notice when it moves.
 	const lastAccount = new Map<string, string>();
 	let toolsRegistered = false;
 
-	const connect = async (c: Config) => {
-		let models = cachedModels();
-		try {
-			models = await fetchModels(c, AbortSignal.timeout(4_000));
-			saveModels(models);
-		} catch {
-			// Offline at startup: use the last list; refreshModels catches up.
-		}
+	const connect = (c: Config, models: ServedModel[]) => {
 		registerProvider(pi, c, models);
 		if (!toolsRegistered) {
 			registerWebTools(pi, () => config);
 			toolsRegistered = true;
 		}
 	};
-	if (config) await connect(config);
+
+	// Start from the cached list, so pi never waits on the network. A fresh list
+	// is fetched behind it and replaces the cached one when it differs.
+	const start = async (c: Config) => {
+		const cached = cachedModels(c.url);
+		connect(c, cached);
+		const refresh = fetchModels(c, AbortSignal.timeout(cached.length ? 8_000 : 4_000))
+			.then((fresh) => {
+				saveModels(c.url, fresh);
+				// Skip it if setup switched to another Mainspring meanwhile.
+				if (fresh.length && config === c && JSON.stringify(fresh) !== JSON.stringify(cached)) registerProvider(pi, c, fresh);
+			})
+			.catch(() => {
+				// Offline: the cached list stands, and pi's own refresh catches up.
+			});
+		// The very first run has nothing to show, so it waits (briefly) for the list.
+		if (!cached.length) await refresh;
+	};
+	if (config) await start(config);
 
 	// Keep a pi session on one Mainspring account, and let web tools follow it.
 	pi.on("before_provider_headers", (event, ctx) => {
@@ -156,12 +156,20 @@ export default async function (pi: ExtensionAPI) {
 		if (!account) return;
 		const session = ctx.sessionManager.getSessionId();
 		const before = lastAccount.get(session);
+		// Re-insert, so the map stays in least-recently-used order.
+		lastAccount.delete(session);
 		lastAccount.set(session, account);
+		if (lastAccount.size > MAX_REMEMBERED_SESSIONS) lastAccount.delete(lastAccount.keys().next().value as string);
 		const from = h["x-mainspring-moved-from"];
 		if (from && before && ctx.hasUI) {
 			const why = h["x-mainspring-moved-reason"];
-			ctx.ui.notify(`Mainspring moved this session to ${account}${why ? `: ${from}, ${why}` : ""}`, "info");
+			ctx.ui.notify(`Mainspring moved this session from ${from} to ${account}${why ? ` (${why})` : ""}`, "info");
 		}
+	});
+
+	// A reload keeps the session; every other shutdown ends it.
+	pi.on("session_shutdown", (event, ctx) => {
+		if (event.reason !== "reload") lastAccount.delete(ctx.sessionManager.getSessionId());
 	});
 
 	pi.registerCommand("mainspring", {
@@ -170,28 +178,41 @@ export default async function (pi: ExtensionAPI) {
 			const sub = (args ?? "").trim();
 			if (sub === "setup" || !config) {
 				if (!ctx.hasUI) {
-					ctx.ui.notify("Set MAINSPRING_URL and MAINSPRING_KEY, or run /mainspring setup in pi's terminal.", "warning");
+					tell(ctx, "Set MAINSPRING_URL and MAINSPRING_KEY, or run /mainspring setup in pi's terminal.", "warning");
 					return;
 				}
-				const url = (await ctx.ui.input("Mainspring address", config?.url || "http://umbrel.local:8317"))?.trim();
-				if (!url) return;
-				const key = (await ctx.ui.input("Mainspring key (from its Keys page)", "sk-ms-…"))?.trim();
+				// pi's input box has no starting text, so an empty answer keeps the saved value.
+				const saved = savedConfig();
+				const url = await ctx.ui.input(saved.url ? "Mainspring address (Enter keeps the current one)" : "Mainspring address", saved.url || "http://umbrel.local:8317");
+				if (url === undefined) return;
+				const address = (url.trim() || saved.url || "").replace(/\/+$/, "").replace(/\/v1$/, "");
+				if (!address) return;
+				const secret = await ctx.ui.input(saved.key ? "Mainspring key (Enter keeps the current one)" : "Mainspring key (from its Keys page)", "sk-ms-…");
+				if (secret === undefined) return;
+				const key = secret.trim() || saved.key || "";
 				if (!key) return;
-				const next = { url: url.replace(/\/+$/, "").replace(/\/v1$/, ""), key };
+				const next = { url: address, key };
+				let models: ServedModel[];
 				try {
-					await fetchModels(next, AbortSignal.timeout(8_000));
+					models = await fetchModels(next, AbortSignal.timeout(8_000));
 				} catch (err) {
-					ctx.ui.notify(`Couldn't connect: ${(err as Error).message}`, "error");
+					tell(ctx, `Couldn't connect: ${(err as Error).message}`, "error");
 					return;
 				}
 				saveConfig(next);
-				config = next;
-				await connect(next);
-				ctx.ui.notify("Connected to Mainspring. Pick a model with /model, under Mainspring.", "info");
+				saveModels(next.url, models);
+				// The environment wins over the file, so the new settings may not be what runs.
+				const overridden = envOverrides();
+				config = loadConfig() ?? next;
+				connect(config, models.length ? models : cachedModels(config.url));
+				tell(ctx, "Connected to Mainspring. Pick a model with /model, under Mainspring.", "info");
+				if (overridden.length) {
+					tell(ctx, `${overridden.join(" and ")} ${overridden.length === 1 ? "is" : "are"} set and win over what you just saved. Unset ${overridden.length === 1 ? "it" : "them"} to use the saved settings.`, "warning");
+				}
 				return;
 			}
 			if (ctx.mode !== "tui") {
-				ctx.ui.notify("/mainspring needs pi's terminal.", "warning");
+				tell(ctx, "/mainspring needs pi's terminal.", "warning");
 				return;
 			}
 			const c = config;

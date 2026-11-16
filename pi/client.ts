@@ -1,7 +1,7 @@
 // Talking to Mainspring: settings, the model list, the pool and the MCP tools.
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export interface Config {
 	url: string; // the panel's address, without /v1
@@ -16,29 +16,48 @@ export interface ServedModel {
 	input?: string[];
 	reasoning?: boolean;
 	efforts?: string[];
+	// The pi API that keeps the model's features: anthropic-messages,
+	// openai-responses or openai-completions. Older Mainsprings leave it out.
+	api?: string;
 	// API list prices in USD per million tokens, when Mainspring knows them.
-	cost?: { input?: number; output?: number; cache_read?: number; cache_write?: number };
+	cost?: {
+		input?: number;
+		output?: number;
+		cache_read?: number;
+		cache_write?: number;
+		// Rates that replace the base ones once a request's input passes a size.
+		tiers?: { input_tokens_above: number; input?: number; output?: number; cache_read?: number; cache_write?: number }[];
+	};
 }
 
 interface Saved extends Partial<Config> {
+	/** The last model list each Mainspring served, by its address. */
+	modelsByUrl?: Record<string, ServedModel[]>;
+	/** Before lists were kept per address; it belongs to `url`. readSaved moves it into modelsByUrl. */
 	models?: ServedModel[];
 }
 
-const FILE = join(homedir(), ".pi", "agent", "mainspring.json");
+// In pi's agent directory (~/.pi/agent unless PI_CODING_AGENT_DIR moves it).
+const file = () => join(getAgentDir(), "mainspring.json");
 
 function readSaved(): Saved {
+	let saved: Saved;
 	try {
-		return JSON.parse(readFileSync(FILE, "utf8")) as Saved;
+		saved = JSON.parse(readFileSync(file(), "utf8")) as Saved;
 	} catch {
 		return {};
 	}
+	// Move an old single list under the address it came from.
+	const { models, ...rest } = saved;
+	if (models?.length && rest.url && !rest.modelsByUrl?.[rest.url]) rest.modelsByUrl = { ...rest.modelsByUrl, [rest.url]: models };
+	return rest;
 }
 
 function writeSaved(next: Saved): void {
-	mkdirSync(dirname(FILE), { recursive: true });
-	const tmp = `${FILE}.tmp`;
+	mkdirSync(dirname(file()), { recursive: true });
+	const tmp = `${file()}.tmp`;
 	writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
-	renameSync(tmp, FILE);
+	renameSync(tmp, file());
 }
 
 /** MAINSPRING_URL and MAINSPRING_KEY win over the saved file. */
@@ -49,16 +68,31 @@ export function loadConfig(): Config | undefined {
 	return url && key ? { url, key } : undefined;
 }
 
+/** The settings that MAINSPRING_URL / MAINSPRING_KEY override, by variable name. */
+export function envOverrides(): string[] {
+	return ["MAINSPRING_URL", "MAINSPRING_KEY"].filter((name) => (process.env[name] || "").trim());
+}
+
 export function saveConfig(config: Config): void {
 	writeSaved({ ...readSaved(), url: config.url, key: config.key });
 }
 
-export function cachedModels(): ServedModel[] {
-	return readSaved().models ?? [];
+/** The saved settings, ignoring the environment, so setup can offer them as the current ones. */
+export function savedConfig(): Partial<Config> {
+	const { url, key } = readSaved();
+	return { url, key };
 }
 
-export function saveModels(models: ServedModel[]): void {
-	if (existsSync(FILE) || models.length) writeSaved({ ...readSaved(), models });
+/** The last list this Mainspring served, so another instance's models never show up. */
+export function cachedModels(url: string): ServedModel[] {
+	return readSaved().modelsByUrl?.[url] ?? [];
+}
+
+/** Keeps a list for this address. An empty list never replaces a real one. */
+export function saveModels(url: string, models: ServedModel[]): void {
+	if (!models.length) return;
+	const saved = readSaved();
+	writeSaved({ ...saved, modelsByUrl: { ...saved.modelsByUrl, [url]: models } });
 }
 
 export class MainspringError extends Error {}
@@ -133,12 +167,13 @@ export interface WebResult {
 }
 
 /** Calls one of Mainspring's MCP tools (stateless JSON-RPC over HTTP). */
-export async function callTool(config: Config, name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<WebResult> {
+export async function callTool(config: Config, name: string, args: Record<string, unknown>, signal?: AbortSignal, sessionId?: string): Promise<WebResult> {
 	const body = await call<any>(config, "/mcp", {
 		method: "POST",
 		signal,
 		timeoutMs: 150_000,
-		headers: { Accept: "application/json, text/event-stream" },
+		// The same session id chat requests send, so the tool runs on this session's account.
+		headers: { Accept: "application/json, text/event-stream", ...(sessionId ? { "X-Session-ID": `pi-${sessionId}` } : {}) },
 		body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
 	});
 	if (body.error) throw new MainspringError(body.error.message ?? "Mainspring's web tools failed");
