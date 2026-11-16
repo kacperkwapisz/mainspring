@@ -179,7 +179,7 @@ func SeedDemo(b *Booted) error {
 			if m.p != domain.ProviderClaude {
 				prompt += cache
 			}
-			usd := hub.Prices.Estimate(pp, m.model, prompt, out, cache, 800)
+			usd := hub.Prices.Estimate(pp, m.model, store.PriceUsage{Input: prompt, Output: out, CacheRead: cache, CacheWrite: 800})
 			_ = hub.Usage.Record(domain.UsageEvent{TS: ts, KeyID: keys[rng.Intn(len(keys))], CredentialID: m.cred, Provider: m.p, Model: m.model,
 				Inbound: domain.InboundClaudeMessages, PromptTokens: prompt, CompletionTokens: out, CacheReadTokens: cache, CacheWriteTokens: 800,
 				LatencyMs: 2000, Status: "ok", USD: usd})

@@ -19,7 +19,7 @@ func TestUsageAndPrices(t *testing.T) {
 		t.Fatal(err)
 	}
 	usage := NewUsageStore(d)
-	usd := prices.Estimate("anthropic", "claude-opus-4-7", 1_000_000, 0, 0, 0)
+	usd := prices.Estimate("anthropic", "claude-opus-4-7", PriceUsage{Input: 1_000_000, Output: 0, CacheRead: 0, CacheWrite: 0})
 	if usd != 5 {
 		t.Fatalf("usd %v", usd)
 	}
@@ -104,12 +104,12 @@ func TestCursorAutoHasNoListPrice(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, model := range []string{"cursor-auto", "auto", "default"} {
-		if usd := prices.Estimate("cursor", model, 1_000_000, 1_000_000, 1_000_000, 0); usd != 0 {
+		if usd := prices.Estimate("cursor", model, PriceUsage{Input: 1_000_000, Output: 1_000_000, CacheRead: 1_000_000, CacheWrite: 0}); usd != 0 {
 			t.Fatalf("%s usd %v", model, usd)
 		}
 	}
-	if prices.Estimate("cursor", "composer-2.5", 1_000_000, 0, 0, 0) != 0.5 {
-		t.Fatalf("composer usd %v", prices.Estimate("cursor", "composer-2.5", 1_000_000, 0, 0, 0))
+	if prices.Estimate("cursor", "composer-2.5", PriceUsage{Input: 1_000_000, Output: 0, CacheRead: 0, CacheWrite: 0}) != 0.5 {
+		t.Fatalf("composer usd %v", prices.Estimate("cursor", "composer-2.5", PriceUsage{Input: 1_000_000, Output: 0, CacheRead: 0, CacheWrite: 0}))
 	}
 }
 
@@ -129,11 +129,11 @@ func TestCursorOverlaySeedsExistingCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prices.Estimate("cursor", "composer-2.5", 1_000_000, 0, 0, 0) != 0.5 {
-		t.Fatalf("overlay missing: %v", prices.Estimate("cursor", "composer-2.5", 1_000_000, 0, 0, 0))
+	if prices.Estimate("cursor", "composer-2.5", PriceUsage{Input: 1_000_000, Output: 0, CacheRead: 0, CacheWrite: 0}) != 0.5 {
+		t.Fatalf("overlay missing: %v", prices.Estimate("cursor", "composer-2.5", PriceUsage{Input: 1_000_000, Output: 0, CacheRead: 0, CacheWrite: 0}))
 	}
-	if prices.Estimate("cursor", "cursor-auto", 1_000_000, 0, 0, 0) != 0 {
-		t.Fatalf("auto leftover priced: %v", prices.Estimate("cursor", "cursor-auto", 1_000_000, 0, 0, 0))
+	if prices.Estimate("cursor", "cursor-auto", PriceUsage{Input: 1_000_000, Output: 0, CacheRead: 0, CacheWrite: 0}) != 0 {
+		t.Fatalf("auto leftover priced: %v", prices.Estimate("cursor", "cursor-auto", PriceUsage{Input: 1_000_000, Output: 0, CacheRead: 0, CacheWrite: 0}))
 	}
 }
 

@@ -16,6 +16,8 @@ export interface ServedModel {
 	input?: string[];
 	reasoning?: boolean;
 	efforts?: string[];
+	// API list prices in USD per million tokens, when Mainspring knows them.
+	cost?: { input?: number; output?: number; cache_read?: number; cache_write?: number };
 }
 
 interface Saved extends Partial<Config> {

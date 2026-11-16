@@ -666,10 +666,10 @@ func recordEvent(hub *Hub, req Request, providerID domain.ProviderID, model, cre
 	if routed != "" {
 		meterModel = routed
 	}
-	usd := hub.Prices.Estimate(priceProvider, meterModel, pt, ct, cr, cw)
+	usd := hub.Prices.Estimate(priceProvider, meterModel, store.PriceUsage{Input: pt, Output: ct, CacheRead: cr, CacheWrite: cw})
 	if usd == 0 && (providerID == domain.ProviderOpenAI || providerID == domain.ProviderOpenCode) {
 		if i := strings.Index(meterModel, "/"); i >= 0 {
-			usd = hub.Prices.Estimate(priceProvider, meterModel[i+1:], pt, ct, cr, cw)
+			usd = hub.Prices.Estimate(priceProvider, meterModel[i+1:], store.PriceUsage{Input: pt, Output: ct, CacheRead: cr, CacheWrite: cw})
 		}
 	}
 	_ = hub.Usage.Record(domain.UsageEvent{

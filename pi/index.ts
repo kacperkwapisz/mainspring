@@ -39,8 +39,14 @@ function modelConfig(config: Config, m: ServedModel) {
 		input: (m.input ?? ["text"]).includes("image") ? (["text", "image"] as ("text" | "image")[]) : (["text"] as ("text" | "image")[]),
 		reasoning: Boolean(m.reasoning || (m.efforts && m.efforts.length)),
 		thinkingLevelMap: thinkingLevelMap(m.efforts),
-		// Your subscriptions pay for these; pi shows no per-token cost.
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		// API list prices from Mainspring, so pi shows what the tokens would cost
+		// on the API. Your subscriptions pay for them.
+		cost: {
+			input: m.cost?.input ?? 0,
+			output: m.cost?.output ?? 0,
+			cacheRead: m.cost?.cache_read ?? 0,
+			cacheWrite: m.cost?.cache_write ?? 0,
+		},
 		contextWindow: m.context_length || 200_000,
 		maxTokens: m.max_output_tokens || 32_000,
 	};

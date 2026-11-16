@@ -128,24 +128,39 @@ func (s *PriceStore) lookup(provider, model string) *domain.ModelPrice {
 	return nil
 }
 
-func (s *PriceStore) Estimate(provider, model string, prompt, completion, cacheRead, cacheWrite int64) float64 {
+// PriceUsage is one request's tokens, split the way prices apply to them.
+// Input excludes cached tokens (Anthropic's convention); callers normalise
+// OpenAI-style counts, whose prompt tokens include the cache, before pricing.
+type PriceUsage struct {
+	Input        int64 // uncached input tokens
+	Output       int64
+	CacheRead    int64
+	CacheWrite   int64 // all cache writes, CacheWrite1h included
+	CacheWrite1h int64 // the part of CacheWrite written with Claude's one-hour TTL
+}
+
+// Estimate prices a request at the model's API list prices, in USD. One-hour
+// cache writes cost twice the input price, as Anthropic charges them.
+func (s *PriceStore) Estimate(provider, model string, u PriceUsage) float64 {
 	p := s.Get(provider, model)
 	if p == nil {
 		return 0
 	}
 	perM := 1_000_000.0
 	usd := 0.0
+	long := min(max(u.CacheWrite1h, 0), u.CacheWrite)
 	if p.Input != nil {
-		usd += *p.Input * float64(prompt) / perM
+		usd += *p.Input * float64(u.Input) / perM
+		usd += *p.Input * 2 * float64(long) / perM
 	}
 	if p.Output != nil {
-		usd += *p.Output * float64(completion) / perM
+		usd += *p.Output * float64(u.Output) / perM
 	}
 	if p.CacheRead != nil {
-		usd += *p.CacheRead * float64(cacheRead) / perM
+		usd += *p.CacheRead * float64(u.CacheRead) / perM
 	}
 	if p.CacheWrite != nil {
-		usd += *p.CacheWrite * float64(cacheWrite) / perM
+		usd += *p.CacheWrite * float64(u.CacheWrite-long) / perM
 	}
 	return math.Round(usd*1_000_000) / 1_000_000
 }
