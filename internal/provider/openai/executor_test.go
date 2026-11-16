@@ -33,6 +33,40 @@ func TestParseModelListPrefixesIDs(t *testing.T) {
 	}
 }
 
+func TestParseModelListFillsCostFromTheCatalogue(t *testing.T) {
+	models := parseModelList("src", map[string]any{
+		"data": []any{
+			map[string]any{"id": "gpt-5.5"},
+			map[string]any{"id": "anthropic/claude-haiku-5-5", "context_length": 123456.0},
+			map[string]any{"id": "llama3"},
+			map[string]any{"id": "gpt-5.5-mystery"},
+		},
+	})
+	byID := map[string]domain.ModelInfo{}
+	for _, m := range models {
+		byID[m.ID] = m
+	}
+	gpt := byID["src/gpt-5.5"]
+	if gpt.Cost == nil || gpt.Cost.Input == nil || *gpt.Cost.Input != 5 || len(gpt.Cost.Tiers) != 1 || gpt.Cost.Tiers[0].InputTokensAbove != 272000 {
+		t.Fatalf("gpt-5.5 cost %+v", gpt.Cost)
+	}
+	if gpt.ContextLength == 0 || gpt.MaxOutputTokens == 0 {
+		t.Fatalf("gpt-5.5 limits %+v", gpt)
+	}
+	haiku := byID["src/anthropic/claude-haiku-5-5"]
+	if haiku.Cost == nil || haiku.Cost.Input == nil || *haiku.Cost.Input != 0.1 {
+		t.Fatalf("haiku cost %+v", haiku.Cost)
+	}
+	if haiku.ContextLength != 123456 {
+		t.Fatalf("the source's own context length was overwritten: %d", haiku.ContextLength)
+	}
+	for _, id := range []string{"src/llama3", "src/gpt-5.5-mystery"} {
+		if m := byID[id]; m.Cost != nil || m.ContextLength != 0 {
+			t.Fatalf("%s should stay unpriced: %+v", id, m)
+		}
+	}
+}
+
 func TestExecuteStripsSlugAndPostsChat(t *testing.T) {
 	var gotPath, gotAuth, gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

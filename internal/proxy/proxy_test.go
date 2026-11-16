@@ -205,7 +205,7 @@ func TestGrokStreamMetersAPIEquivalentUSD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if today.Requests != 1 || today.PromptTokens != 1_000_000 || today.USD != 2 {
+	if today.Requests != 1 || today.PromptTokens != 1_000_000 || today.USD != 4 { // 1M input is past grok-4.6's 200k tier: $4/M, not $2/M
 		t.Fatalf("meter %+v", today)
 	}
 }

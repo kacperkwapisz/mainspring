@@ -6,6 +6,9 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"regexp"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/db"
@@ -28,12 +31,8 @@ type PriceModel struct {
 	Cost *PriceCost `json:"cost"`
 }
 
-type PriceCost struct {
-	Input      *float64 `json:"input"`
-	Output     *float64 `json:"output"`
-	CacheRead  *float64 `json:"cache_read"`
-	CacheWrite *float64 `json:"cache_write"`
-}
+// PriceCost reads a models.dev cost block, tiers included.
+type PriceCost = domain.ModelCostJSON
 
 type PriceStore struct {
 	db        *db.DB
@@ -42,7 +41,11 @@ type PriceStore struct {
 
 func NewPriceStore(d *db.DB) (*PriceStore, error) {
 	s := &PriceStore{db: d}
-	if err := s.seedFromSnapshot(); err != nil {
+	// Databases made before price tiers lack the column. Their rows have no
+	// tiers either, so reload the snapshot once the column exists.
+	hadTiers := hasColumn(d, "prices", "tiers")
+	ensureColumn(d, "prices", "tiers", "TEXT")
+	if err := s.seedFromSnapshot(!hadTiers); err != nil {
 		return nil, err
 	}
 	// Start from the last downloaded model list, if there is one.
@@ -56,12 +59,12 @@ func NewPriceStore(d *db.DB) (*PriceStore, error) {
 	return s, nil
 }
 
-func (s *PriceStore) seedFromSnapshot() error {
+func (s *PriceStore) seedFromSnapshot(force bool) error {
 	var n int
 	if err := s.db.SQL.QueryRow(`SELECT COUNT(*) FROM prices`).Scan(&n); err != nil {
 		return err
 	}
-	if n == 0 {
+	if n == 0 || force {
 		merged := map[string]PriceCatalog{}
 		if err := json.Unmarshal(prices.APIJSON, &merged); err != nil {
 			return err
@@ -104,8 +107,27 @@ func (s *PriceStore) Get(provider, model string) *domain.ModelPrice {
 		return p
 	}
 	if provider == "cursor" {
-		for _, alt := range []string{"anthropic", "openai", "xai"} {
-			if p := s.lookup(alt, model); p != nil {
+		return s.cursorFallback(model)
+	}
+	return nil
+}
+
+// cursorCatalogs are the models.dev providers behind the models Cursor resells,
+// in the order they are tried. OpenCode's list goes last: it covers models the
+// vendors have retired from their own lists (Sonnet 4) and Kimi.
+var cursorCatalogs = []string{"anthropic", "openai", "xai", "google", "zai", "opencode"}
+
+// cursorFallback prices a Cursor id from the vendors' catalogues. It tries
+// Cursor's own spelling, then Gemini's "-preview" id, then the catalogue
+// spelling of a Claude id.
+func (s *PriceStore) cursorFallback(model string) *domain.ModelPrice {
+	ids := []string{model, model + "-preview"}
+	if id := cursorClaudeID(model); id != "" {
+		ids = append(ids, id)
+	}
+	for _, catalog := range cursorCatalogs {
+		for _, id := range ids {
+			if p := s.lookup(catalog, id); p != nil {
 				return p
 			}
 		}
@@ -113,13 +135,26 @@ func (s *PriceStore) Get(provider, model string) *domain.ModelPrice {
 	return nil
 }
 
+var cursorClaudeRe = regexp.MustCompile(`^claude-(\d+(?:\.\d+)?)-(opus|sonnet|haiku)(?:-.*)?$`)
+
+// cursorClaudeID turns Cursor's claude-<version>-<family>[-effort][-thinking]
+// [-fast] into the catalogue's claude-<family>-<version>, with dots as dashes.
+// It returns "" for ids in any other shape.
+func cursorClaudeID(model string) string {
+	m := cursorClaudeRe.FindStringSubmatch(model)
+	if m == nil {
+		return ""
+	}
+	return "claude-" + m[2] + "-" + strings.ReplaceAll(m[1], ".", "-")
+}
+
 func (s *PriceStore) lookup(provider, model string) *domain.ModelPrice {
-	row := s.db.SQL.QueryRow(`SELECT provider, model, input, output, cache_read, cache_write FROM prices WHERE provider = ? AND model = ?`, provider, model)
+	row := s.db.SQL.QueryRow(`SELECT provider, model, input, output, cache_read, cache_write, tiers FROM prices WHERE provider = ? AND model = ?`, provider, model)
 	if p, err := scanPrice(row); err == nil {
 		return &p
 	}
 	row = s.db.SQL.QueryRow(
-		`SELECT provider, model, input, output, cache_read, cache_write FROM prices WHERE provider = ? AND (model = ? OR ? LIKE model || '%') ORDER BY length(model) DESC LIMIT 1`,
+		`SELECT provider, model, input, output, cache_read, cache_write, tiers FROM prices WHERE provider = ? AND (model = ? OR ? LIKE model || '%') ORDER BY length(model) DESC LIMIT 1`,
 		provider, model, model,
 	)
 	if p, err := scanPrice(row); err == nil {
@@ -139,30 +174,62 @@ type PriceUsage struct {
 	CacheWrite1h int64 // the part of CacheWrite written with Claude's one-hour TTL
 }
 
-// Estimate prices a request at the model's API list prices, in USD. One-hour
+// Estimate prices a request at the model's API list prices, in USD. When the
+// total input (uncached, cache reads and cache writes) passes a long-context
+// tier's threshold, the whole request is priced at that tier's rates. One-hour
 // cache writes cost twice the input price, as Anthropic charges them.
 func (s *PriceStore) Estimate(provider, model string, u PriceUsage) float64 {
 	p := s.Get(provider, model)
 	if p == nil {
 		return 0
 	}
+	rate := effectiveRates(p, u.Input+u.CacheRead+u.CacheWrite)
 	perM := 1_000_000.0
 	usd := 0.0
 	long := min(max(u.CacheWrite1h, 0), u.CacheWrite)
-	if p.Input != nil {
-		usd += *p.Input * float64(u.Input) / perM
-		usd += *p.Input * 2 * float64(long) / perM
+	if rate.Input != nil {
+		usd += *rate.Input * float64(u.Input) / perM
+		usd += *rate.Input * 2 * float64(long) / perM
 	}
-	if p.Output != nil {
-		usd += *p.Output * float64(u.Output) / perM
+	if rate.Output != nil {
+		usd += *rate.Output * float64(u.Output) / perM
 	}
-	if p.CacheRead != nil {
-		usd += *p.CacheRead * float64(u.CacheRead) / perM
+	if rate.CacheRead != nil {
+		usd += *rate.CacheRead * float64(u.CacheRead) / perM
 	}
-	if p.CacheWrite != nil {
-		usd += *p.CacheWrite * float64(u.CacheWrite-long) / perM
+	if rate.CacheWrite != nil {
+		usd += *rate.CacheWrite * float64(u.CacheWrite-long) / perM
 	}
 	return math.Round(usd*1_000_000) / 1_000_000
+}
+
+// effectiveRates returns the rates for a request with totalInput input tokens:
+// the base rates, with the fields of the highest tier it exceeds laid over them.
+func effectiveRates(p *domain.ModelPrice, totalInput int64) domain.ModelCostJSON {
+	rate := domain.ModelCostJSON{Input: p.Input, Output: p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite}
+	var tier *domain.ModelCostTier
+	for i := range p.Tiers {
+		t := &p.Tiers[i]
+		if totalInput > int64(t.InputTokensAbove) && (tier == nil || t.InputTokensAbove > tier.InputTokensAbove) {
+			tier = t
+		}
+	}
+	if tier == nil {
+		return rate
+	}
+	if tier.Input != nil {
+		rate.Input = tier.Input
+	}
+	if tier.Output != nil {
+		rate.Output = tier.Output
+	}
+	if tier.CacheRead != nil {
+		rate.CacheRead = tier.CacheRead
+	}
+	if tier.CacheWrite != nil {
+		rate.CacheWrite = tier.CacheWrite
+	}
+	return rate
 }
 
 func (s *PriceStore) Refresh(force bool) string {
@@ -212,13 +279,14 @@ func (s *PriceStore) upsertCatalog(data map[string]PriceCatalog, fetchedAt int64
 		return err
 	}
 	stmt, err := tx.Prepare(
-		`INSERT INTO prices(provider, model, input, output, cache_read, cache_write, fetched_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO prices(provider, model, input, output, cache_read, cache_write, tiers, fetched_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(provider, model) DO UPDATE SET
 		   input = excluded.input,
 		   output = excluded.output,
 		   cache_read = excluded.cache_read,
 		   cache_write = excluded.cache_write,
+		   tiers = excluded.tiers,
 		   fetched_at = excluded.fetched_at`,
 	)
 	if err != nil {
@@ -232,11 +300,19 @@ func (s *PriceStore) upsertCatalog(data map[string]PriceCatalog, fetchedAt int64
 			if model == "" {
 				model = id
 			}
-			var in, out, cr, cw any
+			var in, out, cr, cw, tiers any
 			if m.Cost != nil {
 				in, out, cr, cw = m.Cost.Input, m.Cost.Output, m.Cost.CacheRead, m.Cost.CacheWrite
+				if len(m.Cost.Tiers) > 0 {
+					raw, err := json.Marshal(m.Cost.Tiers)
+					if err != nil {
+						tx.Rollback()
+						return err
+					}
+					tiers = string(raw)
+				}
 			}
-			if _, err := stmt.Exec(provider, model, in, out, cr, cw, fetchedAt); err != nil {
+			if _, err := stmt.Exec(provider, model, in, out, cr, cw, tiers, fetchedAt); err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -257,7 +333,8 @@ func isCursorAuto(model string) bool {
 func scanPrice(row rowScanner) (domain.ModelPrice, error) {
 	var p domain.ModelPrice
 	var in, out, cr, cw sql.NullFloat64
-	err := row.Scan(&p.Provider, &p.Model, &in, &out, &cr, &cw)
+	var tiers sql.NullString
+	err := row.Scan(&p.Provider, &p.Model, &in, &out, &cr, &cw, &tiers)
 	if err != nil {
 		return p, err
 	}
@@ -273,5 +350,25 @@ func scanPrice(row rowScanner) (domain.ModelPrice, error) {
 	if cw.Valid {
 		p.CacheWrite = &cw.Float64
 	}
+	if tiers.Valid && tiers.String != "" {
+		// A bad value only costs the tiers, not the whole price.
+		_ = json.Unmarshal([]byte(tiers.String), &p.Tiers)
+		sort.SliceStable(p.Tiers, func(i, j int) bool { return p.Tiers[i].InputTokensAbove < p.Tiers[j].InputTokensAbove })
+	}
 	return p, nil
+}
+
+func hasColumn(d *db.DB, table, column string) bool {
+	rows, err := d.SQL.Query("SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if rows.Scan(&name) == nil && name == column {
+			return true
+		}
+	}
+	return false
 }

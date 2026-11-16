@@ -1,5 +1,10 @@
 package domain
 
+import (
+	"encoding/json"
+	"sort"
+)
+
 type ProviderID string
 
 const (
@@ -103,13 +108,73 @@ type ModelPrice struct {
 	Output     *float64
 	CacheRead  *float64
 	CacheWrite *float64
+	Tiers      []ModelCostTier // ascending by InputTokensAbove
+}
+
+// ModelCostTier holds the rates that replace a model's base rates once a
+// request's total input exceeds InputTokensAbove tokens. A nil rate keeps the
+// base rate.
+type ModelCostTier struct {
+	InputTokensAbove int      `json:"input_tokens_above"`
+	Input            *float64 `json:"input,omitempty"`
+	Output           *float64 `json:"output,omitempty"`
+	CacheRead        *float64 `json:"cache_read,omitempty"`
+	CacheWrite       *float64 `json:"cache_write,omitempty"`
+}
+
+// UnmarshalJSON reads both our own form and models.dev's, which nests the
+// threshold as "tier":{"type":"context","size":N}. Tiers of any other type
+// get a zero threshold, which ModelCostJSON drops.
+func (t *ModelCostTier) UnmarshalJSON(b []byte) error {
+	type plain ModelCostTier // no methods, so no recursion
+	var raw struct {
+		plain
+		Tier *struct {
+			Type string `json:"type"`
+			Size int    `json:"size"`
+		} `json:"tier"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*t = ModelCostTier(raw.plain)
+	if raw.Tier != nil {
+		t.InputTokensAbove = 0
+		if raw.Tier.Type == "context" {
+			t.InputTokensAbove = raw.Tier.Size
+		}
+	}
+	return nil
 }
 
 type ModelCostJSON struct {
-	Input      *float64 `json:"input,omitempty"`
-	Output     *float64 `json:"output,omitempty"`
-	CacheRead  *float64 `json:"cache_read,omitempty"`
-	CacheWrite *float64 `json:"cache_write,omitempty"`
+	Input      *float64        `json:"input,omitempty"`
+	Output     *float64        `json:"output,omitempty"`
+	CacheRead  *float64        `json:"cache_read,omitempty"`
+	CacheWrite *float64        `json:"cache_write,omitempty"`
+	Tiers      []ModelCostTier `json:"tiers,omitempty"`
+}
+
+// UnmarshalJSON keeps only context tiers with a threshold, smallest first.
+func (c *ModelCostJSON) UnmarshalJSON(b []byte) error {
+	type plain ModelCostJSON
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	kept := p.Tiers[:0]
+	for _, t := range p.Tiers {
+		if t.InputTokensAbove > 0 {
+			kept = append(kept, t)
+		}
+	}
+	sort.SliceStable(kept, func(i, j int) bool { return kept[i].InputTokensAbove < kept[j].InputTokensAbove })
+	p.Tiers = kept
+	if len(p.Tiers) == 0 {
+		p.Tiers = nil
+	}
+	*c = ModelCostJSON(p)
+	return nil
 }
 
 type ModelInfo struct {
