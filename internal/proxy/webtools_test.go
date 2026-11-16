@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
 	"github.com/kacperkwapisz/mainspring/internal/provider"
@@ -48,7 +49,7 @@ func TestWebSearchFollowsTheCallersSessionAccount(t *testing.T) {
 	hub.Router.Bind(domain.ProviderClaude, "sess-1", ids[1])
 	hub.Router.Touch(route.Touch{Provider: domain.ProviderClaude, SessionKey: "sess-1", CredID: ids[1], LocalKeyID: key.ID, Model: "claude-opus-5-5"})
 
-	res, err := WebSearch(context.Background(), hub, *key, "go 1.26", nil, nil)
+	res, err := WebSearch(context.Background(), hub, *key, nil, "go 1.26", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,8 +64,37 @@ func TestWebSearchFollowsTheCallersSessionAccount(t *testing.T) {
 	used = nil
 	ex.status["b"] = 429
 	hub.Executors[domain.ProviderClaude] = ex
-	if _, err := WebSearch(context.Background(), hub, *key, "again", nil, nil); err != nil || len(used) != 2 || !strings.HasPrefix(used[0], "b/") || strings.HasPrefix(used[1], "b/") {
+	if _, err := WebSearch(context.Background(), hub, *key, nil, "again", nil, nil); err != nil || len(used) != 2 || !strings.HasPrefix(used[0], "b/") || strings.HasPrefix(used[1], "b/") {
 		t.Fatalf("should try b, then another account: %v %v", used, err)
+	}
+}
+
+func TestWebSearchRunsOnTheCallingSessionsAccount(t *testing.T) {
+	var used []string
+	ex := searchExec{fakeExec: fakeExec{id: domain.ProviderClaude, format: domain.FormatClaude, models: []domain.ModelInfo{{ID: "claude-haiku-5-5"}}}, used: &used, status: map[string]int{}}
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{domain.ProviderClaude: ex})
+	defer d.Close()
+	created, _ := hub.Keys.Create("laptop", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	// Three parallel sessions on one key, each on its own account. The middle
+	// one calls, so neither the oldest nor the newest session is right.
+	for i, label := range []string{"a", "b", "c"} {
+		c, _ := hub.Vault.Save(store.SaveCredential{Provider: domain.ProviderClaude, Label: label, Tokens: domain.CredentialTokens{AccessToken: "t"}})
+		sk := route.SessionKey(map[string]string{"X-Session-ID": "pi-" + label}, nil, key.ID)
+		hub.Router.Bind(domain.ProviderClaude, sk, c.ID)
+		hub.Router.Touch(route.Touch{Provider: domain.ProviderClaude, SessionKey: sk, CredID: c.ID, LocalKeyID: key.ID, Model: "claude-opus-5-" + string(rune('0'+i))})
+		time.Sleep(3 * time.Millisecond)
+	}
+	if _, err := WebSearch(context.Background(), hub, *key, map[string]string{"x-session-id": "pi-b"}, "q", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(used) != 1 || used[0] != "b/claude-opus-5-1" {
+		t.Fatalf("want the calling session's account b and model, got %v", used)
+	}
+	// A session that isn't live falls back to the key's session, as before.
+	used = nil
+	if _, err := WebSearch(context.Background(), hub, *key, map[string]string{"X-Session-ID": "pi-gone"}, "q", nil, nil); err != nil || len(used) != 1 || used[0] == "b/claude-opus-5-1" {
+		t.Fatalf("fallback: %v %v", used, err)
 	}
 }
 
@@ -76,13 +106,13 @@ func TestWebSearchWithoutASessionUsesTheRouterAndASmallModel(t *testing.T) {
 	_, _ = hub.Vault.Save(store.SaveCredential{Provider: domain.ProviderClaude, Label: "a", Tokens: domain.CredentialTokens{AccessToken: "t"}})
 	created, _ := hub.Keys.Create("laptop", nil, nil, nil)
 	key, _ := hub.Keys.Verify(created.Secret)
-	if _, err := WebSearch(context.Background(), hub, *key, "q", nil, nil); err != nil || len(used) != 1 || used[0] != "a/claude-haiku-5-5" {
+	if _, err := WebSearch(context.Background(), hub, *key, nil, "q", nil, nil); err != nil || len(used) != 1 || used[0] != "a/claude-haiku-5-5" {
 		t.Fatalf("%v %v", used, err)
 	}
 	// A key limited to Codex can't use Claude for web tools either.
 	limited, _ := hub.Keys.Create("codex-only", []domain.ProviderID{domain.ProviderCodex}, nil, nil)
 	lk, _ := hub.Keys.Verify(limited.Secret)
-	if _, err := WebSearch(context.Background(), hub, *lk, "q", nil, nil); err == nil {
+	if _, err := WebSearch(context.Background(), hub, *lk, nil, "q", nil, nil); err == nil {
 		t.Fatal("a key without Claude must not search on Claude")
 	}
 }

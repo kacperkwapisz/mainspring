@@ -29,6 +29,10 @@ func (e Executor) Format() domain.ExecutorFormat { return domain.FormatGrok }
 func (e Executor) Models() []domain.ModelInfo    { return provider.CatalogModels(domain.ProviderGrok) }
 
 func (e Executor) Execute(ctx context.Context, credential domain.Credential, body any, opts provider.ExecuteOptions) (provider.ExecuteResult, error) {
+	if opts.CountTokens {
+		// No count endpoint upstream: estimate locally instead of generating.
+		return provider.CountTokensEstimate(body), nil
+	}
 	rec := translate.AsMap(body)
 	model := translate.AsStr(rec["model"])
 	sanitized := SanitizeBody(body, model)

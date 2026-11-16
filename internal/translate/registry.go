@@ -9,13 +9,13 @@ type streamFn func(model string, original, chunk any, state *StreamState) []stri
 var requestFns = map[string]requestFn{
 	"openai.chat→claude":      openaiChatToClaude,
 	"openai.chat→codex":       openaiChatToCodex,
-	"openai.chat→grok":        openaiChatToCodex,
+	"openai.chat→grok":        openaiChatToGrok,
 	"claude.messages→claude":  claudeToClaude,
 	"claude.messages→codex":   claudeToCodex,
 	"claude.messages→grok":    claudeToCodex,
 	"openai.responses→claude": responsesToClaude,
 	"openai.responses→codex":  responsesToCodex,
-	"openai.responses→grok":   responsesToCodex,
+	"openai.responses→grok":   responsesToGrokResponses,
 	"openai.chat→cursor":      identityChat,
 	"claude.messages→cursor":  claudeToGrok,
 	"openai.responses→cursor": responsesToGrok,
@@ -73,6 +73,9 @@ func TranslateRequest(from domain.InboundFormat, to domain.ExecutorFormat, model
 }
 
 func TranslateResponse(from domain.InboundFormat, to domain.ExecutorFormat, model string, original, upstream any) any {
+	if isTokenCount(upstream) {
+		return upstream
+	}
 	key := string(from) + "→" + string(to)
 	if fn, ok := responseFns[key]; ok {
 		return fn(model, original, upstream)
@@ -93,4 +96,16 @@ func DoneLine(from domain.InboundFormat) string {
 		return "data: [DONE]"
 	}
 	return ""
+}
+
+// isTokenCount reports whether upstream is a count_tokens answer
+// ({"input_tokens": N}), which is already in the Anthropic shape the caller
+// asked for and must not be turned into a message.
+func isTokenCount(upstream any) bool {
+	m, ok := upstream.(map[string]any)
+	if !ok || len(m) != 1 {
+		return false
+	}
+	_, ok = m["input_tokens"]
+	return ok
 }

@@ -12,7 +12,7 @@ func openaiChatToClaude(model string, stream bool, body any) RequestResult {
 	for _, raw := range messages {
 		m := AsMap(raw)
 		role := AsStr(m["role"])
-		if role == "system" {
+		if IsSystemRole(role) {
 			block := openaiContentToClaude(m["content"])
 			if system == nil {
 				system = block
@@ -167,6 +167,12 @@ func openaiChatToCodex(model string, stream bool, body any) RequestResult {
 					"arguments": AsStr(fn["arguments"], "{}"),
 				})
 			}
+			continue
+		}
+		if role == "developer" {
+			// Codex takes developer messages as they are; Grok gets them as
+			// system messages (see openaiChatToGrok).
+			input = append(input, map[string]any{"type": "message", "role": "developer", "content": openaiPartsToResponses(m["content"])})
 			continue
 		}
 		input = append(input, map[string]any{"type": "message", "role": "user", "content": openaiPartsToResponses(m["content"])})

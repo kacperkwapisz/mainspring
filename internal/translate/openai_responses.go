@@ -24,7 +24,12 @@ func responsesToGrok(model string, stream bool, body any) RequestResult {
 		it := AsMap(item)
 		typ := AsStr(it["type"], "message")
 		if typ == "message" {
-			messages = append(messages, map[string]any{"role": AsStr(it["role"], "user"), "content": responsesContentToOpenai(it["content"])})
+			role := AsStr(it["role"], "user")
+			if role == "developer" {
+				// Chat upstreams all take "system"; not all of them know "developer".
+				role = "system"
+			}
+			messages = append(messages, map[string]any{"role": role, "content": responsesContentToOpenai(it["content"])})
 		} else if typ == "reasoning" {
 			msg := map[string]any{"role": "assistant", "content": nil}
 			ApplyChatReasoning(msg, flattenText(firstNonNil(it["summary"], it["content"])))
@@ -98,8 +103,8 @@ func responsesToClaude(model string, stream bool, body any) RequestResult {
 		typ := AsStr(it["type"], "message")
 		if typ == "message" {
 			role := AsStr(it["role"], "user")
-			if role == "system" {
-				system = flattenText(it["content"])
+			if IsSystemRole(role) {
+				system = joinSystem(system, flattenText(it["content"]))
 				continue
 			}
 			r := "user"
@@ -347,4 +352,57 @@ func claudeStreamToResponses(model string, _ any, chunk any, state *StreamState)
 		state.Finished = true
 	}
 	return lines
+}
+
+// IsSystemRole reports whether a message carries the system prompt. OpenAI
+// clients send it as "developer" to reasoning models.
+func IsSystemRole(role string) bool { return role == "system" || role == "developer" }
+
+// joinSystem adds text to a Claude system prompt built from instructions and
+// earlier system messages, so none of them is dropped.
+func joinSystem(system any, text string) any {
+	prev := flattenText(system)
+	if s, ok := system.(string); ok {
+		prev = s
+	}
+	if prev == "" {
+		return text
+	}
+	if text == "" {
+		return prev
+	}
+	return prev + "\n\n" + text
+}
+
+// developerToSystem turns Responses input messages with role "developer" into
+// role "system". Grok's /responses documents system, user and assistant only.
+func developerToSystem(body map[string]any) {
+	items, ok := body["input"].([]any)
+	if !ok {
+		return
+	}
+	next := make([]any, len(items))
+	for i, item := range items {
+		it, ok := item.(map[string]any)
+		if !ok || AsStr(it["role"]) != "developer" {
+			next[i] = item
+			continue
+		}
+		c := cloneMap(it)
+		c["role"] = "system"
+		next[i] = c
+	}
+	body["input"] = next
+}
+
+func openaiChatToGrok(model string, stream bool, body any) RequestResult {
+	res := openaiChatToCodex(model, stream, body)
+	developerToSystem(AsMap(res.Body))
+	return res
+}
+
+func responsesToGrokResponses(model string, stream bool, body any) RequestResult {
+	res := responsesToCodex(model, stream, body)
+	developerToSystem(AsMap(res.Body))
+	return res
 }

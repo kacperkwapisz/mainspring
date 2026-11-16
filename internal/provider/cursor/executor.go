@@ -36,6 +36,10 @@ func stringsTrimCursorSlash(id string) string {
 }
 
 func (e *Executor) Execute(ctx context.Context, credential domain.Credential, body any, opts provider.ExecuteOptions) (provider.ExecuteResult, error) {
+	if opts.CountTokens {
+		// No count endpoint upstream: estimate locally instead of generating.
+		return provider.CountTokensEstimate(body), nil
+	}
 	rec := translate.AsMap(body)
 	if n, ok := rec["n"].(float64); ok && n > 1 {
 		return provider.ExecuteResult{OK: false, Status: 400, Body: map[string]any{"error": map[string]any{"message": "n > 1 is not supported for Cursor", "type": "invalid_request_error"}}, Message: "n > 1 is not supported for Cursor"}, nil

@@ -67,7 +67,7 @@ func ParseMessages(messages []OpenAIMessage) ParsedMessages {
 	turns := []ParsedTurn{}
 	var systemParts []string
 	for _, m := range messages {
-		if m.Role == "system" {
+		if translate.IsSystemRole(m.Role) {
 			systemParts = append(systemParts, textContent(m.Content))
 		}
 	}
@@ -89,7 +89,7 @@ func ParseMessages(messages []OpenAIMessage) ParsedMessages {
 		current = nil
 	}
 	for _, msg := range messages {
-		if msg.Role == "system" {
+		if translate.IsSystemRole(msg.Role) {
 			continue
 		}
 		if msg.Role == "user" {
