@@ -65,6 +65,9 @@ func registerMCP(mux *httpx.Mux, hub *proxy.Hub) {
 			httpx.JSON(w, 400, rpcFail(nil, -32700, "Couldn't read the request"))
 			return
 		}
+		// The session headers (X-Session-ID and the like) name the caller's
+		// session, so web tools run on the account that session uses.
+		headers := httpx.InboundHeaders(r)
 		trimmed := strings.TrimSpace(string(raw))
 		if strings.HasPrefix(trimmed, "[") {
 			var batch []rpcRequest
@@ -74,7 +77,7 @@ func registerMCP(mux *httpx.Mux, hub *proxy.Hub) {
 			}
 			var out []any
 			for _, req := range batch {
-				if resp := mcpAnswer(r.Context(), hub, *key, req); resp != nil {
+				if resp := mcpAnswer(r.Context(), hub, *key, headers, req); resp != nil {
 					out = append(out, resp)
 				}
 			}
@@ -90,7 +93,7 @@ func registerMCP(mux *httpx.Mux, hub *proxy.Hub) {
 			httpx.JSON(w, 400, rpcFail(nil, -32700, "That isn't valid JSON-RPC"))
 			return
 		}
-		resp := mcpAnswer(r.Context(), hub, *key, req)
+		resp := mcpAnswer(r.Context(), hub, *key, headers, req)
 		if resp == nil { // a notification
 			w.WriteHeader(http.StatusAccepted)
 			return
@@ -110,7 +113,7 @@ func rpcFail(id json.RawMessage, code int, msg string) map[string]any {
 	return map[string]any{"jsonrpc": "2.0", "id": id, "error": rpcError{Code: code, Message: msg}}
 }
 
-func mcpAnswer(ctx context.Context, hub *proxy.Hub, key domain.LocalKey, req rpcRequest) any {
+func mcpAnswer(ctx context.Context, hub *proxy.Hub, key domain.LocalKey, headers map[string]string, req rpcRequest) any {
 	if len(req.ID) == 0 || string(req.ID) == "null" {
 		return nil // notifications get no answer
 	}
@@ -144,7 +147,7 @@ func mcpAnswer(ctx context.Context, hub *proxy.Hub, key domain.LocalKey, req rpc
 		if json.Unmarshal(req.Params, &p) != nil {
 			return rpcFail(req.ID, -32602, "tools/call needs a name and arguments")
 		}
-		return rpcOK(req.ID, callTool(ctx, hub, key, p.Name, p.Arguments))
+		return rpcOK(req.ID, callTool(ctx, hub, key, headers, p.Name, p.Arguments))
 	default:
 		return rpcFail(req.ID, -32601, "Mainspring's MCP server doesn't support "+req.Method)
 	}
@@ -192,7 +195,7 @@ func withDesc(schema map[string]any, desc string) map[string]any {
 	return out
 }
 
-func callTool(ctx context.Context, hub *proxy.Hub, key domain.LocalKey, name string, args map[string]any) map[string]any {
+func callTool(ctx context.Context, hub *proxy.Hub, key domain.LocalKey, headers map[string]string, name string, args map[string]any) map[string]any {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	str := func(k string) string { s, _ := args[k].(string); return strings.TrimSpace(s) }
@@ -211,7 +214,7 @@ func callTool(ctx context.Context, hub *proxy.Hub, key domain.LocalKey, name str
 		if q == "" {
 			return toolError("Give a query to search for")
 		}
-		res, err := proxy.WebSearch(ctx, hub, key, q, list("allowed_domains"), list("blocked_domains"))
+		res, err := proxy.WebSearch(ctx, hub, key, headers, q, list("allowed_domains"), list("blocked_domains"))
 		if err != nil {
 			return toolError("Web search failed: " + err.Error())
 		}
@@ -233,7 +236,7 @@ func callTool(ctx context.Context, hub *proxy.Hub, key domain.LocalKey, name str
 			}
 			return map[string]any{"content": []any{map[string]any{"type": "text", "text": head + "\n\n" + page}}}
 		}
-		res, err := proxy.AskAboutPage(ctx, hub, key, u, page, prompt)
+		res, err := proxy.AskAboutPage(ctx, hub, key, headers, u, page, prompt)
 		if err != nil {
 			return toolError("Couldn't answer from " + u + ": " + err.Error())
 		}

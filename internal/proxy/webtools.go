@@ -9,12 +9,14 @@ import (
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
 	"github.com/kacperkwapisz/mainspring/internal/provider"
+	"github.com/kacperkwapisz/mainspring/internal/route"
 )
 
 // Web tools run on the pool the same way requests do. A search goes to the
-// account the caller's key is already working on when that's a Claude or Codex
-// session, so it uses the same subscription; otherwise to the account the
-// router would pick next. Each call updates limits and shows on the meter.
+// account the calling session (named by the same session headers it sends on
+// chat requests, e.g. X-Session-ID) is working on, or else the caller's key's
+// Claude or Codex session, so it uses the same subscription; otherwise to the
+// account the router would pick next. Each call updates limits and shows on the meter.
 
 // webSearcher is implemented by providers that can search the web and answer
 // questions on an account (Claude and Codex).
@@ -36,18 +38,19 @@ var ErrNoWebAccount = errors.New("no Claude or Codex account can run web tools r
 // webProviders are tried in this order when the caller has no session to follow.
 var webProviders = []domain.ProviderID{domain.ProviderClaude, domain.ProviderCodex}
 
-// WebSearch searches the web on a pooled account.
-func WebSearch(ctx context.Context, hub *Hub, key domain.LocalKey, query string, allowed, blocked []string) (WebResult, error) {
-	return runWeb(ctx, hub, key, domain.InboundFormat("mcp.web_search"), func(ex webSearcher, c domain.Credential, model string) (provider.WebAnswer, provider.ExecuteResult) {
+// WebSearch searches the web on a pooled account. headers are the caller's
+// request headers, used to find its session.
+func WebSearch(ctx context.Context, hub *Hub, key domain.LocalKey, headers map[string]string, query string, allowed, blocked []string) (WebResult, error) {
+	return runWeb(ctx, hub, key, headers, domain.InboundFormat("mcp.web_search"), func(ex webSearcher, c domain.Credential, model string) (provider.WebAnswer, provider.ExecuteResult) {
 		return ex.WebSearch(ctx, c, model, query, allowed, blocked)
 	})
 }
 
 // AskAboutPage answers a question about page text on a pooled account.
-func AskAboutPage(ctx context.Context, hub *Hub, key domain.LocalKey, pageURL, page, question string) (WebResult, error) {
+func AskAboutPage(ctx context.Context, hub *Hub, key domain.LocalKey, headers map[string]string, pageURL, page, question string) (WebResult, error) {
 	const system = "You answer a question about one web page for another model, which is waiting on the answer. Use only the page content below. Quote exact wording where it matters, and say so plainly if the page doesn't answer the question."
 	prompt := "Web page content from " + pageURL + ":\n---\n" + page + "\n---\n\n" + question
-	return runWeb(ctx, hub, key, domain.InboundFormat("mcp.web_fetch"), func(ex webSearcher, c domain.Credential, model string) (provider.WebAnswer, provider.ExecuteResult) {
+	return runWeb(ctx, hub, key, headers, domain.InboundFormat("mcp.web_fetch"), func(ex webSearcher, c domain.Credential, model string) (provider.WebAnswer, provider.ExecuteResult) {
 		return ex.Ask(ctx, c, model, system, prompt)
 	})
 }
@@ -58,10 +61,10 @@ type webPlan struct {
 	sessionKey string
 }
 
-func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, inbound domain.InboundFormat, call func(webSearcher, domain.Credential, string) (provider.WebAnswer, provider.ExecuteResult)) (WebResult, error) {
+func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, headers map[string]string, inbound domain.InboundFormat, call func(webSearcher, domain.Credential, string) (provider.WebAnswer, provider.ExecuteResult)) (WebResult, error) {
 	started := time.Now().UnixMilli()
 	var last error = ErrNoWebAccount
-	for _, plan := range webPlans(hub, key) {
+	for _, plan := range webPlans(hub, key, route.SessionKey(headers, nil, key.ID)) {
 		ex, ok := hub.Executors[plan.provider].(webSearcher)
 		if !ok {
 			continue
@@ -109,22 +112,37 @@ func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, inbound domain.I
 	return WebResult{}, last
 }
 
-// webPlans orders where a call may run. The caller's newest Claude or Codex
-// session comes first, with its model and session key, so the call lands on the
-// account that session is bound to.
-func webPlans(hub *Hub, key domain.LocalKey) []webPlan {
+// webPlans orders where a call may run. The calling session comes first when
+// it is a live Claude or Codex session, else the key's newest such session,
+// with its model and session key, so the call lands on the account that session
+// is bound to. sessionKey is the caller's route.SessionKey; the key-wide
+// fallback ("key:<id>") names no particular session.
+func webPlans(hub *Hub, key domain.LocalKey, sessionKey string) []webPlan {
 	var plans []webPlan
 	seen := map[domain.ProviderID]bool{}
-	for _, s := range hub.router().LiveSessions() { // newest first
-		if s.LocalKeyID != key.ID || seen[s.Provider] {
-			continue
+	live := hub.router().LiveSessions()
+	if sessionKey != "" && sessionKey != "key:"+key.ID {
+		for _, s := range live {
+			if s.LocalKeyID != key.ID || !webProvider(s.Provider) {
+				continue
+			}
+			if strings.TrimPrefix(s.Key, string(s.Provider)+"|") != sessionKey {
+				continue
+			}
+			seen[s.Provider] = true
+			plans = append(plans, webPlan{provider: s.Provider, model: s.Model, sessionKey: sessionKey})
+			break
 		}
-		if s.Provider != domain.ProviderClaude && s.Provider != domain.ProviderCodex {
+	}
+	for _, s := range live { // newest first
+		if len(plans) > 0 {
+			break // the calling session was found above
+		}
+		if s.LocalKeyID != key.ID || !webProvider(s.Provider) {
 			continue
 		}
 		seen[s.Provider] = true
 		plans = append(plans, webPlan{provider: s.Provider, model: s.Model, sessionKey: strings.TrimPrefix(s.Key, string(s.Provider)+"|")})
-		break
 	}
 	for _, p := range webProviders {
 		if !seen[p] {
@@ -132,6 +150,10 @@ func webPlans(hub *Hub, key domain.LocalKey) []webPlan {
 		}
 	}
 	return plans
+}
+
+func webProvider(p domain.ProviderID) bool {
+	return p == domain.ProviderClaude || p == domain.ProviderCodex
 }
 
 // webModel picks a model for a call with no session to follow: the account's

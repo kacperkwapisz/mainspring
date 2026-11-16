@@ -28,6 +28,10 @@ func (e Executor) Format() domain.ExecutorFormat { return domain.FormatCodex }
 func (e Executor) Models() []domain.ModelInfo    { return provider.CatalogModels(domain.ProviderCodex) }
 
 func (e Executor) Execute(ctx context.Context, credential domain.Credential, body any, opts provider.ExecuteOptions) (provider.ExecuteResult, error) {
+	if opts.CountTokens {
+		// No count endpoint upstream: estimate locally instead of generating.
+		return provider.CountTokensEstimate(body), nil
+	}
 	sanitized := SanitizeBody(body, opts.InboundHeaders)
 	if opts.Compact {
 		sanitized = SanitizeCompactBody(body, opts.InboundHeaders)

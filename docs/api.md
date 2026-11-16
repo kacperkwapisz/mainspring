@@ -50,11 +50,13 @@ Session affinity follows Claude Code's session ID or `metadata.user_id`; see [Ho
 
 ## POST /v1/messages/count_tokens
 
-Counts a Messages request's input tokens without running it. Same body as `/v1/messages`.
+Counts a Messages request's input tokens without running it. Same body as `/v1/messages`. Claude counts exactly; Codex, Grok and Cursor have no count endpoint, so Mainspring answers with an estimate (about four characters per token) and sends nothing upstream.
 
 ## POST /v1/chat/completions
 
 The OpenAI Chat Completions API, for every provider. `stream: true` returns OpenAI's server-sent events.
+
+A `developer` message is the system prompt, as OpenAI's reasoning models treat it. On a Claude model that lists `efforts`, `reasoning_effort` becomes Claude's adaptive thinking at that effort (the nearest one the model takes; `minimal` counts as `low`, `none` turns thinking off). Claude models without efforts get a thinking budget instead. The Responses API's `reasoning.effort` works the same way.
 
 ```sh
 curl https://mainspring.your-tailnet.ts.net/v1/chat/completions \

@@ -137,7 +137,7 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 		if req.Inbound == domain.InboundOpenAIResponses && execFormat != domain.FormatCodex {
 			inboundBody = translate.FlattenCodexMultiAgent(req.Body)
 		}
-		translated := translate.TranslateRequest(req.Inbound, execFormat, hop.Model, req.Stream, inboundBody)
+		translated := translate.TranslateRequestWith(req.Inbound, execFormat, hop.Model, req.Stream, inboundBody, requestHints(ctx, hub, executor, req.Inbound, hop.Provider, hop.Model))
 		all, err := hopCredentials(hub, hop.Provider, hop.Model)
 		if err != nil {
 			return Result{}, err

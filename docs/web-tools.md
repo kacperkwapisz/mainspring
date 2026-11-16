@@ -10,7 +10,7 @@ Mainspring is an MCP server at `/mcp` with two tools. Any app that supports remo
 
 ## Which account runs a call
 
-The account your app's current Claude or Codex session uses, with the same model, so a search costs the same subscription as the work around it. With no session to follow, the router picks the account, using a small model (Haiku on Claude). If that account is out, the call moves to the next one.
+The account your app's current Claude or Codex session uses, with the same model, so a search costs the same subscription as the work around it. To pick the right session when you run several at once, send the same session header on `/mcp` calls as on chat requests (the pi extension sends `X-Session-ID`); without one, calls follow your key's session. With no session to follow, the router picks the account, using a small model (Haiku on Claude). If that account is out, the call moves to the next one.
 
 Claude searches the way Claude Code does, in its own small request with the `web_search` server tool. Codex uses its built-in `web_search`. Calls update limits, and the **Web tools** card on the Meter counts searches and page questions by provider.
 
