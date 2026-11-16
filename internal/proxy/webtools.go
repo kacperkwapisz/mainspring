@@ -66,7 +66,7 @@ type webPlan struct {
 func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, headers map[string]string, inbound domain.InboundFormat, call func(webSearcher, domain.Credential, string) (provider.WebAnswer, provider.ExecuteResult)) (WebResult, error) {
 	started := time.Now().UnixMilli()
 	var last error = ErrNoWebAccount
-	for _, plan := range webPlans(hub, key, route.SessionKey(headers, nil, key.ID)) {
+	for _, plan := range webPlans(hub, key, webSessionKeys(headers, key.ID)) {
 		ex, ok := hub.Executors[plan.provider].(webSearcher)
 		if !ok {
 			continue
@@ -116,13 +116,17 @@ func runWeb(ctx context.Context, hub *Hub, key domain.LocalKey, headers map[stri
 // webPlans orders where a call may run. The calling session comes first when
 // it is a live Claude or Codex session, else the key's most recently active one,
 // with its model and session key, so the call lands on the account that session
-// is bound to. sessionKey is the caller's route.SessionKey; the key-wide
-// fallback ("key:<id>") names no particular session.
-func webPlans(hub *Hub, key domain.LocalKey, sessionKey string) []webPlan {
+// is bound to. sessionKeys are the caller's candidate route.SessionKeys, tried
+// in order; the key-wide fallback ("key:<id>") names no particular session.
+func webPlans(hub *Hub, key domain.LocalKey, sessionKeys []string) []webPlan {
 	var plans []webPlan
 	seen := map[domain.ProviderID]bool{}
 	live := hub.router().LiveSessions()
-	if sessionKey != "" && sessionKey != "key:"+key.ID {
+match:
+	for _, sessionKey := range sessionKeys {
+		if sessionKey == "" || sessionKey == "key:"+key.ID {
+			continue
+		}
 		for _, s := range live {
 			if s.LocalKeyID != key.ID || !webProvider(s.Provider) {
 				continue
@@ -132,7 +136,7 @@ func webPlans(hub *Hub, key domain.LocalKey, sessionKey string) []webPlan {
 			}
 			seen[s.Provider] = true
 			plans = append(plans, webPlan{provider: s.Provider, model: s.Model, sessionKey: sessionKey})
-			break
+			break match
 		}
 	}
 	// Fall back to the key's most recently active session. LiveSessions lists
@@ -155,6 +159,26 @@ func webPlans(hub *Hub, key domain.LocalKey, sessionKey string) []webPlan {
 		}
 	}
 	return plans
+}
+
+// webSessionKeys lists the session keys a web-tool call may belong to, best
+// first. pi sends X-Session-ID on every call and session-id only with prompt
+// caching on, so its chat may be keyed by either; the second key leaves the
+// Codex session headers out to find the X-Session-ID one.
+func webSessionKeys(headers map[string]string, keyID string) []string {
+	keys := []string{route.SessionKey(headers, nil, keyID)}
+	rest := map[string]string{}
+	for k, v := range headers {
+		switch strings.ToLower(k) {
+		case "session-id", "session_id", "thread-id":
+			continue
+		}
+		rest[k] = v
+	}
+	if k := route.SessionKey(rest, nil, keyID); k != keys[0] {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func webProvider(p domain.ProviderID) bool {

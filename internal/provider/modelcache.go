@@ -14,7 +14,10 @@ import (
 type ModelCache struct {
 	mu  sync.Mutex
 	ttl time.Duration
-	m   map[string]*modelEntry
+	// failTTL is how long a failed first fetch is remembered, so a broken
+	// account doesn't add the provider's timeout to every request.
+	failTTL time.Duration
+	m       map[string]*modelEntry
 }
 
 type modelEntry struct {
@@ -24,11 +27,12 @@ type modelEntry struct {
 }
 
 func NewModelCache(ttl time.Duration) *ModelCache {
-	return &ModelCache{ttl: ttl, m: map[string]*modelEntry{}}
+	return &ModelCache{ttl: ttl, failTTL: time.Minute, m: map[string]*modelEntry{}}
 }
 
 // Get returns the cached list for key, fetching it when there is none yet.
-// A failed fetch keeps the last good list.
+// A failed fetch keeps the last good list. With no good list, a failure is
+// remembered for failTTL and Get returns nil without fetching until then.
 func (c *ModelCache) Get(ctx context.Context, key string, fetch func(context.Context) ([]domain.ModelInfo, error)) []domain.ModelInfo {
 	c.mu.Lock()
 	e := c.m[key]
@@ -41,9 +45,14 @@ func (c *ModelCache) Get(ctx context.Context, key string, fetch func(context.Con
 		c.mu.Unlock()
 		return models
 	}
+	if e != nil && time.Now().Before(e.until) {
+		c.mu.Unlock()
+		return nil // a recent fetch failed
+	}
 	c.mu.Unlock()
 	models, err := fetch(ctx)
 	if err != nil || len(models) == 0 {
+		c.storeFailure(key)
 		return nil
 	}
 	c.store(key, models)
@@ -66,6 +75,16 @@ func (c *ModelCache) refresh(key string, fetch func(context.Context) ([]domain.M
 	} else {
 		e.until = time.Now().Add(c.ttl / 4) // try again sooner after a failure
 	}
+}
+
+// storeFailure remembers a failed first fetch. It never replaces a good list.
+func (c *ModelCache) storeFailure(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e := c.m[key]; e != nil && len(e.models) > 0 {
+		return
+	}
+	c.m[key] = &modelEntry{until: time.Now().Add(c.failTTL)}
 }
 
 func (c *ModelCache) store(key string, models []domain.ModelInfo) {

@@ -363,7 +363,8 @@ func grokStreamToClaude(model string, _ any, chunk any, state *StreamState) []st
 		}))
 	}
 	lines = append(lines, emitChatToolsToClaude(delta, state)...)
-	if choice["finish_reason"] != nil {
+	if choice["finish_reason"] != nil && !state.closed {
+		state.closed = true
 		captureStreamError(state, choice)
 		lines = append(lines, claudeFinishBlocks(state)...)
 		finish := AsStr(choice["finish_reason"])
@@ -376,6 +377,7 @@ func grokStreamToClaude(model string, _ any, chunk any, state *StreamState) []st
 			}
 		}
 		if state.UsageSeen || finish == "error" {
+			state.pending = nil
 			lines = append(lines, closing()...)
 		} else {
 			state.pending = closing
@@ -420,7 +422,12 @@ func codexStreamToClaude(model string, _ any, chunk any, state *StreamState) []s
 		lines = append(lines, claudeToolDelta(state, AsStr(ev["delta"]))...)
 	} else if typ == "response.failed" {
 		captureResponsesFailure(state, AsMap(ev["response"]))
-	} else if typ == "response.completed" || typ == "response.done" || typ == "response.incomplete" {
+		if !state.closed {
+			state.closed = true
+			lines = append(lines, sse("error", map[string]any{"type": "error", "error": map[string]any{"type": "api_error", "message": state.Error}}))
+		}
+	} else if (typ == "response.completed" || typ == "response.done" || typ == "response.incomplete") && !state.closed {
+		state.closed = true
 		captureResponsesUsage(state, AsMap(ev["response"])["usage"])
 		finish := ""
 		if typ == "response.incomplete" {

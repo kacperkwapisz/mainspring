@@ -359,6 +359,9 @@ func claudeStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState
 func grokStreamToOpenaiChat(model string, original any, chunk any, state *StreamState) []string {
 	c := AsMap(chunk)
 	captureUsage(state, c["usage"])
+	if state.doneSent {
+		return nil // nothing may follow [DONE]
+	}
 	wantsUsage := chatWantsUsage(original)
 	out := cloneMap(c)
 	out["model"] = model
@@ -372,7 +375,7 @@ func grokStreamToOpenaiChat(model string, original any, chunk any, state *Stream
 			return nil
 		}
 		lines := []string{chunkLine(out)}
-		if state.Finished && !state.doneSent {
+		if state.Finished {
 			state.doneSent = true
 			lines = append(lines, "data: [DONE]")
 		}
@@ -458,7 +461,18 @@ func codexStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState)
 		}
 	case "response.failed":
 		captureResponsesFailure(state, AsMap(ev["response"]))
+		if !state.doneSent {
+			// The same error chunk the Cursor executor sends mid-stream:
+			// finish_reason "error" with the message as content.
+			state.doneSent = true
+			lines = append(lines,
+				chunkLine(openaiChatChunk(state.ID, model, map[string]any{"content": state.Error}, "error", state)),
+				"data: [DONE]")
+		}
 	case "response.completed", "response.done", "response.incomplete":
+		if state.doneSent {
+			break
+		}
 		resp := AsMap(ev["response"])
 		captureResponsesUsage(state, resp["usage"])
 		hasTools := false
@@ -474,10 +488,9 @@ func codexStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState)
 			finish = "length"
 		}
 		lines = append(lines, chunkLine(openaiChatChunk(state.ID, model, map[string]any{}, finish, state)))
-		if !state.Finished {
-			state.Finished = true
-			lines = append(lines, "data: [DONE]")
-		}
+		state.Finished = true
+		state.doneSent = true
+		lines = append(lines, "data: [DONE]")
 	}
 	return lines
 }

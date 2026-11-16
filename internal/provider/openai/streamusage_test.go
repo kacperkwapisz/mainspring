@@ -12,7 +12,7 @@ import (
 	"github.com/kacperkwapisz/mainspring/internal/provider"
 )
 
-func TestStreamAsksForUsageWithoutOverridingTheClient(t *testing.T) {
+func TestStreamAlwaysAsksForUsage(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
@@ -51,8 +51,13 @@ func TestStreamAsksForUsageWithoutOverridingTheClient(t *testing.T) {
 	res, _ = ex.Execute(context.Background(), cred, set, provider.ExecuteOptions{Stream: true})
 	for range res.Stream {
 	}
-	if includeUsage() != false {
-		t.Fatalf("client's include_usage overridden: %v", got["stream_options"])
+	// The meter needs the usage even when the client turned it off; the
+	// translator keeps the usage chunk from that client.
+	if includeUsage() != true {
+		t.Fatalf("include_usage false reached upstream: %v", got["stream_options"])
+	}
+	if set["stream_options"].(map[string]any)["include_usage"] != false {
+		t.Fatalf("client's stream_options changed: %v", set["stream_options"])
 	}
 
 	res, _ = ex.Execute(context.Background(), cred, map[string]any{"model": "local/m", "messages": []any{}}, provider.ExecuteOptions{})

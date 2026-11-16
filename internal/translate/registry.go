@@ -19,7 +19,7 @@ var requestFns = map[string]requestFn{
 	"openai.chat→cursor":      identityChat,
 	"claude.messages→cursor":  claudeToGrok,
 	"openai.responses→cursor": responsesToGrok,
-	"openai.chat→openai":      identityChat,
+	"openai.chat→openai":      chatToOpenAI,
 	"claude.messages→openai":  claudeToGrok,
 	"openai.responses→openai": responsesToGrok,
 }
@@ -62,6 +62,37 @@ var streamFns = map[string]streamFn{
 
 func identityChat(model string, stream bool, body any) RequestResult {
 	return RequestResult{Model: model, Stream: stream, Body: RewriteModel(body, model)}
+}
+
+// chatToOpenAI passes a Chat request to an OpenAI-compatible server (a
+// source, or an OpenCode chat model) with "developer" messages sent as
+// "system": every compatible server takes system, some reject developer, and
+// OpenAI reads system as developer for reasoning models.
+func chatToOpenAI(model string, stream bool, body any) RequestResult {
+	res := identityChat(model, stream, body)
+	msgs, ok := AsMap(res.Body)["messages"].([]any)
+	if !ok {
+		return res
+	}
+	next := make([]any, len(msgs))
+	changed := false
+	for i, m := range msgs {
+		msg, ok := m.(map[string]any)
+		if !ok || AsStr(msg["role"]) != "developer" {
+			next[i] = m
+			continue
+		}
+		c := cloneMap(msg)
+		c["role"] = "system"
+		next[i], changed = c, true
+	}
+	if !changed {
+		return res
+	}
+	out := cloneMap(AsMap(res.Body)) // the body can be the client's own map
+	out["messages"] = next
+	res.Body = out
+	return res
 }
 
 func TranslateRequest(from domain.InboundFormat, to domain.ExecutorFormat, model string, stream bool, body any) RequestResult {

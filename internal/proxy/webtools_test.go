@@ -165,3 +165,29 @@ func TestWebSearchWithoutASessionUsesTheMostRecentlyActiveOne(t *testing.T) {
 		t.Fatalf("want the most recently active session's account, got %v", used)
 	}
 }
+
+func TestWebSearchFindsPiChatKeyedBySessionIDHeaderOnly(t *testing.T) {
+	var used []string
+	ex := searchExec{fakeExec: fakeExec{id: domain.ProviderClaude, format: domain.FormatClaude, models: []domain.ModelInfo{{ID: "claude-haiku-5-5"}}}, used: &used, status: map[string]int{}}
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{domain.ProviderClaude: ex})
+	defer d.Close()
+	created, _ := hub.Keys.Create("laptop", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	// With prompt caching off, pi's chat carries only X-Session-ID. Another,
+	// newer session on the key makes the fallback pick the wrong one.
+	for _, label := range []string{"mine", "other"} {
+		c, _ := hub.Vault.Save(store.SaveCredential{Provider: domain.ProviderClaude, Label: label, Tokens: domain.CredentialTokens{AccessToken: "t"}})
+		sk := route.SessionKey(map[string]string{"X-Session-ID": "pi-" + label}, nil, key.ID)
+		hub.Router.Bind(domain.ProviderClaude, sk, c.ID)
+		hub.Router.Touch(route.Touch{Provider: domain.ProviderClaude, SessionKey: sk, CredID: c.ID, LocalKeyID: key.ID, Model: "claude-opus-5-5"})
+		time.Sleep(3 * time.Millisecond)
+	}
+	// pi's /mcp call still sends session-id, which keys as codex:<id>.
+	headers := map[string]string{"X-Session-ID": "pi-mine", "session-id": "mine"}
+	if _, err := WebSearch(context.Background(), hub, *key, headers, "q", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(used) != 1 || used[0] != "mine/claude-opus-5-5" {
+		t.Fatalf("want the caller's session on account mine, got %v", used)
+	}
+}

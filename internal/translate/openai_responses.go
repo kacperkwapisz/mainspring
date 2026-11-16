@@ -281,7 +281,8 @@ func grokStreamToResponses(model string, _ any, chunk any, state *StreamState) [
 		lines = append(lines, sse("response.output_text.delta", map[string]any{"type": "response.output_text.delta", "delta": s}))
 	}
 	lines = append(lines, emitChatToolsToResponses(delta, state)...)
-	if choice["finish_reason"] != nil {
+	if choice["finish_reason"] != nil && !state.closed {
+		state.closed = true
 		captureStreamError(state, choice)
 		status := "completed"
 		if AsStr(choice["finish_reason"]) == "error" {
@@ -291,6 +292,7 @@ func grokStreamToResponses(model string, _ any, chunk any, state *StreamState) [
 		// send after the finish; hold it until then.
 		closing := func() []string { return []string{responsesCompletedEvent(model, status, state)} }
 		if state.UsageSeen || status == "failed" {
+			state.pending = nil
 			lines = append(lines, closing()...)
 		} else {
 			state.pending = closing
