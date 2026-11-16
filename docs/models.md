@@ -21,7 +21,9 @@ The meter and the `cost` in `/v1/models` are API list prices per million tokens.
   "tiers": [{"input_tokens_above": 100000, "input": 0.5, "output": 2.5, "cache_read": 0.05, "cache_write": 0.625}]}
 ```
 
-Models you add from an OpenAI-compatible source get a price and size limits from models.dev when their ID (or the part after the last `/`) is one it lists. Other models have no price.
+Models you add from an OpenAI-compatible source get a price and size limits from models.dev when their ID (or the part after the last `/`) is one it lists, and the meter charges that price. Other models have no price.
+
+Cursor IDs that the vendors spell differently, such as `claude-4.5-sonnet` or `gemini-3.1-pro`, take the vendor's price and limits for that model.
 
 ## IDs
 

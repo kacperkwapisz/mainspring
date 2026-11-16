@@ -180,7 +180,8 @@ func parseModelList(slug string, body any) []domain.ModelInfo {
 		}
 		// A source rarely says what a model costs. When the id is one models.dev
 		// knows, use its price and fill the limits the source left out.
-		if known, ok := catalog.Find(id); ok {
+		// Looked up by the public id, as the meter prices it.
+		if known, ok := catalog.Find(public); ok {
 			info.Cost = known.Cost
 			if info.ContextLength == 0 {
 				info.ContextLength = known.Context

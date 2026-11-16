@@ -33,7 +33,10 @@ export interface ServedModel {
 interface Saved extends Partial<Config> {
 	/** The last model list each Mainspring served, by its address. */
 	modelsByUrl?: Record<string, ServedModel[]>;
-	/** Before lists were kept per address; it belongs to `url`. readSaved moves it into modelsByUrl. */
+	/**
+	 * The list for `url`. Released extensions before modelsByUrl read only this,
+	 * so it's kept in step with modelsByUrl[url] for anyone who goes back.
+	 */
 	models?: ServedModel[];
 }
 
@@ -47,23 +50,32 @@ function readSaved(): Saved {
 	} catch {
 		return {};
 	}
-	// Move an old single list under the address it came from.
-	const { models, ...rest } = saved;
-	if (models?.length && rest.url && !rest.modelsByUrl?.[rest.url]) rest.modelsByUrl = { ...rest.modelsByUrl, [rest.url]: models };
-	return rest;
+	// A file from an older extension has only the top-level list, which belongs
+	// to its saved address. File it there unless that address has its own.
+	const url = saved.url ? normalizeUrl(saved.url) : "";
+	if (url && saved.models?.length && !saved.modelsByUrl?.[url]) saved.modelsByUrl = { ...saved.modelsByUrl, [url]: saved.models };
+	return saved;
 }
 
 function writeSaved(next: Saved): void {
+	// The top-level list always belongs to the saved address, or isn't there.
+	const current = next.url ? next.modelsByUrl?.[normalizeUrl(next.url)] : undefined;
+	const out: Saved = { ...next, models: current?.length ? current : undefined };
 	mkdirSync(dirname(file()), { recursive: true });
 	const tmp = `${file()}.tmp`;
-	writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
+	writeFileSync(tmp, `${JSON.stringify(out, null, 2)}\n`, { mode: 0o600 });
 	renameSync(tmp, file());
+}
+
+/** The panel's address as the extension keys it: no trailing slash or /v1. */
+export function normalizeUrl(url: string): string {
+	return url.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
 }
 
 /** MAINSPRING_URL and MAINSPRING_KEY win over the saved file. */
 export function loadConfig(): Config | undefined {
 	const saved = readSaved();
-	const url = (process.env.MAINSPRING_URL || saved.url || "").trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+	const url = normalizeUrl(process.env.MAINSPRING_URL || saved.url || "");
 	const key = (process.env.MAINSPRING_KEY || saved.key || "").trim();
 	return url && key ? { url, key } : undefined;
 }

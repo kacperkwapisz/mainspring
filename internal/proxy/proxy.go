@@ -675,11 +675,23 @@ func recordEvent(hub *Hub, req Request, providerID domain.ProviderID, model, cre
 	if routed != "" {
 		meterModel = routed
 	}
-	usd := hub.Prices.Estimate(priceProvider, meterModel, price)
-	if usd == 0 && (providerID == domain.ProviderOpenAI || providerID == domain.ProviderOpenCode) {
-		if i := strings.Index(meterModel, "/"); i >= 0 {
-			usd = hub.Prices.Estimate(priceProvider, meterModel[i+1:], price)
+	var usd float64
+	switch providerID {
+	case domain.ProviderOpenAI:
+		// Priced as the source's model list shows it (provider.CatalogIndex).
+		usd = hub.Prices.EstimateSource(meterModel, price)
+	case domain.ProviderOpenCode:
+		usd = hub.Prices.Estimate(priceProvider, meterModel, price)
+		if usd == 0 {
+			if i := strings.Index(meterModel, "/"); i >= 0 {
+				usd = hub.Prices.Estimate(priceProvider, meterModel[i+1:], price)
+			}
 		}
+		if usd == 0 {
+			usd = hub.Prices.EstimateSource(meterModel, price)
+		}
+	default:
+		usd = hub.Prices.Estimate(priceProvider, meterModel, price)
 	}
 	if providerID == domain.ProviderClaude && u.WebSearches > 0 {
 		usd = math.Round((usd+float64(u.WebSearches)*webSearchUSD)*1_000_000) / 1_000_000

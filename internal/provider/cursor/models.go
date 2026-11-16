@@ -486,7 +486,7 @@ func ToModelInfo(models []Model, prefix bool) []domain.ModelInfo {
 			Name: m.Name, DisplayName: m.Name,
 			ContextLength: m.ContextWindow, MaxOutputTokens: m.MaxTokens,
 		}
-		if ctx, maxOut, cost, input, ok := fastLimits(id); ok {
+		if ctx, maxOut, cost, input, ok := provider.CursorLimits(id); ok {
 			if ctx > 0 {
 				info.ContextLength = ctx
 			}
@@ -512,34 +512,6 @@ func ToModelInfo(models []Model, prefix bool) []domain.ModelInfo {
 		out[i] = info
 	}
 	return out
-}
-
-// fastLimits looks an id up as it is, so a -fast model keeps its own price
-// (composer-2.5-fast costs more than composer-2.5). Whatever the exact id
-// leaves out comes from the id without -fast.
-func fastLimits(id string) (ctx, maxOut int, cost *domain.ModelCostJSON, input []string, ok bool) {
-	ctx, maxOut, cost, input, ok = provider.Limits(id)
-	base := strings.TrimSuffix(id, "-fast")
-	if base == id {
-		return
-	}
-	bctx, bmax, bcost, binput, bok := provider.Limits(base)
-	if !bok {
-		return
-	}
-	if !ok {
-		return bctx, bmax, bcost, binput, true
-	}
-	if ctx == 0 {
-		ctx = bctx
-	}
-	if maxOut == 0 {
-		maxOut = bmax
-	}
-	if cost == nil {
-		cost = bcost
-	}
-	return
 }
 
 func familyEffortsFrom(models []Model, family string) []string {

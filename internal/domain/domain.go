@@ -2,7 +2,11 @@ package domain
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"sort"
+	"strconv"
+	"strings"
 )
 
 type ProviderID string
@@ -124,14 +128,15 @@ type ModelCostTier struct {
 
 // UnmarshalJSON reads both our own form and models.dev's, which nests the
 // threshold as "tier":{"type":"context","size":N}. Tiers of any other type
-// get a zero threshold, which ModelCostJSON drops.
+// get a zero threshold, which ModelCostJSON drops. The size may be a float or
+// a numeric string; anything else is an error, and ModelCostJSON skips the tier.
 func (t *ModelCostTier) UnmarshalJSON(b []byte) error {
 	type plain ModelCostTier // no methods, so no recursion
 	var raw struct {
 		plain
 		Tier *struct {
-			Type string `json:"type"`
-			Size int    `json:"size"`
+			Type string          `json:"type"`
+			Size json.RawMessage `json:"size"`
 		} `json:"tier"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
@@ -141,10 +146,39 @@ func (t *ModelCostTier) UnmarshalJSON(b []byte) error {
 	if raw.Tier != nil {
 		t.InputTokensAbove = 0
 		if raw.Tier.Type == "context" {
-			t.InputTokensAbove = raw.Tier.Size
+			size, err := tierSize(raw.Tier.Size)
+			if err != nil {
+				return err
+			}
+			t.InputTokensAbove = size
 		}
 	}
 	return nil
+}
+
+// tierSize reads a token threshold written as a number or a numeric string.
+func tierSize(raw json.RawMessage) (int, error) {
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return 0, err
+	}
+	var f float64
+	switch x := v.(type) {
+	case float64:
+		f = x
+	case string:
+		n, err := strconv.ParseFloat(strings.TrimSpace(x), 64)
+		if err != nil {
+			return 0, fmt.Errorf("tier size %q is not a number", x)
+		}
+		f = n
+	default:
+		return 0, fmt.Errorf("tier size %s is not a number", raw)
+	}
+	if math.IsNaN(f) || f <= 0 || f > math.MaxInt32 {
+		return 0, nil
+	}
+	return int(f), nil
 }
 
 type ModelCostJSON struct {
@@ -156,14 +190,26 @@ type ModelCostJSON struct {
 }
 
 // UnmarshalJSON keeps only context tiers with a threshold, smallest first.
+// Tiers are optional extras on a price, so a tier that doesn't parse, or a
+// "tiers" value that isn't a list, is skipped rather than failing the price.
 func (c *ModelCostJSON) UnmarshalJSON(b []byte) error {
 	type plain ModelCostJSON
-	var p plain
-	if err := json.Unmarshal(b, &p); err != nil {
+	var raw struct {
+		plain
+		Tiers json.RawMessage `json:"tiers"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
-	kept := p.Tiers[:0]
-	for _, t := range p.Tiers {
+	p := raw.plain
+	var entries []json.RawMessage
+	_ = json.Unmarshal(raw.Tiers, &entries) // not a list: no tiers
+	var kept []ModelCostTier
+	for _, e := range entries {
+		var t ModelCostTier
+		if json.Unmarshal(e, &t) != nil {
+			continue
+		}
 		if t.InputTokensAbove > 0 {
 			kept = append(kept, t)
 		}
