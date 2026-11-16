@@ -122,7 +122,7 @@ func modelInfo(provider domain.ProviderID, m catalogModel) domain.ModelInfo {
 }
 
 func nonemptyCost(cost *domain.ModelCostJSON) *domain.ModelCostJSON {
-	if cost == nil || (cost.Input == nil && cost.Output == nil && cost.CacheRead == nil && cost.CacheWrite == nil) {
+	if cost == nil || (cost.Input == nil && cost.Output == nil && cost.CacheRead == nil && cost.CacheWrite == nil && len(cost.Tiers) == 0) {
 		return nil
 	}
 	return cost
@@ -208,6 +208,58 @@ func limitsIn(provider domain.ProviderID, id string) (int, int, *domain.ModelCos
 		return ctx, maxOut, nonemptyCost(m.Cost), []string{"text", "image"}, true
 	}
 	return 0, 0, nil, nil, false
+}
+
+// CatalogEntry is what the models.dev catalogue knows about one model.
+type CatalogEntry struct {
+	Context int
+	Output  int
+	Cost    *domain.ModelCostJSON
+}
+
+// CatalogIndex finds models.dev entries by id across every catalogue pack, for
+// sources that list models without prices or limits. Build one per listing:
+// reading a pack decodes it.
+type CatalogIndex struct {
+	byID map[string]CatalogEntry
+}
+
+// indexPacks lists the packs in the order a shared id resolves to the first.
+var indexPacks = []string{"openai", "anthropic", "xai", "google", "zai"}
+
+func NewCatalogIndex() *CatalogIndex {
+	idx := &CatalogIndex{byID: map[string]CatalogEntry{}}
+	for _, pack := range indexPacks {
+		rows, ok := catalogPack(pack)
+		if !ok {
+			continue
+		}
+		for _, m := range rows {
+			if _, dup := idx.byID[m.ID]; dup {
+				continue
+			}
+			e := CatalogEntry{Cost: nonemptyCost(m.Cost)}
+			if m.Limit != nil {
+				e.Context, e.Output = m.Limit.Context, m.Limit.Output
+			}
+			idx.byID[m.ID] = e
+		}
+	}
+	return idx
+}
+
+// Find matches the id as given, then the part after the last "/" (routers
+// write openai/gpt-5.5). Only whole ids match, so a similar name never borrows
+// another model's price.
+func (idx *CatalogIndex) Find(id string) (CatalogEntry, bool) {
+	if e, ok := idx.byID[id]; ok {
+		return e, true
+	}
+	if i := strings.LastIndex(id, "/"); i >= 0 && i+1 < len(id) {
+		e, ok := idx.byID[id[i+1:]]
+		return e, ok
+	}
+	return CatalogEntry{}, false
 }
 
 func PriceProvider(provider domain.ProviderID) string { return providerCatalog[provider] }

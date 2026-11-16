@@ -139,6 +139,7 @@ func parseModelList(slug string, body any) []domain.ModelInfo {
 	}
 	out := []domain.ModelInfo{}
 	seen := map[string]bool{}
+	catalog := provider.NewCatalogIndex()
 	for _, row := range rows {
 		m := translate.AsMap(row)
 		id := translate.AsStr(m["id"])
@@ -170,6 +171,17 @@ func parseModelList(slug string, body any) []domain.ModelInfo {
 			info.MaxOutputTokens = n
 		} else if n, ok := asInt(m["max_tokens"]); ok {
 			info.MaxOutputTokens = n
+		}
+		// A source rarely says what a model costs. When the id is one models.dev
+		// knows, use its price and fill the limits the source left out.
+		if known, ok := catalog.Find(id); ok {
+			info.Cost = known.Cost
+			if info.ContextLength == 0 {
+				info.ContextLength = known.Context
+			}
+			if info.MaxOutputTokens == 0 {
+				info.MaxOutputTokens = known.Output
+			}
 		}
 		out = append(out, info)
 	}

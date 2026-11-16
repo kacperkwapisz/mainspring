@@ -12,6 +12,17 @@ summary: Where the model list comes from, which IDs to use, and how to turn a mo
 
 New models appear on their own, without a Mainspring update.
 
+## Prices
+
+The meter and the `cost` in `/v1/models` are API list prices per million tokens. Some models cost more once a request's input (uncached, cache reads and cache writes together) passes a size, such as 100k tokens for Claude Haiku 5.5 or 272k for GPT-5.5. `cost.tiers` lists those prices, and the meter prices a request that passes the size at the higher rates:
+
+```json
+"cost": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.125,
+  "tiers": [{"input_tokens_above": 100000, "input": 0.5, "output": 2.5, "cache_read": 0.05, "cache_write": 0.625}]}
+```
+
+Models you add from an OpenAI-compatible source get a price and size limits from models.dev when their ID (or the part after the last `/`) is one it lists. Other models have no price.
+
 ## IDs
 
 Use IDs exactly as `/v1/models` lists them. Variants that tools add to a listed ID, like a `[1m]` context tag or a release date, count as that ID.

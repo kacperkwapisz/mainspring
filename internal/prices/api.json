@@ -694,11 +694,6 @@
       "gpt-image-2": {
         "id": "gpt-image-2",
         "name": "gpt-image-2",
-        "cost": {
-          "input": 5,
-          "output": 30,
-          "cache_read": 1.25
-        },
         "limit": {
           "context": 0,
           "input": 0,
@@ -821,6 +816,11 @@
       "chatgpt-image-latest": {
         "id": "chatgpt-image-latest",
         "name": "chatgpt-image-latest",
+        "cost": {
+          "input": 5,
+          "output": 10,
+          "cache_read": 1.25
+        },
         "limit": {
           "context": 0,
           "input": 0,
@@ -857,6 +857,11 @@
       "gpt-image-1.5": {
         "id": "gpt-image-1.5",
         "name": "gpt-image-1.5",
+        "cost": {
+          "input": 5,
+          "output": 10,
+          "cache_read": 1.25
+        },
         "limit": {
           "context": 0,
           "input": 0,
@@ -1461,6 +1466,862 @@
         "limit": {
           "context": 1024,
           "output": 0
+        }
+      }
+    }
+  },
+  "google": {
+    "id": "google",
+    "name": "Google",
+    "models": {
+      "gemini-4-hydrogen": {
+        "id": "gemini-4-hydrogen",
+        "name": "Gemini 4 Hydrogen",
+        "cost": {
+          "input": 1.5,
+          "output": 7.5,
+          "cache_read": 0.075,
+          "input_audio": 1.5
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-4-carbon": {
+        "id": "gemini-4-carbon",
+        "name": "Gemini 4 Carbon",
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.1,
+          "input_audio": 2
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 32768
+        }
+      },
+      "gemini-4-argon": {
+        "id": "gemini-4-argon",
+        "name": "Gemini 4 Argon",
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.1,
+          "input_audio": 2
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 32768
+        }
+      },
+      "gemini-3.8-flash": {
+        "id": "gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash",
+        "cost": {
+          "input": 0.75,
+          "output": 3.75,
+          "cache_read": 0.075,
+          "input_audio": 0.75
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.7-flash": {
+        "id": "gemini-3.7-flash",
+        "name": "Gemini 3.7 Flash",
+        "cost": {
+          "input": 0.75,
+          "output": 3.75,
+          "cache_read": 0.075,
+          "input_audio": 0.75
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-flash-latest": {
+        "id": "gemini-flash-latest",
+        "name": "Gemini Flash Latest",
+        "cost": {
+          "input": 0.75,
+          "output": 3.75,
+          "cache_read": 0.075,
+          "input_audio": 0.75
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.5-flash-lite": {
+        "id": "gemini-3.5-flash-lite",
+        "name": "Gemini 3.5 Flash Lite",
+        "cost": {
+          "input": 0.3,
+          "output": 2.5,
+          "cache_read": 0.03
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.6-flash": {
+        "id": "gemini-3.6-flash",
+        "name": "Gemini 3.6 Flash",
+        "cost": {
+          "input": 0.75,
+          "output": 3.75,
+          "cache_read": 0.075,
+          "input_audio": 0.75
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-flash-lite-latest": {
+        "id": "gemini-flash-lite-latest",
+        "name": "Gemini Flash-Lite Latest",
+        "cost": {
+          "input": 0.3,
+          "output": 2.5,
+          "cache_read": 0.03
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.1-flash-lite-image": {
+        "id": "gemini-3.1-flash-lite-image",
+        "name": "Nano Banana 2 Lite",
+        "cost": {
+          "input": 0.25,
+          "output": 1.5
+        },
+        "limit": {
+          "context": 65536,
+          "output": 4096
+        }
+      },
+      "gemini-omni-flash-preview": {
+        "id": "gemini-omni-flash-preview",
+        "name": "Gemini Omni Flash Preview",
+        "cost": {
+          "input": 1.5,
+          "output": 17.5
+        },
+        "limit": {
+          "context": 131072,
+          "output": 65536
+        }
+      },
+      "gemini-3.5-live-translate-preview": {
+        "id": "gemini-3.5-live-translate-preview",
+        "name": "Gemini 3.5 Live Translate Preview",
+        "cost": {
+          "input": 3.5,
+          "output": 21,
+          "input_audio": 3.5,
+          "output_audio": 21
+        },
+        "limit": {
+          "context": 16384,
+          "output": 16384
+        }
+      },
+      "gemini-3-pro-image": {
+        "id": "gemini-3-pro-image",
+        "name": "Nano Banana Pro",
+        "cost": {
+          "input": 2,
+          "output": 12
+        },
+        "limit": {
+          "context": 65536,
+          "output": 32768
+        }
+      },
+      "gemini-3.1-flash-image": {
+        "id": "gemini-3.1-flash-image",
+        "name": "Nano Banana 2",
+        "cost": {
+          "input": 0.5,
+          "output": 3
+        },
+        "limit": {
+          "context": 131072,
+          "output": 32768
+        }
+      },
+      "gemini-3.5-flash": {
+        "id": "gemini-3.5-flash",
+        "name": "Gemini 3.5 Flash",
+        "cost": {
+          "input": 1.5,
+          "output": 9,
+          "cache_read": 0.15,
+          "input_audio": 1.5
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.1-flash-lite": {
+        "id": "gemini-3.1-flash-lite",
+        "name": "Gemini 3.1 Flash Lite",
+        "cost": {
+          "input": 0.25,
+          "output": 1.5,
+          "cache_read": 0.025,
+          "input_audio": 0.5
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-embedding-2": {
+        "id": "gemini-embedding-2",
+        "name": "Gemini Embedding 2",
+        "cost": {
+          "input": 0.2,
+          "output": 0,
+          "input_audio": 6.5
+        },
+        "limit": {
+          "context": 8192,
+          "output": 1
+        }
+      },
+      "deep-research-max-preview-04-2026": {
+        "id": "deep-research-max-preview-04-2026",
+        "name": "Deep Research Max Preview (Apr-21-2026)",
+        "cost": {
+          "input": 2,
+          "output": 12,
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4,
+            "output": 18,
+            "cache_read": 0.4
+          }
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "deep-research-preview-04-2026": {
+        "id": "deep-research-preview-04-2026",
+        "name": "Deep Research Preview (Apr-21-2026)",
+        "cost": {
+          "input": 2,
+          "output": 12,
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4,
+            "output": 18,
+            "cache_read": 0.4
+          }
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.1-flash-tts-preview": {
+        "id": "gemini-3.1-flash-tts-preview",
+        "name": "Gemini 3.1 Flash TTS Preview",
+        "cost": {
+          "input": 1,
+          "output": 20
+        },
+        "limit": {
+          "context": 8192,
+          "output": 16384
+        }
+      },
+      "gemma-4-26b-a4b-it": {
+        "id": "gemma-4-26b-a4b-it",
+        "name": "Gemma 4 26B A4B IT",
+        "cost": {
+          "input": 0,
+          "output": 0
+        },
+        "limit": {
+          "context": 262144,
+          "output": 32768
+        }
+      },
+      "gemma-4-31b-it": {
+        "id": "gemma-4-31b-it",
+        "name": "Gemma 4 31B IT",
+        "cost": {
+          "input": 0,
+          "output": 0
+        },
+        "limit": {
+          "context": 262144,
+          "output": 32768
+        }
+      },
+      "gemini-3.1-flash-live-preview": {
+        "id": "gemini-3.1-flash-live-preview",
+        "name": "Gemini 3.1 Flash Live Preview",
+        "cost": {
+          "input": 0.75,
+          "output": 4.5,
+          "input_audio": 3,
+          "output_audio": 12
+        },
+        "limit": {
+          "context": 131072,
+          "output": 65536
+        }
+      },
+      "lyria-3-clip-preview": {
+        "id": "lyria-3-clip-preview",
+        "name": "Lyria 3 Clip Preview",
+        "cost": {
+          "input": 0,
+          "output": 0
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "lyria-3-pro-preview": {
+        "id": "lyria-3-pro-preview",
+        "name": "Lyria 3 Pro Preview",
+        "cost": {
+          "input": 0,
+          "output": 0
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "id": "gemini-3.1-flash-lite-preview",
+        "name": "Gemini 3.1 Flash Lite Preview",
+        "cost": {
+          "input": 0.25,
+          "output": 1.5,
+          "cache_read": 0.025,
+          "input_audio": 0.5
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.1-pro-preview": {
+        "id": "gemini-3.1-pro-preview",
+        "name": "Gemini 3.1 Pro Preview",
+        "cost": {
+          "input": 2,
+          "output": 12,
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4,
+            "output": 18,
+            "cache_read": 0.4
+          }
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3.1-pro-preview-customtools": {
+        "id": "gemini-3.1-pro-preview-customtools",
+        "name": "Gemini 3.1 Pro Preview Custom Tools",
+        "cost": {
+          "input": 2,
+          "output": 12,
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4,
+            "output": 18,
+            "cache_read": 0.4
+          }
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-pro-latest": {
+        "id": "gemini-pro-latest",
+        "name": "Gemini Pro Latest",
+        "cost": {
+          "input": 2,
+          "output": 12,
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4,
+            "output": 18,
+            "cache_read": 0.4
+          }
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-3-flash-preview": {
+        "id": "gemini-3-flash-preview",
+        "name": "Gemini 3 Flash Preview",
+        "cost": {
+          "input": 0.5,
+          "output": 3,
+          "cache_read": 0.05,
+          "input_audio": 1
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-2.5-computer-use-preview-10-2025": {
+        "id": "gemini-2.5-computer-use-preview-10-2025",
+        "name": "Gemini 2.5 Computer Use Preview 10-2025",
+        "cost": {
+          "input": 1.25,
+          "output": 10
+        },
+        "limit": {
+          "context": 128000,
+          "output": 64000
+        }
+      },
+      "gemini-2.5-flash-image": {
+        "id": "gemini-2.5-flash-image",
+        "name": "Nano Banana",
+        "cost": {
+          "input": 0.3,
+          "output": 2.5,
+          "cache_read": 0.075
+        },
+        "limit": {
+          "context": 32768,
+          "output": 32768
+        }
+      },
+      "gemini-2.5-flash": {
+        "id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "cost": {
+          "input": 0.3,
+          "output": 2.5,
+          "cache_read": 0.03,
+          "input_audio": 1
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-2.5-flash-lite": {
+        "id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash-Lite",
+        "cost": {
+          "input": 0.1,
+          "output": 0.4,
+          "cache_read": 0.01,
+          "input_audio": 0.3
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-2.5-pro": {
+        "id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "cost": {
+          "input": 1.25,
+          "output": 10,
+          "cache_read": 0.125,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "cache_read": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 2.5,
+            "output": 15,
+            "cache_read": 0.25
+          }
+        },
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        }
+      },
+      "gemini-embedding-001": {
+        "id": "gemini-embedding-001",
+        "name": "Gemini Embedding 001",
+        "cost": {
+          "input": 0.15,
+          "output": 0
+        },
+        "limit": {
+          "context": 2048,
+          "output": 1
+        }
+      },
+      "gemini-2.5-flash-preview-tts": {
+        "id": "gemini-2.5-flash-preview-tts",
+        "name": "Gemini 2.5 Flash Preview TTS",
+        "cost": {
+          "input": 0.5,
+          "output": 10
+        },
+        "limit": {
+          "context": 8192,
+          "output": 16384
+        }
+      },
+      "gemini-2.5-pro-preview-tts": {
+        "id": "gemini-2.5-pro-preview-tts",
+        "name": "Gemini 2.5 Pro Preview TTS",
+        "cost": {
+          "input": 1,
+          "output": 20
+        },
+        "limit": {
+          "context": 8192,
+          "output": 16384
+        }
+      }
+    }
+  },
+  "zai": {
+    "id": "zai",
+    "name": "Z.AI",
+    "models": {
+      "glm-5.3-flashx": {
+        "id": "glm-5.3-flashx",
+        "name": "GLM-5.3-FlashX",
+        "cost": {
+          "input": 0.37,
+          "output": 1.25,
+          "cache_read": 0.075,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 1000000,
+          "output": 131072
+        }
+      },
+      "glm-5.3-flash": {
+        "id": "glm-5.3-flash",
+        "name": "GLM-5.3-Flash",
+        "cost": {
+          "input": 0.15,
+          "output": 0.5,
+          "cache_read": 0.03,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 1000000,
+          "output": 131072
+        }
+      },
+      "glm-5.3": {
+        "id": "glm-5.3",
+        "name": "GLM-5.3",
+        "cost": {
+          "input": 1.4,
+          "output": 4.4,
+          "cache_read": 0.26,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 1000000,
+          "output": 131072
+        }
+      },
+      "glm-5.2": {
+        "id": "glm-5.2",
+        "name": "GLM-5.2",
+        "cost": {
+          "input": 1.4,
+          "output": 4.4,
+          "cache_read": 0.26,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 1000000,
+          "output": 131072
+        }
+      },
+      "glm-5.1": {
+        "id": "glm-5.1",
+        "name": "GLM-5.1",
+        "cost": {
+          "input": 1.4,
+          "output": 4.4,
+          "cache_read": 0.26,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 200000,
+          "output": 131072
+        }
+      },
+      "glm-5v-turbo": {
+        "id": "glm-5v-turbo",
+        "name": "GLM-5V-Turbo",
+        "cost": {
+          "input": 1.2,
+          "output": 4,
+          "cache_read": 0.24,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 200000,
+          "output": 131072
+        }
+      },
+      "glm-5-turbo": {
+        "id": "glm-5-turbo",
+        "name": "GLM-5-Turbo",
+        "cost": {
+          "input": 1.2,
+          "output": 4,
+          "cache_read": 0.24,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 200000,
+          "output": 131072
+        }
+      },
+      "glm-5": {
+        "id": "glm-5",
+        "name": "GLM-5",
+        "cost": {
+          "input": 1,
+          "output": 3.2,
+          "cache_read": 0.2,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 204800,
+          "output": 131072
+        }
+      },
+      "glm-4.7-flash": {
+        "id": "glm-4.7-flash",
+        "name": "GLM-4.7-Flash",
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 200000,
+          "output": 131072
+        }
+      },
+      "glm-4.7-flashx": {
+        "id": "glm-4.7-flashx",
+        "name": "GLM-4.7-FlashX",
+        "cost": {
+          "input": 0.07,
+          "output": 0.4,
+          "cache_read": 0.01,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 200000,
+          "output": 131072
+        }
+      },
+      "glm-4.7": {
+        "id": "glm-4.7",
+        "name": "GLM-4.7",
+        "cost": {
+          "input": 0.6,
+          "output": 2.2,
+          "cache_read": 0.11,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 204800,
+          "output": 131072
+        }
+      },
+      "glm-4.6v": {
+        "id": "glm-4.6v",
+        "name": "GLM-4.6V",
+        "cost": {
+          "input": 0.3,
+          "output": 0.9,
+          "cache_read": 0.05,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 128000,
+          "output": 32768
+        }
+      },
+      "glm-4.6v-flash": {
+        "id": "glm-4.6v-flash",
+        "name": "GLM-4.6V-Flash",
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 128000,
+          "output": 32768
+        }
+      },
+      "glm-4.6": {
+        "id": "glm-4.6",
+        "name": "GLM-4.6",
+        "cost": {
+          "input": 0.6,
+          "output": 2.2,
+          "cache_read": 0.11,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 204800,
+          "output": 131072
+        }
+      },
+      "glm-4.5v": {
+        "id": "glm-4.5v",
+        "name": "GLM-4.5V",
+        "cost": {
+          "input": 0.6,
+          "output": 1.8,
+          "cache_read": 0.11,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 64000,
+          "output": 16384
+        }
+      },
+      "glm-4.5": {
+        "id": "glm-4.5",
+        "name": "GLM-4.5",
+        "cost": {
+          "input": 0.6,
+          "output": 2.2,
+          "cache_read": 0.11,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 131072,
+          "output": 98304
+        }
+      },
+      "glm-4.5-air": {
+        "id": "glm-4.5-air",
+        "name": "GLM-4.5-Air",
+        "cost": {
+          "input": 0.2,
+          "output": 1.1,
+          "cache_read": 0.03,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 131072,
+          "output": 98304
+        }
+      },
+      "glm-4.5-flash": {
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5-Flash",
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_write": 0
+        },
+        "limit": {
+          "context": 131072,
+          "output": 98304
         }
       }
     }

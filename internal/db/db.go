@@ -62,6 +62,7 @@ var migrations = []string{
      output REAL,
      cache_read REAL,
      cache_write REAL,
+     tiers TEXT,
      fetched_at INTEGER NOT NULL,
      PRIMARY KEY (provider, model)
    )`,

@@ -11,8 +11,10 @@ import (
 // replaced by the copy Mainspring downloads from models.dev every day, so new
 // models show up without a Mainspring release.
 
-// catalogProviders are the models.dev providers whose models Mainspring serves.
-var catalogProviders = []string{"anthropic", "openai", "xai"}
+// catalogProviders are the models.dev providers Mainspring reads. Claude, Codex
+// and Grok serve anthropic, openai and xai; Cursor prices its Gemini and GLM
+// models from google and zai.
+var catalogProviders = []string{"anthropic", "openai", "xai", "google", "zai"}
 
 var live atomic.Pointer[[]byte]
 

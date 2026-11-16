@@ -305,3 +305,26 @@ func TestMapNativeToWireThinking(t *testing.T) {
 func stringsContains(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || indexOf(s, sub) >= 0)
 }
+
+// composer-2.5-fast costs 3/15 while composer-2.5 costs 0.5/2.5.
+func TestFastModelListsItsOwnPrice(t *testing.T) {
+	byID := map[string]domain.ModelInfo{}
+	for _, m := range ToModelInfo(Snapshot(), false) {
+		byID[m.ID] = m
+	}
+	fast, slow := byID["composer-2.5-fast"], byID["composer-2.5"]
+	if fast.Cost == nil || fast.Cost.Input == nil || *fast.Cost.Input != 3 || *fast.Cost.Output != 15 {
+		t.Fatalf("composer-2.5-fast cost %+v", fast.Cost)
+	}
+	if slow.Cost == nil || slow.Cost.Input == nil || *slow.Cost.Input != 0.5 {
+		t.Fatalf("composer-2.5 cost %+v", slow.Cost)
+	}
+}
+
+// A fast twin whose own id has no price takes its base model's.
+func TestFastLimitsFallBackToTheBaseModel(t *testing.T) {
+	_, _, cost, _, ok := fastLimits("cursor-grok-4.6-fast")
+	if !ok || cost == nil || cost.Input == nil || *cost.Input != 2 {
+		t.Fatalf("cost %+v ok %v", cost, ok)
+	}
+}

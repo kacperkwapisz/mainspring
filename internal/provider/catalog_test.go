@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
@@ -157,4 +159,44 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+func TestModelListShowsPriceTiersInTheDocumentedShape(t *testing.T) {
+	var haiku *domain.ModelInfo
+	for _, m := range CatalogModels(domain.ProviderClaude) {
+		if m.ID == "claude-haiku-5-5" {
+			haiku = &m
+		}
+	}
+	if haiku == nil || haiku.Cost == nil {
+		t.Fatalf("claude-haiku-5-5 %+v", haiku)
+	}
+	raw, err := json.Marshal(haiku)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `"tiers":[{"input_tokens_above":100000,"input":0.5,"output":2.5,"cache_read":0.05,"cache_write":0.625}]`
+	if !strings.Contains(string(raw), want) {
+		t.Fatalf("missing %s in %s", want, raw)
+	}
+	// Limits feeds the Cursor list and must carry them too.
+	_, _, cost, _, ok := Limits("claude-haiku-5-5")
+	if !ok || cost == nil || len(cost.Tiers) != 1 || cost.Tiers[0].InputTokensAbove != 100000 {
+		t.Fatalf("limits cost %+v", cost)
+	}
+}
+
+func TestCatalogIndexFindsWholeIDsOnly(t *testing.T) {
+	idx := NewCatalogIndex()
+	for _, id := range []string{"gpt-5.5", "openai/gpt-5.5", "claude-haiku-5-5", "router/anthropic/claude-haiku-5-5", "gemini-3.5-flash", "glm-5.2"} {
+		e, ok := idx.Find(id)
+		if !ok || e.Cost == nil || e.Cost.Input == nil || e.Context == 0 {
+			t.Fatalf("%s: %+v %v", id, e, ok)
+		}
+	}
+	for _, id := range []string{"gpt-5.5-mystery", "llama3", "my/llama3", "openai/", ""} {
+		if _, ok := idx.Find(id); ok {
+			t.Fatalf("%s should not match", id)
+		}
+	}
 }
