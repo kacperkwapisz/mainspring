@@ -38,12 +38,24 @@ function registerProvider(pi: ExtensionAPI, config: Config, models: ServedModel[
 		async refreshModels({ allowNetwork, signal }: { allowNetwork: boolean; signal: AbortSignal }) {
 			if (!allowNetwork) return cachedModels(config.url).map((m) => modelConfig(config, m)) as any;
 			const fresh = await fetchModels(config, signal);
-			saveModels(config.url, fresh);
+			keepModels(config.url, fresh);
 			// An empty answer doesn't wipe a list that worked.
 			const served = fresh.length ? fresh : cachedModels(config.url);
 			return served.map((m) => modelConfig(config, m)) as any;
 		},
 	} as any);
+}
+
+// Saves a list for the next start. Failing to save mustn't stop the list being
+// used, so it's reported rather than thrown.
+function keepModels(url: string, models: ServedModel[], ctx?: ExtensionContext) {
+	try {
+		saveModels(url, models);
+	} catch (err) {
+		const message = `Mainspring: couldn't save the model list: ${(err as Error).message}`;
+		if (ctx) tell(ctx, message, "warning");
+		else console.error(message);
+	}
 }
 
 // The headers that key this session on Mainspring, matching its chat requests:
@@ -140,14 +152,18 @@ export default async function (pi: ExtensionAPI) {
 		const cached = cachedModels(c.url);
 		connect(c, cached);
 		const refresh = fetchModels(c, AbortSignal.timeout(cached.length ? 8_000 : 4_000))
-			.then((fresh) => {
-				saveModels(c.url, fresh);
-				// Skip it if setup switched to another Mainspring meanwhile.
-				if (fresh.length && config === c && JSON.stringify(fresh) !== JSON.stringify(cached)) registerProvider(pi, c, fresh);
-			})
-			.catch(() => {
-				// Offline: the cached list stands, and pi's own refresh catches up.
-			});
+			.then(
+				(fresh) => {
+					// Use the list first; saving it is only for the next start.
+					// Skip it if setup switched to another Mainspring meanwhile.
+					if (fresh.length && config === c && JSON.stringify(fresh) !== JSON.stringify(cached)) registerProvider(pi, c, fresh);
+					keepModels(c.url, fresh);
+				},
+				() => {
+					// Offline: the cached list stands, and pi's own refresh catches up.
+				},
+			)
+			.catch((err) => console.error(`Mainspring: couldn't use the new model list: ${(err as Error).message}`));
 		// The very first run has nothing to show, so it waits (briefly) for the list.
 		if (!cached.length) await refresh;
 	};
@@ -210,11 +226,23 @@ export default async function (pi: ExtensionAPI) {
 					return;
 				}
 				saveConfig(next);
-				saveModels(next.url, models);
-				// The environment wins over the file, so the new settings may not be what runs.
+				keepModels(next.url, models, ctx);
+				// The environment wins over the file, so the new settings may not be
+				// what runs. Then the list has to come from the server that does.
 				const overridden = envOverrides();
-				config = loadConfig() ?? next;
-				connect(config, models.length ? models : cachedModels(config.url));
+				const effective = loadConfig() ?? next;
+				let served = models;
+				if (effective.url !== next.url || effective.key !== next.key) {
+					try {
+						served = await fetchModels(effective, AbortSignal.timeout(8_000));
+						keepModels(effective.url, served, ctx);
+					} catch (err) {
+						served = [];
+						tell(ctx, `Couldn't load models from ${effective.url}: ${(err as Error).message}`, "warning");
+					}
+				}
+				config = effective;
+				connect(config, served.length ? served : cachedModels(config.url));
 				tell(ctx, "Connected to Mainspring. Pick a model with /model, under Mainspring.", "info");
 				if (overridden.length) {
 					tell(ctx, `${overridden.join(" and ")} ${overridden.length === 1 ? "is" : "are"} set and win over what you just saved. Unset ${overridden.length === 1 ? "it" : "them"} to use the saved settings.`, "warning");

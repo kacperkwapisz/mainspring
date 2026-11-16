@@ -62,10 +62,17 @@ func main() {
 		printSetupCode(os.Stdout, code)
 	}
 	go func() {
-		_ = booted.Hub.Prices.Refresh(false)
+		refreshPrices := func() {
+			// A failed refresh keeps the last prices; the log line explains
+			// prices that stop changing.
+			if _, err := booted.Hub.Prices.Refresh(false); err != nil {
+				httpx.Logf("price refresh from models.dev failed: %v", err)
+			}
+		}
+		refreshPrices()
 		t := time.NewTicker(24 * time.Hour)
 		for range t.C {
-			_ = booted.Hub.Prices.Refresh(false)
+			refreshPrices()
 		}
 	}()
 	go func() {

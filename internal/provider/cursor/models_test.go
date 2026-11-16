@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
+	"github.com/kacperkwapisz/mainspring/internal/provider"
 )
 
 func TestPublicIDs(t *testing.T) {
@@ -323,7 +324,7 @@ func TestFastModelListsItsOwnPrice(t *testing.T) {
 
 // A fast twin whose own id has no price takes its base model's.
 func TestFastLimitsFallBackToTheBaseModel(t *testing.T) {
-	_, _, cost, _, ok := fastLimits("cursor-grok-4.6-fast")
+	_, _, cost, _, ok := provider.CursorLimits("cursor-grok-4.6-fast")
 	if !ok || cost == nil || cost.Input == nil || *cost.Input != 2 {
 		t.Fatalf("cost %+v ok %v", cost, ok)
 	}

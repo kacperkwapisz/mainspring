@@ -3,12 +3,11 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
-	"regexp"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/kacperkwapisz/mainspring/internal/db"
@@ -25,6 +24,26 @@ type PriceCatalog struct {
 	Models map[string]PriceModel `json:"models"`
 }
 
+// UnmarshalJSON skips models that don't fit PriceModel, so one odd entry in a
+// models.dev download doesn't cost every other model its price.
+func (c *PriceCatalog) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Models map[string]json.RawMessage `json:"models"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	c.Models = make(map[string]PriceModel, len(raw.Models))
+	for id, body := range raw.Models {
+		var m PriceModel
+		if json.Unmarshal(body, &m) != nil {
+			continue
+		}
+		c.Models[id] = m
+	}
+	return nil
+}
+
 type PriceModel struct {
 	ID   string     `json:"id"`
 	Name string     `json:"name"`
@@ -37,6 +56,7 @@ type PriceCost = domain.ModelCostJSON
 type PriceStore struct {
 	db        *db.DB
 	lastFetch int64
+	sourceURL string // models.dev unless a test points elsewhere
 }
 
 func NewPriceStore(d *db.DB) (*PriceStore, error) {
@@ -103,49 +123,30 @@ func (s *PriceStore) Get(provider, model string) *domain.ModelPrice {
 	if provider == "cursor" && isCursorAuto(model) {
 		return nil
 	}
-	if p := s.lookup(provider, model); p != nil {
-		return p
-	}
 	if provider == "cursor" {
-		return s.cursorFallback(model)
-	}
-	return nil
-}
-
-// cursorCatalogs are the models.dev providers behind the models Cursor resells,
-// in the order they are tried. OpenCode's list goes last: it covers models the
-// vendors have retired from their own lists (Sonnet 4) and Kimi.
-var cursorCatalogs = []string{"anthropic", "openai", "xai", "google", "zai", "opencode"}
-
-// cursorFallback prices a Cursor id from the vendors' catalogues. It tries
-// Cursor's own spelling, then Gemini's "-preview" id, then the catalogue
-// spelling of a Claude id.
-func (s *PriceStore) cursorFallback(model string) *domain.ModelPrice {
-	ids := []string{model, model + "-preview"}
-	if id := cursorClaudeID(model); id != "" {
-		ids = append(ids, id)
-	}
-	for _, catalog := range cursorCatalogs {
-		for _, id := range ids {
-			if p := s.lookup(catalog, id); p != nil {
+		// Cursor's own list first, then the vendors' catalogues, in the order
+		// the model list uses too (provider.CursorLimits).
+		for _, l := range domain.CursorPriceLookups(model) {
+			if p := s.lookup(l.Catalog, l.ID); p != nil {
 				return p
 			}
 		}
+		return nil
 	}
-	return nil
+	return s.lookup(provider, model)
 }
 
-var cursorClaudeRe = regexp.MustCompile(`^claude-(\d+(?:\.\d+)?)-(opus|sonnet|haiku)(?:-.*)?$`)
-
-// cursorClaudeID turns Cursor's claude-<version>-<family>[-effort][-thinking]
-// [-fast] into the catalogue's claude-<family>-<version>, with dots as dashes.
-// It returns "" for ids in any other shape.
-func cursorClaudeID(model string) string {
-	m := cursorClaudeRe.FindStringSubmatch(model)
-	if m == nil {
-		return ""
+// EstimateSource prices a model from an OpenAI-compatible source the way its
+// model list shows it (provider.CatalogIndex): whole ids only, in
+// domain.SourcePriceLookups order. The first entry found decides, priced or not.
+func (s *PriceStore) EstimateSource(model string, u PriceUsage) float64 {
+	for _, l := range domain.SourcePriceLookups(model) {
+		row := s.db.SQL.QueryRow(`SELECT provider, model, input, output, cache_read, cache_write, tiers FROM prices WHERE provider = ? AND model = ?`, l.Catalog, l.ID)
+		if p, err := scanPrice(row); err == nil {
+			return estimate(&p, u)
+		}
 	}
-	return "claude-" + m[2] + "-" + strings.ReplaceAll(m[1], ".", "-")
+	return 0
 }
 
 func (s *PriceStore) lookup(provider, model string) *domain.ModelPrice {
@@ -183,6 +184,10 @@ func (s *PriceStore) Estimate(provider, model string, u PriceUsage) float64 {
 	if p == nil {
 		return 0
 	}
+	return estimate(p, u)
+}
+
+func estimate(p *domain.ModelPrice, u PriceUsage) float64 {
 	rate := effectiveRates(p, u.Input+u.CacheRead+u.CacheWrite)
 	perM := 1_000_000.0
 	usd := 0.0
@@ -232,27 +237,41 @@ func effectiveRates(p *domain.ModelPrice, totalInput int64) domain.ModelCostJSON
 	return rate
 }
 
-func (s *PriceStore) Refresh(force bool) string {
+// Refresh downloads models.dev's prices, at most once a day unless forced. It
+// returns "ok", "skipped" or "failed", with the reason for a failure.
+func (s *PriceStore) Refresh(force bool) (string, error) {
 	now := nowMs()
 	if !force && now-s.lastFetch < refreshMS {
-		return "skipped"
+		return "skipped", nil
 	}
 	client := &http.Client{Timeout: 15 * time.Second}
-	res, err := client.Get(modelsDevURL)
+	res, err := client.Get(s.url())
 	if err != nil {
-		return "failed"
+		return "failed", err
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return "failed"
+		return "failed", fmt.Errorf("models.dev answered %s", res.Status)
 	}
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return "failed"
+		return "failed", err
 	}
+	return s.apply(body, now)
+}
+
+func (s *PriceStore) url() string {
+	if s.sourceURL != "" {
+		return s.sourceURL
+	}
+	return modelsDevURL
+}
+
+// apply stores a models.dev download.
+func (s *PriceStore) apply(body []byte, now int64) (string, error) {
 	var data map[string]PriceCatalog
 	if err := json.Unmarshal(body, &data); err != nil {
-		return "failed"
+		return "failed", fmt.Errorf("reading models.dev: %w", err)
 	}
 	// The same download keeps the model list current.
 	if trimmed, err := prices.Trim(body); err == nil {
@@ -261,16 +280,16 @@ func (s *PriceStore) Refresh(force bool) string {
 		  ON CONFLICT(id) DO UPDATE SET body = excluded.body, fetched_at = excluded.fetched_at`, string(trimmed), now)
 	}
 	if err := s.upsertCatalog(data, now); err != nil {
-		return "failed"
+		return "failed", err
 	}
 	if err := s.upsertCursorOverlay(); err != nil {
-		return "failed"
+		return "failed", err
 	}
 	if err := s.upsertOpenCodeOverlay(); err != nil {
-		return "failed"
+		return "failed", err
 	}
 	s.lastFetch = now
-	return "ok"
+	return "ok", nil
 }
 
 func (s *PriceStore) upsertCatalog(data map[string]PriceCatalog, fetchedAt int64) error {

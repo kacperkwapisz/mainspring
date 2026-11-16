@@ -90,11 +90,16 @@ Every model your accounts can serve, minus the ones you turned off, in OpenAI's 
       "name": "Claude Sonnet 5.5",
       "context_length": 1000000,
       "max_output_tokens": 128000,
-      "efforts": ["low", "medium", "high", "xhigh", "max"]
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "cost": {"input": 2, "output": 10, "cache_read": 0.1, "cache_write": 2.5},
+      "api": "anthropic-messages"
     }
   ]
 }
 ```
+
+- `api` is the endpoint that keeps the model's own features, such as prompt caching and reasoning: `anthropic-messages` (`/v1/messages`), `openai-responses` (`/v1/responses`) or `openai-completions` (`/v1/chat/completions`). The other endpoints work too, translated.
+- `cost` is the API list price in USD per million tokens, left out when Mainspring doesn't know it. `cost.tiers` lists higher rates that apply once a request's input passes `input_tokens_above` tokens. See [Prices](models.md#prices).
 
 Needs a key.
 
