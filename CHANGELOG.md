@@ -2,6 +2,10 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.8.2] - 2026-11-17
+
+- Claude web search no longer drops sites it can't reach, such as reddit.com, and no longer moves such a search to another provider. Doing so changed what was searched without saying so. A search that names one of these sites fails again with Anthropic's message, which names the site.
+
 ## [1.8.1] - 2026-11-17
 
 - Fixes Claude refusing requests from clients that set the effort per turn or bind thinking blocks, such as pi's built-in Claude 5.5 models, with "output_config: Extra inputs are not permitted" or a thinking error. Mainspring now passes on the betas these clients ask for and keeps their per-turn messages.
