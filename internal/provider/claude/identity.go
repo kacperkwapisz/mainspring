@@ -140,7 +140,7 @@ func claudeBetas(body map[string]any, requested string, countTokens bool) string
 		if asked[advisorBeta] || hasAdvisorTool(body) {
 			out = append(out, advisorBeta)
 		}
-		return strings.Join(out, ",")
+		return dedupeBetas(append(out, askedInOrder(requested)...))
 	}
 	out := []string{codeBeta, oauthBeta}
 	if asked["context-1m-2025-08-07"] {
@@ -180,6 +180,23 @@ func claudeBetas(body map[string]any, requested string, countTokens bool) string
 	if asked["cache-diagnosis-2026-04-07"] {
 		out = append(out, "cache-diagnosis-2026-04-07")
 	}
+	return dedupeBetas(append(out, askedInOrder(requested)...))
+}
+
+// askedInOrder lists the betas the client asked for. The disguise keeps them:
+// the client's body can use features (per-turn output_config, thinking block
+// binding, inline tool changes) that Claude refuses without their beta.
+func askedInOrder(requested string) []string {
+	var out []string
+	for _, s := range strings.Split(requested, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func dedupeBetas(out []string) string {
 	seen := map[string]bool{}
 	var uniq []string
 	for _, b := range out {
@@ -222,8 +239,12 @@ func liftMidSystem(body map[string]any) {
 	for _, raw := range messages {
 		m := translate.AsMap(raw)
 		if translate.AsStr(m["role"]) == "system" {
-			if text := flatten(m["content"]); text != "" {
+			text, rest := splitSystemMessage(m)
+			if text != "" {
 				moved = append(moved, text)
+			}
+			if rest != nil {
+				kept = append(kept, rest)
 			}
 			continue
 		}
@@ -244,6 +265,48 @@ func liftMidSystem(body map[string]any) {
 	}
 	body["system"] = sys
 	body["messages"] = kept
+}
+
+// splitSystemMessage separates a role "system" message's text, which moves to
+// the system field, from what has to stay in place: other blocks (such as
+// tool_addition) and fields (such as a per-turn output_config). rest is nil
+// when nothing has to stay.
+func splitSystemMessage(m map[string]any) (text string, rest map[string]any) {
+	var others []any
+	if s, ok := m["content"].(string); ok {
+		text = s
+	} else {
+		var texts []string
+		for _, p := range translate.AsArr(m["content"]) {
+			pm := translate.AsMap(p)
+			if translate.AsStr(pm["type"]) == "text" {
+				if t := translate.AsStr(pm["text"]); t != "" {
+					texts = append(texts, t)
+				}
+				continue
+			}
+			others = append(others, p)
+		}
+		text = strings.Join(texts, "\n")
+	}
+	extra := false
+	for k := range m {
+		if k != "role" && k != "content" {
+			extra = true
+		}
+	}
+	if len(others) == 0 && !extra {
+		return text, nil
+	}
+	rest = map[string]any{}
+	for k, v := range m {
+		rest[k] = v
+	}
+	if others == nil {
+		others = []any{}
+	}
+	rest["content"] = others
+	return text, rest
 }
 
 func flatten(content any) string {

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/kacperkwapisz/mainspring/internal/httpx"
@@ -24,8 +25,15 @@ func writeParseError(w http.ResponseWriter, r *http.Request, inbound string, err
 		Kind: httpx.KindRequest, Status: 400, Type: "invalid_request_error",
 		Route: r.URL.Path, Message: err.Error(), Hint: "send a JSON object",
 	}
+	var se *httpx.StatusError
+	if errors.As(err, &se) && se.Status != 400 {
+		f.Status, f.Hint, f.Type = se.Status, "", ""
+		if se.Status == 499 {
+			f.Kind = httpx.KindCancel
+		}
+	}
 	f.Log()
-	httpx.JSON(w, 400, f.ClientBody(inbound))
+	httpx.JSON(w, f.Status, f.ClientBody(inbound))
 }
 
 func writeProxyErr(w http.ResponseWriter, r *http.Request, inbound string, err error) {

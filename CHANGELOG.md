@@ -2,6 +2,12 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.8.1] - 2026-11-17
+
+- Fixes Claude refusing requests from clients that set the effort per turn or bind thinking blocks, such as pi's built-in Claude 5.5 models, with "output_config: Extra inputs are not permitted" or a thinking error. Mainspring now passes on the betas these clients ask for and keeps their per-turn messages.
+- Web search on Claude no longer fails when a request names a site Claude's search can't reach, such as reddit.com. Mainspring drops that site and searches again, and tries another provider when it was the only allowed site.
+- A client that hangs up while sending its request is logged as cancelled rather than as a malformed request, and an oversized request gets a 413.
+
 ## [1.8.0] - 2026-11-16
 
 - pi shows what each session would cost at API list prices, including long-context pricing. Your subscriptions pay for the tokens; the figure is the value you get. Run `pi update` to get it.

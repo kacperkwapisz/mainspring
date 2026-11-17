@@ -33,7 +33,8 @@ func ParseBody(r *http.Request) (any, error) {
 	limited := io.LimitReader(r.Body, BodyLimitBytes+1)
 	raw, err := io.ReadAll(limited)
 	if err != nil {
-		return nil, err
+		// The body stopped short: the client hung up while sending it.
+		return nil, &StatusError{Status: 499, Message: "request cancelled"}
 	}
 	if len(raw) > BodyLimitBytes {
 		return nil, &StatusError{Status: 413, Message: "payload too large"}

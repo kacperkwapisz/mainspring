@@ -2,6 +2,7 @@ package claude
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"github.com/kacperkwapisz/mainspring/internal/domain"
@@ -15,7 +16,41 @@ import (
 const webSearchSystem = "You run a web search for another Claude model, which is waiting on the result and can search again. Search once, then reply with a brief summary of the results."
 
 // WebSearch searches the web on this account.
+//
+// Claude's search can't reach some sites (reddit.com among them) and refuses a
+// request that names them. Those domains are dropped and the search runs
+// again. When every allowed domain is refused, the result is retryable, so the
+// web tools try another provider.
 func (e Executor) WebSearch(ctx context.Context, credential domain.Credential, model, query string, allowed, blocked []string) (provider.WebAnswer, provider.ExecuteResult) {
+	return searchAround(allowed, blocked, func(allowed, blocked []string) (provider.WebAnswer, provider.ExecuteResult) {
+		return e.webSearchOnce(ctx, credential, model, query, allowed, blocked)
+	})
+}
+
+// searchAround runs search, dropping domains Claude refuses until it answers.
+func searchAround(allowed, blocked []string, search func(allowed, blocked []string) (provider.WebAnswer, provider.ExecuteResult)) (provider.WebAnswer, provider.ExecuteResult) {
+	for {
+		answer, result := search(allowed, blocked)
+		refused := refusedDomains(result)
+		if len(refused) == 0 {
+			return answer, result
+		}
+		hadAllowed := len(allowed) > 0
+		nextAllowed, droppedA := withoutDomains(allowed, refused)
+		nextBlocked, droppedB := withoutDomains(blocked, refused)
+		if !droppedA && !droppedB {
+			return answer, result
+		}
+		if hadAllowed && len(nextAllowed) == 0 {
+			result.Retryable = true
+			result.Message = "Claude's web search can't reach " + strings.Join(refused, ", ")
+			return answer, result
+		}
+		allowed, blocked = nextAllowed, nextBlocked
+	}
+}
+
+func (e Executor) webSearchOnce(ctx context.Context, credential domain.Credential, model, query string, allowed, blocked []string) (provider.WebAnswer, provider.ExecuteResult) {
 	tool := map[string]any{"type": "web_search_20250305", "name": "web_search", "max_uses": 8.0}
 	if len(allowed) > 0 {
 		tool["allowed_domains"] = toAny(allowed)
@@ -95,4 +130,48 @@ func toAny(list []string) []any {
 		out[i] = s
 	}
 	return out
+}
+
+var refusedDomainsRe = regexp.MustCompile(`domains are not accessible to our user agent: \[([^\]]*)\]`)
+
+// refusedDomains reads the domains in Claude's "not accessible to our user
+// agent" refusal.
+func refusedDomains(result provider.ExecuteResult) []string {
+	if result.OK || result.Status != 400 {
+		return nil
+	}
+	msg := result.Message
+	if msg == "" {
+		msg = translate.AsStr(translate.AsMap(translate.AsMap(result.Body)["error"])["message"])
+	}
+	m := refusedDomainsRe.FindStringSubmatch(msg)
+	if m == nil {
+		return nil
+	}
+	var out []string
+	for _, d := range strings.Split(m[1], ",") {
+		if d = strings.Trim(strings.TrimSpace(d), `'"`); d != "" {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func withoutDomains(list, drop []string) ([]string, bool) {
+	var out []string
+	dropped := false
+	for _, d := range list {
+		refused := false
+		for _, r := range drop {
+			if strings.EqualFold(strings.TrimSpace(d), r) {
+				refused = true
+			}
+		}
+		if refused {
+			dropped = true
+			continue
+		}
+		out = append(out, d)
+	}
+	return out, dropped
 }
