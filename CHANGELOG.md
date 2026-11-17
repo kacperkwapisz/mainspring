@@ -2,6 +2,10 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.8.3] - 2026-11-17
+
+- Fixes Claude Code requests failing with "A maximum of 4 blocks with cache_control may be provided. Found 5." Mainspring added a cache breakpoint of its own to Anthropic-format requests whose tools had none. Claude Code already uses all four, so it now gets its request through as sent. 1.8.2 had stopped trimming Claude Code's breakpoints, which used to hide this.
+
 ## [1.8.2] - 2026-11-17
 
 - Mainspring forwards requests as your client sent them, and changes them only where the provider needs it: translating between API formats, and the Claude Code identity subscription accounts use. When a provider refuses something, you now get its error instead of a quiet change:

@@ -3,8 +3,9 @@ package translate
 import "encoding/json"
 
 func claudeToClaude(model string, stream bool, body any) RequestResult {
-	rec := AsMap(RewriteModel(body, model))
-	out := AsMap(injectClaudeCache(cloneMap(rec), readPromptCacheKey(rec)))
+	// The client chose its own cache breakpoints; adding one can take a
+	// request past Claude's four (Claude Code already uses all four).
+	out := cloneMap(AsMap(RewriteModel(body, model)))
 	out["stream"] = stream
 	out["model"] = model
 	return RequestResult{Model: model, Stream: stream, Body: out}
