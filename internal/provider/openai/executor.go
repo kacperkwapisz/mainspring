@@ -88,7 +88,6 @@ func (e *Executor) Execute(ctx context.Context, credential domain.Credential, bo
 	}
 	if opts.Stream {
 		rec["stream"] = true
-		rec["stream_options"] = provider.WithStreamUsage(rec["stream_options"])
 		headers["Accept"] = "text/event-stream"
 	} else {
 		rec["stream"] = false

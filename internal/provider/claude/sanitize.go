@@ -71,32 +71,6 @@ func sanitizeClaudeMessages(body map[string]any) map[string]any {
 	return body
 }
 
-func sanitizeWebSearchDomains(body map[string]any) map[string]any {
-	tools := translate.AsArr(body["tools"])
-	if len(tools) == 0 {
-		return body
-	}
-	changed := false
-	for _, toolRaw := range tools {
-		tool := translate.AsMap(toolRaw)
-		if !strings.HasPrefix(translate.AsStr(tool["type"]), "web_search_") {
-			continue
-		}
-		for _, field := range []string{"allowed_domains", "blocked_domains"} {
-			arr, ok := tool[field].([]any)
-			if ok && len(arr) == 0 {
-				delete(tool, field)
-				changed = true
-			}
-		}
-	}
-	if !changed {
-		return body
-	}
-	body["tools"] = tools
-	return body
-}
-
 func stripToolUseSignatures(part map[string]any) (map[string]any, bool) {
 	changed := false
 	next := translate.AsMap(translate.CloneJSON(part))

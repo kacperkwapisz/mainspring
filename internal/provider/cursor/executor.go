@@ -37,8 +37,8 @@ func stringsTrimCursorSlash(id string) string {
 
 func (e *Executor) Execute(ctx context.Context, credential domain.Credential, body any, opts provider.ExecuteOptions) (provider.ExecuteResult, error) {
 	if opts.CountTokens {
-		// No count endpoint upstream: estimate locally instead of generating.
-		return provider.CountTokensEstimate(body), nil
+		// No count endpoint upstream, and a generation would bill a real answer.
+		return provider.CountTokensUnsupported("Cursor"), nil
 	}
 	rec := translate.AsMap(body)
 	if n, ok := rec["n"].(float64); ok && n > 1 {

@@ -77,13 +77,14 @@ func TestCodexFailureClosesTheClientStream(t *testing.T) {
 	}
 }
 
+// Cursor always reports usage; a Chat client that turned it off doesn't get it.
 func TestChatClientThatTurnedUsageOffGetsNoUsageChunk(t *testing.T) {
 	off := map[string]any{"stream_options": map[string]any{"include_usage": false}}
 	finish := map[string]any{"id": "c1", "choices": []any{map[string]any{"index": 0.0, "delta": map[string]any{}, "finish_reason": "stop"}}}
 	usage := map[string]any{"id": "c1", "choices": []any{}, "usage": map[string]any{"prompt_tokens": 30.0, "completion_tokens": 4.0}}
 	state := EmptyStreamState()
-	lines := TranslateStream(domain.InboundOpenAIChat, domain.FormatOpenAI, "m", off, finish, &state)
-	lines = append(lines, TranslateStream(domain.InboundOpenAIChat, domain.FormatOpenAI, "m", off, usage, &state)...)
+	lines := TranslateStream(domain.InboundOpenAIChat, domain.FormatCursor, "m", off, finish, &state)
+	lines = append(lines, TranslateStream(domain.InboundOpenAIChat, domain.FormatCursor, "m", off, usage, &state)...)
 	if lines[len(lines)-1] != "data: [DONE]" || containsSub(lines, `"choices":[]`) {
 		t.Fatalf("usage chunk reached a client that turned it off: %v", lines)
 	}

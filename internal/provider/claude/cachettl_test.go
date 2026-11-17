@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -119,5 +120,74 @@ func TestReshapedRequestStaysWithinFourBreakpoints(t *testing.T) {
 				t.Fatalf("%v: lost the last message's breakpoint", h)
 			}
 		}
+	}
+}
+
+func breakpointTexts(body any) []string {
+	var out []string
+	eachBlock(translate.AsMap(body), func(b map[string]any) {
+		if _, ok := b["cache_control"]; ok {
+			out = append(out, translate.AsStr(b["text"])+translate.AsStr(b["name"]))
+		}
+	})
+	return out
+}
+
+// Claude Code recognised as such is forwarded with its breakpoints as sent,
+// even past four: Claude answers for that.
+func TestNativeBreakpointsAreNeverCapped(t *testing.T) {
+	native := map[string]string{
+		"User-Agent": "claude-cli/2.1.322 (external, cli)", "x-app": "cli",
+		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20",
+	}
+	body := map[string]any{"model": "claude-sonnet-5", "max_tokens": 10,
+		"metadata": map[string]any{"user_id": "{\"session_id\":\"s\"}"},
+		"tools":    []any{map[string]any{"name": "t", "input_schema": map[string]any{"type": "object"}, "cache_control": eph()}},
+		"system": []any{
+			map[string]any{"type": "text", "text": "x-anthropic-billing-header: cc_version=2.1.322.abc; cc_entrypoint=cli; cch=00000;"},
+			map[string]any{"type": "text", "text": "s", "cache_control": eph()},
+		},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "1", "cache_control": eph()}}},
+			map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "2", "cache_control": eph()}}},
+			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "3", "cache_control": eph()}}},
+		}}
+	p := PrepareUpstream(body, "tok", "cred", "", native, false, false, "k")
+	if got := breakpointTexts(p.Body); strings.Join(got, ",") != "t,s,1,2,3" {
+		t.Fatalf("breakpoints %v", got)
+	}
+}
+
+// A request that isn't recognised as Claude Code gets the disguise's
+// breakpoint on Claude Code's identity; exactly one of the client's four
+// makes room for it, the second, and the disguise's stays.
+func TestDisguiseDropsOnlyAsManyClientBreakpointsAsItAdds(t *testing.T) {
+	tool := func(name string) map[string]any {
+		return map[string]any{"name": name, "input_schema": map[string]any{"type": "object"}, "cache_control": eph()}
+	}
+	body := map[string]any{"model": "claude-sonnet-5", "max_tokens": 10,
+		"tools": []any{tool("t1"), tool("t2")},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "1"}}},
+			map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "2", "cache_control": eph()}}},
+			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "3", "cache_control": eph()}}},
+		}}
+	p := PrepareUpstream(body, "tok", "cred", "", map[string]string{"User-Agent": "curl/8"}, false, false, "k")
+	got := breakpointTexts(p.Body)
+	tools := translate.AsArr(translate.AsMap(p.Body)["tools"])
+	if _, ok := translate.AsMap(tools[1])["cache_control"]; ok || len(got) != maxBreakpoints || got[1] != cliIdentity || got[2] != "2" || got[3] != "3" {
+		t.Fatalf("breakpoints %q", got)
+	}
+	if raw, _ := json.Marshal(p.Body); strings.Contains(string(raw), "mainspring-client-breakpoint") {
+		t.Fatalf("internal tag reached Claude: %s", raw)
+	}
+
+	// A client that sends five itself gets Claude's error: only the
+	// disguise's one is made room for.
+	five := translate.AsMap(translate.CloneJSON(body))
+	five["messages"] = append(translate.AsArr(five["messages"]), map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "4", "cache_control": eph()}}})
+	p = PrepareUpstream(five, "tok", "cred", "", map[string]string{"User-Agent": "curl/8"}, false, false, "k")
+	if got := breakpointTexts(p.Body); len(got) != 5 {
+		t.Fatalf("breakpoints %q", got)
 	}
 }

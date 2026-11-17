@@ -1,32 +1,13 @@
 package provider
 
-import "encoding/json"
-
-// tokenCountFields are the request parts that make up a prompt in the formats
-// Mainspring sends upstream (Anthropic, OpenAI chat and Responses).
-var tokenCountFields = []string{"system", "instructions", "messages", "input", "tools"}
-
-// EstimateTokens roughly counts a request's input tokens: the JSON size of its
-// prompt parts over four, rounded up. Providers without a count endpoint use it.
-func EstimateTokens(body any) int {
-	rec, _ := body.(map[string]any)
-	size := 0
-	for _, k := range tokenCountFields {
-		v, ok := rec[k]
-		if !ok || v == nil {
-			continue
-		}
-		raw, err := json.Marshal(v)
-		if err != nil {
-			continue
-		}
-		size += len(raw)
+// CountTokensUnsupported answers a count_tokens call for a provider that has
+// no count endpoint (name is its display name, such as "Codex"). Only
+// Anthropic counts a prompt's tokens, so the caller gets a clear error instead
+// of a guess, and the provider is never asked.
+func CountTokensUnsupported(name string) ExecuteResult {
+	msg := name + " can't count tokens; only Claude models support /v1/messages/count_tokens"
+	return ExecuteResult{
+		OK: false, Status: 400, Retryable: false, Message: msg,
+		Body: map[string]any{"error": map[string]any{"type": "invalid_request_error", "message": msg}},
 	}
-	return (size + 3) / 4
-}
-
-// CountTokensEstimate answers a count_tokens call without asking the provider,
-// so counting never runs (and bills) a real generation.
-func CountTokensEstimate(body any) ExecuteResult {
-	return ExecuteResult{OK: true, Status: 200, Body: map[string]any{"input_tokens": EstimateTokens(body)}}
 }

@@ -29,8 +29,8 @@ func (e Executor) Models() []domain.ModelInfo    { return provider.CatalogModels
 
 func (e Executor) Execute(ctx context.Context, credential domain.Credential, body any, opts provider.ExecuteOptions) (provider.ExecuteResult, error) {
 	if opts.CountTokens {
-		// No count endpoint upstream: estimate locally instead of generating.
-		return provider.CountTokensEstimate(body), nil
+		// No count endpoint upstream, and a generation would bill a real answer.
+		return provider.CountTokensUnsupported("Codex"), nil
 	}
 	sanitized := SanitizeBody(body, opts.InboundHeaders)
 	if opts.Compact {

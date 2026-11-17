@@ -95,7 +95,7 @@ func TestStripsToolUseSignatures(t *testing.T) {
 	}
 }
 
-func TestDropsEmptyWebSearchDomains(t *testing.T) {
+func TestKeepsEmptyWebSearchDomains(t *testing.T) {
 	prepared := PrepareUpstream(
 		map[string]any{
 			"model":    "claude-opus-4-7",
@@ -107,11 +107,10 @@ func TestDropsEmptyWebSearchDomains(t *testing.T) {
 		"sk-ant-oat-test", "cred-1", "", map[string]string{}, false, false, "key-1",
 	)
 	tool := translate.AsMap(translate.AsArr(translate.AsMap(prepared.Body)["tools"])[0])
-	if _, ok := tool["allowed_domains"]; ok {
-		t.Fatalf("%+v", tool)
-	}
-	if _, ok := tool["blocked_domains"]; ok {
-		t.Fatalf("%+v", tool)
+	for _, f := range []string{"allowed_domains", "blocked_domains"} {
+		if arr, ok := tool[f].([]any); !ok || len(arr) != 0 {
+			t.Fatalf("%s: %+v", f, tool)
+		}
 	}
 }
 

@@ -58,13 +58,11 @@ func prepareUpstream(body any, accessToken, credentialID, accountID string, inbo
 	confirmed := detectNative(inbound, body, countTokens)
 	b := translate.AsMap(translate.CloneJSON(body))
 	b = sanitizeClaudeMessages(b)
-	b = sanitizeWebSearchDomains(b)
 	liftMidSystem(b)
-	disableThinkingIfForced(b)
-	normalizeSampling(b, confirmed)
 	cloaked := !confirmed
 	var reverse map[string]string
 	if cloaked {
+		markClientBreakpoints(b)
 		b = applyCloak(b)
 		aliased, rev := AliasClaudeTools(b, or(callerKey, "cpa-claude-mcp-default-caller"))
 		b = aliased
@@ -73,7 +71,9 @@ func prepareUpstream(body any, accessToken, credentialID, accountID string, inbo
 	if cacheTTL != "" && !countTokens {
 		setCacheTTL(b, cacheTTL)
 	}
-	capBreakpoints(b)
+	if cloaked {
+		capBreakpoints(b)
+	}
 	sessionID := sessionFrom(b, inbound, credentialID)
 	applyMetadata(b, credentialID, accountID, sessionID)
 	raw, _ := json.Marshal(b)
@@ -320,50 +320,6 @@ func flatten(content any) string {
 		}
 	}
 	return strings.Join(parts, "\n")
-}
-
-func disableThinkingIfForced(body map[string]any) {
-	typ := strings.ToLower(translate.AsStr(translate.AsMap(body["tool_choice"])["type"]))
-	if typ != "any" && typ != "tool" {
-		return
-	}
-	delete(body, "thinking")
-	oc := translate.AsMap(body["output_config"])
-	if _, ok := oc["effort"]; ok {
-		next := translate.AsMap(translate.CloneJSON(oc))
-		delete(next, "effort")
-		if len(next) == 0 {
-			delete(body, "output_config")
-		} else {
-			body["output_config"] = next
-		}
-	}
-}
-
-func normalizeSampling(body map[string]any, native bool) {
-	thinkingType := strings.ToLower(translate.AsStr(translate.AsMap(body["thinking"])["type"]))
-	thinking := thinkingType == "enabled" || thinkingType == "adaptive" || thinkingType == "auto"
-	if !native {
-		delete(body, "temperature")
-		delete(body, "top_p")
-		if thinking {
-			delete(body, "top_k")
-		}
-		return
-	}
-	if thinking {
-		if n, ok := body["temperature"].(float64); ok && n != 1 {
-			delete(body, "temperature")
-		}
-		if n, ok := body["top_p"].(float64); ok && n < 0.95 {
-			delete(body, "top_p")
-		}
-		delete(body, "top_k")
-		return
-	}
-	if body["temperature"] != nil && body["top_p"] != nil {
-		delete(body, "top_p")
-	}
 }
 
 // noMidSystem remembers models that answered "role 'system' is not supported

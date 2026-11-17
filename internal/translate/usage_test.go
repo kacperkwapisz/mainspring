@@ -167,23 +167,28 @@ func TestClaudeStreamToOpenAIClientsKeepsCache(t *testing.T) {
 	}
 }
 
-func TestChatPassthroughForwardsUsageChunkOnlyWhenAsked(t *testing.T) {
+func TestChatPassthroughForwardsTheUpstreamsUsageChunk(t *testing.T) {
+	content := map[string]any{"id": "c1", "choices": []any{map[string]any{"index": 0.0, "delta": map[string]any{"content": "hi"}}}}
 	finish := map[string]any{"id": "c1", "choices": []any{map[string]any{"index": 0.0, "delta": map[string]any{}, "finish_reason": "stop"}}}
 	usage := map[string]any{"id": "c1", "choices": []any{}, "usage": map[string]any{"prompt_tokens": 30.0, "completion_tokens": 4.0}}
 
+	// The request went upstream as sent, so a usage chunk the upstream sends
+	// is the client's, asked for or not, and it is metered either way.
 	state := EmptyStreamState()
 	plain := map[string]any{"model": "local/m"}
-	lines := TranslateStream(domain.InboundOpenAIChat, domain.FormatOpenAI, "local/m", plain, finish, &state)
-	if !contains(lines, "data: [DONE]") {
-		t.Fatalf("finish %v", lines)
+	TranslateStream(domain.InboundOpenAIChat, domain.FormatOpenAI, "local/m", plain, content, &state)
+	lines := TranslateStream(domain.InboundOpenAIChat, domain.FormatOpenAI, "local/m", plain, usage, &state)
+	if len(lines) != 1 || !strings.Contains(lines[0], `"prompt_tokens":30`) {
+		t.Fatalf("usage chunk dropped: %v", lines)
 	}
-	if lines := TranslateStream(domain.InboundOpenAIChat, domain.FormatOpenAI, "local/m", plain, usage, &state); len(lines) != 0 {
-		t.Fatalf("usage chunk forwarded unasked: %v", lines)
+	if lines := TranslateStream(domain.InboundOpenAIChat, domain.FormatOpenAI, "local/m", plain, finish, &state); !contains(lines, "data: [DONE]") {
+		t.Fatalf("finish %v", lines)
 	}
 	if state.PromptTokens != 30 || state.CompletionTokens != 4 {
 		t.Fatalf("usage not metered %+v", state)
 	}
 
+	// A client that asked gets [DONE] after the usage chunk that follows the finish.
 	state = EmptyStreamState()
 	asked := map[string]any{"model": "local/m", "stream_options": map[string]any{"include_usage": true}}
 	lines = TranslateStream(domain.InboundOpenAIChat, domain.FormatOpenAI, "local/m", asked, finish, &state)

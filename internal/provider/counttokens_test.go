@@ -2,21 +2,14 @@ package provider
 
 import "testing"
 
-func TestEstimateTokens(t *testing.T) {
-	body := map[string]any{
-		"model":    "gpt-5.5",
-		"system":   "abcd",                                                 // "\"abcd\"" = 6 bytes
-		"messages": []any{map[string]any{"role": "user", "content": "hi"}}, // 31 bytes
-	}
-	// (6 + 31) / 4, rounded up; model and other fields don't count.
-	if n := EstimateTokens(body); n != 10 {
-		t.Fatalf("got %d", n)
-	}
-	if n := EstimateTokens(nil); n != 0 {
-		t.Fatalf("empty body: %d", n)
-	}
-	res := CountTokensEstimate(body)
-	if !res.OK || res.Status != 200 || res.Body.(map[string]any)["input_tokens"] != 10 {
+func TestCountTokensUnsupported(t *testing.T) {
+	res := CountTokensUnsupported("Codex")
+	want := "Codex can't count tokens; only Claude models support /v1/messages/count_tokens"
+	if res.OK || res.Status != 400 || res.Retryable || res.Message != want {
 		t.Fatalf("%+v", res)
+	}
+	e, _ := res.Body.(map[string]any)["error"].(map[string]any)
+	if e["type"] != "invalid_request_error" || e["message"] != want {
+		t.Fatalf("body %v", res.Body)
 	}
 }
