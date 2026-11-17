@@ -4,6 +4,14 @@ Mainspring shows the newest entries under **What's new** in the panel, and each 
 
 ## [1.8.2] - 2026-11-17
 
+- Mainspring forwards requests as your client sent them, and changes them only where the provider needs it: translating between API formats, and the Claude Code identity subscription accounts use. When a provider refuses something, you now get its error instead of a quiet change:
+  - `temperature`, `top_p` and `top_k` reach Claude as sent.
+  - Thinking stays on when a request forces a tool.
+  - Empty web-search domain lists are passed on.
+  - `developer` messages reach OpenAI-compatible sources as sent.
+  - Mainspring no longer adds `stream_options.include_usage` to requests in OpenAI chat format, so their streamed usage is recorded only when the client asks for it.
+  - Cache breakpoints are trimmed only to make room for the ones Mainspring adds itself, and never on Claude Code's own requests.
+- Token counting on Codex, Grok and Cursor models returns an error saying only Claude models can count tokens, instead of an estimate.
 - Claude web search no longer drops sites it can't reach, such as reddit.com, and no longer moves such a search to another provider. Doing so changed what was searched without saying so. A search that names one of these sites fails again with Anthropic's message, which names the site.
 
 ## [1.8.1] - 2026-11-17
