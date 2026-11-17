@@ -952,9 +952,22 @@ func TestCacheTTLIsAnHourForSessionsOnly(t *testing.T) {
 		{domain.ProviderClaude, "sid:pi-1", title, ""},
 		{domain.ProviderCodex, "codex:abc", conv, ""},
 	} {
-		if got := cacheTTL(c.p, c.key, c.body); got != c.want {
+		if got := cacheTTL(nil, c.p, c.key, c.body); got != c.want {
 			t.Fatalf("%s %q: got %q want %q", c.p, c.key, got, c.want)
 		}
+	}
+}
+
+func TestHourCacheCanBeTurnedOff(t *testing.T) {
+	hub, d := testHub(t, nil)
+	defer d.Close()
+	conv := map[string]any{"tools": []any{map[string]any{"name": "t"}}, "messages": []any{map[string]any{}, map[string]any{}}}
+	if got := cacheTTL(hub, domain.ProviderClaude, "claude:abc", conv); got != "1h" {
+		t.Fatalf("on by default, got %q", got)
+	}
+	_ = hub.Settings.Set(SettingClaudeHourCache, "0")
+	if got := cacheTTL(hub, domain.ProviderClaude, "claude:abc", conv); got != "" {
+		t.Fatalf("turned off, got %q", got)
 	}
 }
 

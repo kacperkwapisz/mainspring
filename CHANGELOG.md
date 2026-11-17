@@ -11,6 +11,8 @@ Mainspring shows the newest entries under **What's new** in the panel, and each 
   - `developer` messages reach OpenAI-compatible sources as sent.
   - Mainspring no longer adds `stream_options.include_usage` to requests in OpenAI chat format, so their streamed usage is recorded only when the client asks for it.
   - Cache breakpoints are trimmed only to make room for the ones Mainspring adds itself, and never on Claude Code's own requests.
+  - Claude Code's own mid-conversation system messages stay where it put them, so its prompt cache isn't disturbed.
+- The one-hour Claude prompt cache Mainspring adds when a tool sets no cache time is now a setting, **Keep Claude's prompt cache for an hour** under Settings → Routing. It's on by default, as before.
 - Token counting on Codex, Grok and Cursor models returns an error saying only Claude models can count tokens, instead of an estimate.
 - Claude web search no longer drops sites it can't reach, such as reddit.com, and no longer moves such a search to another provider. Doing so changed what was searched without saying so. A search that names one of these sites fails again with Anthropic's message, which names the site.
 

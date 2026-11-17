@@ -32,7 +32,7 @@ Accounts that are out of rotation, waiting for you to sign in again, or resting 
 
 Mainspring recognises a session from what the tool sends: Claude Code's session ID, Codex's thread ID, a `session_id`, `prompt_cache_key` or `conversation_id` in the body, or an `X-Session-ID` header. Requests without any of these are routed one by one.
 
-On Claude, a session's prompt cache lasts an hour, as long as the session stays on its account. Claude's default is five minutes, and Claude Code asks for an hour only when it signs in to Claude itself, so without this a pause of more than five minutes would write the whole prompt again. One-off requests, like a single message without tools, keep five minutes, which costs less to write. A tool that sets its own cache TTL keeps it.
+On Claude, Mainspring keeps the prompt cache for an hour when the tool sets no cache time itself. Claude's default is five minutes, and Claude Code asks for an hour only when it signs in to Claude itself, so a pause of more than five minutes would otherwise write the whole prompt again. An hour-long write costs 2× the input price instead of 1.25×, so it pays off once the cache is read about twice. This applies to every Claude request except one-off ones, like a single message without tools, which keep five minutes. A tool that sets its own cache time keeps it. Turn it off with **Keep Claude's prompt cache for an hour** under **Settings → Routing**.
 
 ## Limits
 

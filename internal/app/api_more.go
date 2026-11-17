@@ -389,6 +389,7 @@ func settingsView(hub *proxy.Hub) map[string]any {
 		"grok_failover":      settingOn(hub, proxy.SettingCursorGrokFailover, false),
 		"trace":              trace,
 		"websockets":         settingOn(hub, SettingWSEnabled, true),
+		"claude_hour_cache":  settingOn(hub, proxy.SettingClaudeHourCache, true),
 		"hub_enabled":        settingOn(hub, SettingHubEnabled, false),
 		"hub_key":            hash != "",
 		"hub_key_created_at": createdAt,
@@ -433,6 +434,7 @@ func updateSettings(hub *proxy.Hub, body any) error {
 	setBool("cursor_list_fast", proxy.SettingCursorListFast)
 	setBool("grok_failover", proxy.SettingCursorGrokFailover)
 	setBool("websockets", SettingWSEnabled)
+	setBool("claude_hour_cache", proxy.SettingClaudeHourCache)
 	setBool("update_check", SettingUpdateCheck)
 	setBool("web_tools", SettingWebTools)
 	setBool("share_pool", proxy.SettingSharePool)

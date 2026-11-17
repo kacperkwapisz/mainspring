@@ -31,6 +31,7 @@ const (
 	SettingCursorPrefix       = "cursor.prefix"
 	SettingCursorGrokFailover = "cursor.grokFailover"
 	SettingCursorListFast     = "cursor.listFast"
+	SettingClaudeHourCache    = "routing.claudeHourCache"
 	SettingLogTrace           = httpx.SettingLogTrace
 )
 
@@ -179,7 +180,7 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 			opts := provider.ExecuteOptions{
 				Stream: req.Stream, CountTokens: req.CountTokens, Compact: req.Compact,
 				InboundHeaders: req.InboundHeaders, CallerKey: req.Key.ID,
-				CacheTTL: cacheTTL(hop.Provider, sessionKey, translated.Body),
+				CacheTTL: cacheTTL(hub, hop.Provider, sessionKey, translated.Body),
 			}
 			result, err := executor.Execute(ctx, cred, translated.Body, opts)
 			if err != nil {
@@ -758,13 +759,14 @@ func accountModels(hub *Hub, ex provider.Executor, providerID domain.ProviderID)
 	return out
 }
 
-// cacheTTL picks how long Claude keeps a request's prompt cache. A session
-// stays on its account for an hour, so its cache should last as long: a pause
-// over five minutes would otherwise write the whole prompt again. One-off
-// requests (no session, or a single message without tools, like a title or a
+// cacheTTL picks how long Claude keeps a request's prompt cache when the
+// client set no TTL itself, if the hub's "Keep Claude's prompt cache for an
+// hour" setting is on (it is by default). A session stays on its account for a
+// while, so a pause over five minutes would otherwise write the whole prompt
+// again. One-off requests (a single message without tools, like a title or a
 // summary) keep the cheaper five-minute default.
-func cacheTTL(p domain.ProviderID, sessionKey string, body any) string {
-	if p != domain.ProviderClaude || sessionKey == "" {
+func cacheTTL(hub *Hub, p domain.ProviderID, sessionKey string, body any) string {
+	if p != domain.ProviderClaude || sessionKey == "" || !settingOnByDefault(hub, SettingClaudeHourCache) {
 		return ""
 	}
 	b := asMap(body)

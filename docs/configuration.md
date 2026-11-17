@@ -28,6 +28,7 @@ Mainspring needs no configuration to start. Environment variables change where i
 | Tailnet address | Mainspring's own device on your tailnet; see [Tailnet address](tailnet.md) | Off |
 | Routing | Keep sessions on their account for this long after their last request | 1 hour |
 | Routing | Mark an account's limits stale after this long without reading them | 1 hour |
+| Routing | Keep Claude's prompt cache for an hour, when the tool sets no cache time | On |
 | Routing | Codex over WebSockets | On |
 | Cursor | Prefix models with `cursor/` | Off |
 | Cursor | List fast twins as `…-fast` | On |

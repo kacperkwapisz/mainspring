@@ -58,10 +58,12 @@ func prepareUpstream(body any, accessToken, credentialID, accountID string, inbo
 	confirmed := detectNative(inbound, body, countTokens)
 	b := translate.AsMap(translate.CloneJSON(body))
 	b = sanitizeClaudeMessages(b)
-	liftMidSystem(b)
 	cloaked := !confirmed
 	var reverse map[string]string
 	if cloaked {
+		// The disguise puts the caller's system prompt into role "system"
+		// messages, so it gathers the caller's own ones first.
+		liftMidSystem(b)
 		markClientBreakpoints(b)
 		b = applyCloak(b)
 		aliased, rev := AliasClaudeTools(b, or(callerKey, "cpa-claude-mcp-default-caller"))

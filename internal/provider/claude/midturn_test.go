@@ -67,3 +67,25 @@ func TestCountTokensKeepsTheClientsBetas(t *testing.T) {
 		t.Fatal(prepared.Headers["anthropic-beta"])
 	}
 }
+
+// Claude Code's own requests keep their mid-conversation system messages where
+// they are: moving them into the system field would change its cache prefix.
+func TestClaudeCodeKeepsItsMidConversationSystemMessages(t *testing.T) {
+	body := map[string]any{
+		"model":    "claude-opus-5-5",
+		"system":   []any{map[string]any{"type": "text", "text": "x-anthropic-billing-header: cc_version=2.1.325; cc_entrypoint=cli;"}, map[string]any{"type": "text", "text": "You are Claude Code."}},
+		"metadata": map[string]any{"user_id": `{"session_id":"0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8"}`},
+		"messages": []any{
+			map[string]any{"role": "user", "content": "hi"},
+			map[string]any{"role": "system", "content": []any{map[string]any{"type": "text", "text": "<system-reminder>plan mode</system-reminder>"}}},
+			map[string]any{"role": "user", "content": "go"},
+		},
+	}
+	prepared := PrepareUpstream(body, "sk-ant-oat-test", "cred-1", "",
+		map[string]string{"user-agent": "claude-cli/2.1.325 (external, cli)", "x-app": "cli", "anthropic-beta": "claude-code-20250219"},
+		true, false, "key-1")
+	msgs := translate.AsArr(translate.AsMap(prepared.Body)["messages"])
+	if len(msgs) != 3 || translate.AsStr(translate.AsMap(msgs[1])["role"]) != "system" {
+		t.Fatalf("mid-conversation system message moved: %v", msgs)
+	}
+}
