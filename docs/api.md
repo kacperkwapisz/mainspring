@@ -50,13 +50,13 @@ Session affinity follows Claude Code's session ID or `metadata.user_id`; see [Ho
 
 ## POST /v1/messages/count_tokens
 
-Counts a Messages request's input tokens without running it. Same body as `/v1/messages`. Claude counts exactly; Codex, Grok and Cursor have no count endpoint, so Mainspring answers with an estimate (about four characters per token) and sends nothing upstream. Counts aren't recorded on the Meter.
+Counts a Messages request's input tokens without running it. Same body as `/v1/messages`. Only Claude models can count. Codex, Grok and Cursor have no count endpoint, so a count for one of their models gets `400` `invalid_request_error` (for example "Codex can't count tokens; only Claude models support /v1/messages/count_tokens") and nothing is sent upstream. Counts aren't recorded on the Meter.
 
 ## POST /v1/chat/completions
 
 The OpenAI Chat Completions API, for every provider. `stream: true` returns OpenAI's server-sent events.
 
-A `developer` message is the system prompt, as OpenAI's reasoning models treat it. On a Claude model that lists `efforts`, `reasoning_effort` becomes Claude's adaptive thinking at that effort (the nearest one the model takes; `minimal` counts as `low`, `none` turns thinking off). Claude models without efforts get a thinking budget instead. The Responses API's `reasoning.effort` works the same way.
+Claude, Grok and Cursor have no `developer` role, so a `developer` message becomes their system prompt. Codex and OpenAI-compatible APIs get it as sent. On a Claude model that lists `efforts`, `reasoning_effort` becomes Claude's adaptive thinking at that effort (the nearest one the model takes; `minimal` counts as `low`, `none` turns thinking off). Claude models without efforts get a thinking budget instead. The Responses API's `reasoning.effort` works the same way.
 
 ```sh
 curl https://mainspring.your-tailnet.ts.net/v1/chat/completions \
@@ -143,7 +143,7 @@ Every answer reports its tokens the way the API you called does, whichever provi
 - **Messages**: `input_tokens` is the input that wasn't read from or written to the prompt cache. `cache_read_input_tokens` and `cache_creation_input_tokens` count the rest.
 - **Chat Completions and Responses**: `prompt_tokens` (Chat) or `input_tokens` (Responses) counts all input. Its `cached_tokens` detail says how much was read from the cache, and `cache_write_tokens`, when present, how much was written to it.
 
-To get usage in a Chat Completions stream, set `"stream_options": {"include_usage": true}`. It comes in the last chunks, before `data: [DONE]`.
+To get usage in a Chat Completions stream, set `"stream_options": {"include_usage": true}`. It comes in the last chunks, before `data: [DONE]`. An OpenAI-compatible API gets your `stream_options` as sent.
 
 ## Response headers
 

@@ -114,9 +114,6 @@ func (e *Executor) Execute(ctx context.Context, credential domain.Credential, bo
 		switch family {
 		case FamilyChat, FamilyResponses:
 			rec["stream"] = true
-			if family == FamilyChat {
-				rec["stream_options"] = provider.WithStreamUsage(rec["stream_options"])
-			}
 			headers["Accept"] = "text/event-stream"
 		case FamilyMessages:
 			rec["stream"] = true

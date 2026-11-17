@@ -19,9 +19,9 @@ var requestFns = map[string]requestFn{
 	"openai.chat→cursor":      identityChat,
 	"claude.messages→cursor":  claudeToGrok,
 	"openai.responses→cursor": responsesToGrok,
-	"openai.chat→openai":      chatToOpenAI,
-	"claude.messages→openai":  claudeToGrok,
-	"openai.responses→openai": responsesToGrok,
+	"openai.chat→openai":      identityChat,
+	"claude.messages→openai":  claudeToChat,
+	"openai.responses→openai": responsesToChat,
 }
 
 var responseFns = map[string]responseFn{
@@ -55,7 +55,7 @@ var streamFns = map[string]streamFn{
 	"openai.chat→cursor":      grokStreamToOpenaiChat,
 	"claude.messages→cursor":  grokStreamToClaude,
 	"openai.responses→cursor": grokStreamToResponses,
-	"openai.chat→openai":      grokStreamToOpenaiChat,
+	"openai.chat→openai":      chatStreamToOpenaiChat,
 	"claude.messages→openai":  grokStreamToClaude,
 	"openai.responses→openai": grokStreamToResponses,
 }
@@ -64,33 +64,27 @@ func identityChat(model string, stream bool, body any) RequestResult {
 	return RequestResult{Model: model, Stream: stream, Body: RewriteModel(body, model)}
 }
 
-// chatToOpenAI passes a Chat request to an OpenAI-compatible server (a
-// source, or an OpenCode chat model) with "developer" messages sent as
-// "system": every compatible server takes system, some reject developer, and
-// OpenAI reads system as developer for reasoning models.
-func chatToOpenAI(model string, stream bool, body any) RequestResult {
-	res := identityChat(model, stream, body)
-	msgs, ok := AsMap(res.Body)["messages"].([]any)
-	if !ok {
+// claudeToChat and responsesToChat translate to an OpenAI-compatible Chat
+// server (a source, or an OpenCode chat model). Anthropic and Responses
+// streams always end with the request's usage, but a Chat stream sends it only
+// when stream_options.include_usage asks, so asking is part of the
+// translation. A Chat client's own request goes through as sent (identityChat).
+func claudeToChat(model string, stream bool, body any) RequestResult {
+	return withStreamUsage(claudeToGrok(model, stream, body))
+}
+
+func responsesToChat(model string, stream bool, body any) RequestResult {
+	return withStreamUsage(responsesToGrok(model, stream, body))
+}
+
+func withStreamUsage(res RequestResult) RequestResult {
+	if !res.Stream {
 		return res
 	}
-	next := make([]any, len(msgs))
-	changed := false
-	for i, m := range msgs {
-		msg, ok := m.(map[string]any)
-		if !ok || AsStr(msg["role"]) != "developer" {
-			next[i] = m
-			continue
-		}
-		c := cloneMap(msg)
-		c["role"] = "system"
-		next[i], changed = c, true
-	}
-	if !changed {
-		return res
-	}
-	out := cloneMap(AsMap(res.Body)) // the body can be the client's own map
-	out["messages"] = next
+	out := cloneMap(AsMap(res.Body))
+	opts := cloneMap(AsMap(out["stream_options"]))
+	opts["include_usage"] = true
+	out["stream_options"] = opts
 	res.Body = out
 	return res
 }
@@ -130,8 +124,10 @@ func DoneLine(from domain.InboundFormat) string {
 }
 
 // isTokenCount reports whether upstream is a count_tokens answer
-// ({"input_tokens": N}), which is already in the Anthropic shape the caller
-// asked for and must not be turned into a message.
+// ({"input_tokens": N}). Only Claude gives one; it is already in the shape
+// the caller asked for and goes back as Claude sent it, without the model a
+// message reply gets. Providers without a count endpoint answer with an
+// error, which the proxy sends in the caller's error shape.
 func isTokenCount(upstream any) bool {
 	m, ok := upstream.(map[string]any)
 	if !ok || len(m) != 1 {

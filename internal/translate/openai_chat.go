@@ -356,22 +356,37 @@ func claudeStreamToOpenaiChat(model string, _ any, chunk any, state *StreamState
 	return lines
 }
 
+// grokStreamToOpenaiChat turns the Cursor executor's Chat chunks into a Chat
+// client's stream. Cursor always reports usage, as a usage-only chunk after
+// the finish; the client gets that chunk only if it asked for it.
 func grokStreamToOpenaiChat(model string, original any, chunk any, state *StreamState) []string {
+	return chatStream(model, chatWantsUsage(original), true, chunk, state)
+}
+
+// chatStreamToOpenaiChat passes an OpenAI-compatible Chat stream to a Chat
+// client. The upstream got the client's stream_options as sent, so it sends
+// a usage chunk only when the client asked for one, and the chunk goes through.
+func chatStreamToOpenaiChat(model string, original any, chunk any, state *StreamState) []string {
+	return chatStream(model, chatWantsUsage(original), false, chunk, state)
+}
+
+// chatStream forwards Chat chunks under the client's model name. wantsUsage
+// holds [DONE] back after the finish for the usage chunk that follows it;
+// dropUnasked keeps a usage chunk from a client that didn't ask for one.
+func chatStream(model string, wantsUsage, dropUnasked bool, chunk any, state *StreamState) []string {
 	c := AsMap(chunk)
 	captureUsage(state, c["usage"])
 	if state.doneSent {
 		return nil // nothing may follow [DONE]
 	}
-	wantsUsage := chatWantsUsage(original)
 	out := cloneMap(c)
 	out["model"] = model
 	if AsStr(c["id"]) == "" {
 		out["id"] = state.ID
 	}
 	if len(AsArr(c["choices"])) == 0 {
-		// The usage-only chunk that include_usage asks for. Mainspring asks
-		// for it to meter the request; the client gets it only if it asked.
-		if len(AsMap(c["usage"])) == 0 || !wantsUsage {
+		// The usage-only chunk that include_usage asks for.
+		if len(AsMap(c["usage"])) == 0 || (dropUnasked && !wantsUsage) {
 			return nil
 		}
 		lines := []string{chunkLine(out)}

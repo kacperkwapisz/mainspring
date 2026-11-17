@@ -54,18 +54,41 @@ func TestOmitsRedactWhenThinkingDisplay(t *testing.T) {
 	}
 }
 
-func TestForcedToolChoiceDropsThinking(t *testing.T) {
-	prepared := PrepareUpstream(
-		map[string]any{
-			"model":       "claude-opus-4-7",
-			"messages":    []any{map[string]any{"role": "user", "content": "hi"}},
-			"thinking":    map[string]any{"type": "enabled"},
-			"tool_choice": map[string]any{"type": "any"},
-		},
-		"sk-ant-oat-test", "cred-1", "", map[string]string{}, false, false, "key-1",
-	)
-	if _, ok := translate.AsMap(prepared.Body)["thinking"]; ok {
-		t.Fatal("thinking still present")
+// Sampling, thinking and a forced tool_choice reach Claude as the client sent
+// them, recognised as Claude Code or not; Claude answers for what it refuses.
+func TestSamplingAndThinkingGoThroughAsSent(t *testing.T) {
+	native := map[string]string{
+		"User-Agent": "claude-cli/2.1.322 (external, cli)", "x-app": "cli",
+		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20",
+	}
+	for name, inbound := range map[string]map[string]string{"native": native, "cloaked": {"User-Agent": "curl/8"}} {
+		body := map[string]any{
+			"model":         "claude-opus-5",
+			"metadata":      map[string]any{"user_id": "{\"session_id\":\"s\"}"},
+			"messages":      []any{map[string]any{"role": "user", "content": "hi"}},
+			"thinking":      map[string]any{"type": "enabled", "budget_tokens": 1024.0},
+			"output_config": map[string]any{"effort": "high"},
+			"tool_choice":   map[string]any{"type": "tool", "name": "t"},
+			"tools":         []any{map[string]any{"name": "t", "input_schema": map[string]any{"type": "object"}}},
+			"temperature":   0.2,
+			"top_p":         0.5,
+			"top_k":         5.0,
+		}
+		got := translate.AsMap(PrepareUpstream(body, "tok", "cred", "", inbound, false, false, "k").Body)
+		for _, f := range []string{"temperature", "top_p", "top_k"} {
+			if got[f] != body[f] {
+				t.Errorf("%s: %s = %v, want %v", name, f, got[f], body[f])
+			}
+		}
+		if translate.AsMap(got["thinking"])["type"] != "enabled" {
+			t.Errorf("%s: thinking %v", name, got["thinking"])
+		}
+		if translate.AsMap(got["output_config"])["effort"] != "high" {
+			t.Errorf("%s: output_config %v", name, got["output_config"])
+		}
+		if translate.AsMap(got["tool_choice"])["type"] != "tool" {
+			t.Errorf("%s: tool_choice %v", name, got["tool_choice"])
+		}
 	}
 }
 

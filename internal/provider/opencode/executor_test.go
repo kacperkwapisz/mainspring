@@ -124,3 +124,40 @@ func TestValidateKeyRequiresSecret(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+// A streamed Chat request reaches OpenCode with the client's stream_options
+// as sent: none added when the client sent none.
+func TestChatStreamOptionsGoUpstreamAsSent(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		got = nil
+		_ = json.Unmarshal(raw, &got)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer srv.Close()
+	prev := inferenceRoot
+	inferenceRoot = srv.URL
+	defer func() { inferenceRoot = prev }()
+
+	ex := NewExecutor()
+	cred := domain.Credential{
+		ID: "oc1", Provider: domain.ProviderOpenCode, Label: "OpenCode",
+		Tokens: domain.CredentialTokens{AccessToken: "oc_sk_test", Extra: CredentialExtra()},
+	}
+	res, err := ex.Execute(context.Background(), cred, map[string]any{
+		"model": "opencode/kimi-k2.6", "messages": []any{},
+	}, provider.ExecuteOptions{Stream: true})
+	if err != nil || !res.OK {
+		t.Fatalf("%+v %v", res, err)
+	}
+	for range res.Stream {
+	}
+	if got["stream"] != true {
+		t.Fatalf("body %v", got)
+	}
+	if so, ok := got["stream_options"]; ok {
+		t.Fatalf("stream_options added: %v", so)
+	}
+}

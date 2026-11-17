@@ -49,22 +49,63 @@ func setCacheTTL(body map[string]any, ttl string) {
 // maxBreakpoints is how many cache_control blocks Claude accepts in a request.
 const maxBreakpoints = 4
 
-// capBreakpoints keeps a request within Claude's four breakpoints. A client
-// like Claude Code already uses all four, and reshaping a request that isn't
-// recognised as Claude Code adds its own, so Claude would refuse it with
-// "A maximum of 4 blocks with cache_control may be provided".
+// clientBreakpoint tags, for the length of prepareUpstream, the blocks that
+// carried a breakpoint before the disguise reshaped the request, so
+// capBreakpoints can tell the client's breakpoints from the disguise's. It is
+// a key on the block because the disguise copies blocks it keeps.
+const clientBreakpoint = "\x00mainspring-client-breakpoint"
+
+// markClientBreakpoints tags the client's breakpoints (see clientBreakpoint).
+func markClientBreakpoints(body map[string]any) {
+	eachBlock(body, func(b map[string]any) {
+		if _, has := b["cache_control"]; has {
+			b[clientBreakpoint] = true
+		}
+	})
+}
+
+// capBreakpoints makes room for the breakpoints the disguise added to a
+// request that isn't recognised as Claude Code. Claude takes at most four, and
+// a client like Claude Code already uses all four, so Claude would refuse the
+// disguised request with "A maximum of 4 blocks with cache_control may be
+// provided". It drops only as many of the client's breakpoints as the
+// disguise added; a client that sends more than four itself gets Claude's
+// error, as it would without Mainspring.
 //
 // Breakpoints are read in the order Claude caches them (tools, system,
-// messages). The first two cover the stable start (identity, system, tools)
-// and the last two the conversation so far, so those stay and the ones in
-// between go: their prefix is covered by the next breakpoint kept.
+// messages). The client's first and last breakpoints stay, the start of the
+// prompt and the conversation so far, and the ones in between go: their
+// prefix is covered by the next breakpoint kept.
 func capBreakpoints(body map[string]any) {
-	var marks []map[string]any
+	var client []map[string]any
+	total := 0
+	eachBlock(body, func(b map[string]any) {
+		_, tagged := b[clientBreakpoint]
+		delete(b, clientBreakpoint)
+		if _, has := b["cache_control"]; !has {
+			return
+		}
+		total++
+		if tagged {
+			client = append(client, b)
+		}
+	})
+	drop := min(total-maxBreakpoints, total-len(client))
+	if drop <= 0 {
+		return
+	}
+	keep := len(client) - drop
+	for _, b := range client[keep/2 : keep/2+drop] {
+		delete(b, "cache_control")
+	}
+}
+
+// eachBlock calls fn for every block that can carry a breakpoint, in the
+// order Claude caches them: tools, system, then message content.
+func eachBlock(body map[string]any, fn func(map[string]any)) {
 	visit := func(block any) {
 		if b, ok := block.(map[string]any); ok {
-			if _, has := b["cache_control"]; has {
-				marks = append(marks, b)
-			}
+			fn(b)
 		}
 	}
 	for _, t := range translate.AsArr(body["tools"]) {
@@ -77,11 +118,5 @@ func capBreakpoints(body map[string]any) {
 		for _, c := range translate.AsArr(translate.AsMap(m)["content"]) {
 			visit(c)
 		}
-	}
-	if len(marks) <= maxBreakpoints {
-		return
-	}
-	for _, b := range marks[maxBreakpoints/2 : len(marks)-maxBreakpoints/2] {
-		delete(b, "cache_control")
 	}
 }

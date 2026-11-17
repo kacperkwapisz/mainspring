@@ -141,7 +141,8 @@ func TestAnthropicAdaptiveThinkingPassesThrough(t *testing.T) {
 
 func TestTokenCountAnswersPassThrough(t *testing.T) {
 	count := map[string]any{"input_tokens": 42}
-	for _, to := range []domain.ExecutorFormat{domain.FormatCodex, domain.FormatGrok, domain.FormatCursor} {
+	// Only Claude counts tokens; its answer goes back without a model field.
+	for _, to := range []domain.ExecutorFormat{domain.FormatClaude} {
 		got := AsMap(TranslateResponse(domain.InboundClaudeMessages, to, "m", nil, count))
 		if len(got) != 1 || got["input_tokens"] != 42 {
 			t.Fatalf("%s: %v", to, got)
@@ -149,22 +150,44 @@ func TestTokenCountAnswersPassThrough(t *testing.T) {
 	}
 }
 
-func TestDeveloperBecomesSystemForOpenAICompatibleChat(t *testing.T) {
+func TestChatRequestGoesToOpenAICompatibleChatAsSent(t *testing.T) {
 	client := map[string]any{"model": "local/m", "messages": []any{
 		map[string]any{"role": "developer", "content": "you are pi"},
 		map[string]any{"role": "user", "content": "hi"},
 	}}
 	res := TranslateRequest(domain.InboundOpenAIChat, domain.FormatOpenAI, "local/m", true, client)
-	msgs := AsArr(AsMap(res.Body)["messages"])
-	if AsStr(AsMap(msgs[0])["role"]) != "system" || AsStr(AsMap(msgs[1])["role"]) != "user" {
+	body := AsMap(res.Body)
+	msgs := AsArr(body["messages"])
+	if AsStr(AsMap(msgs[0])["role"]) != "developer" || AsStr(AsMap(msgs[1])["role"]) != "user" {
 		t.Fatalf("roles %v", msgs)
 	}
-	if AsStr(AsMap(AsArr(client["messages"])[0])["role"]) != "developer" {
-		t.Fatalf("client's body changed: %v", client)
+	if _, ok := body["stream_options"]; ok {
+		t.Fatalf("stream_options added: %v", body["stream_options"])
 	}
 	// Codex (Responses) keeps developer.
 	codex := TranslateRequest(domain.InboundOpenAIChat, domain.FormatCodex, "gpt-5.5", false, client)
 	if r := AsStr(AsMap(AsArr(AsMap(codex.Body)["input"])[0])["role"]); r != "developer" {
 		t.Fatalf("codex role %q", r)
+	}
+}
+
+// Anthropic and Responses streams always carry usage, so translating them to
+// a Chat server asks for it; a non-streamed request doesn't need to.
+func TestTranslatedChatStreamsAskForUsage(t *testing.T) {
+	for _, tc := range []struct {
+		from domain.InboundFormat
+		body map[string]any
+	}{
+		{domain.InboundClaudeMessages, map[string]any{"model": "local/m", "max_tokens": 10.0, "messages": []any{map[string]any{"role": "user", "content": "hi"}}}},
+		{domain.InboundOpenAIResponses, map[string]any{"model": "local/m", "input": "hi"}},
+	} {
+		streamed := AsMap(TranslateRequest(tc.from, domain.FormatOpenAI, "local/m", true, tc.body).Body)
+		if AsMap(streamed["stream_options"])["include_usage"] != true {
+			t.Errorf("%s streamed: stream_options %v", tc.from, streamed["stream_options"])
+		}
+		plain := AsMap(TranslateRequest(tc.from, domain.FormatOpenAI, "local/m", false, tc.body).Body)
+		if _, ok := plain["stream_options"]; ok {
+			t.Errorf("%s not streamed: stream_options %v", tc.from, plain["stream_options"])
+		}
 	}
 }

@@ -106,10 +106,37 @@ func TestEffortsAreLookedUpOnlyWhenTheRequestAsksForReasoning(t *testing.T) {
 
 func TestCountTokensAnswerReachesTheCallerUnchanged(t *testing.T) {
 	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
+		domain.ProviderClaude: fakeExec{id: domain.ProviderClaude, format: domain.FormatClaude,
+			models: []domain.ModelInfo{{ID: "claude-opus-5-5"}},
+			fn: func(domain.Credential) provider.ExecuteResult {
+				return provider.ExecuteResult{OK: true, Status: 200, Body: map[string]any{"input_tokens": 4}}
+			}},
+	})
+	defer d.Close()
+	_, _ = hub.Vault.Save(store.SaveCredential{ID: "a", Provider: domain.ProviderClaude, Label: "A", Tokens: domain.CredentialTokens{AccessToken: "a"}})
+	created, _ := hub.Keys.Create("t", nil, nil, nil)
+	key, _ := hub.Keys.Verify(created.Secret)
+	res, err := Proxy(context.Background(), hub, Request{
+		Inbound: domain.InboundClaudeMessages, Key: *key, CountTokens: true,
+		Body: map[string]any{"model": "claude-opus-5-5", "messages": []any{map[string]any{"role": "user", "content": "hello there"}}},
+	})
+	if err != nil || !res.OK {
+		t.Fatalf("%+v %v", res, err)
+	}
+	body := AsMap(res.Body)
+	if len(body) != 1 || body["input_tokens"] != 4 {
+		t.Fatalf("want {input_tokens: 4}, got %v", body)
+	}
+}
+
+// A provider without a count endpoint refuses count_tokens; the caller gets
+// that refusal as an Anthropic error, and nothing is metered.
+func TestCountTokensRefusalReachesTheCallerAsAnAnthropicError(t *testing.T) {
+	hub, d := testHub(t, map[domain.ProviderID]provider.Executor{
 		domain.ProviderCodex: fakeExec{id: domain.ProviderCodex, format: domain.FormatCodex,
 			models: []domain.ModelInfo{{ID: "gpt-5.5"}},
 			fn: func(domain.Credential) provider.ExecuteResult {
-				return provider.CountTokensEstimate(map[string]any{"input": "hello there"})
+				return provider.CountTokensUnsupported("Codex")
 			}},
 	})
 	defer d.Close()
@@ -120,11 +147,14 @@ func TestCountTokensAnswerReachesTheCallerUnchanged(t *testing.T) {
 		Inbound: domain.InboundClaudeMessages, Key: *key, CountTokens: true,
 		Body: map[string]any{"model": "gpt-5.5", "messages": []any{map[string]any{"role": "user", "content": "hello there"}}},
 	})
-	if err != nil || !res.OK {
+	if err != nil || res.OK || res.Status != 400 {
 		t.Fatalf("%+v %v", res, err)
 	}
-	body := AsMap(res.Body)
-	if len(body) != 1 || body["input_tokens"] != 4 {
-		t.Fatalf("want {input_tokens: 4}, got %v", body)
+	e := AsMap(AsMap(res.Body)["error"])
+	if e["type"] != "invalid_request_error" || e["message"] != "Codex can't count tokens; only Claude models support /v1/messages/count_tokens" {
+		t.Fatalf("error %v", res.Body)
+	}
+	if got, err := hub.Usage.Failures(0, 10); err != nil || len(got) != 0 {
+		t.Fatalf("count_tokens was metered: %v %+v", err, got)
 	}
 }

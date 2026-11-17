@@ -8,17 +8,19 @@ import (
 	"github.com/kacperkwapisz/mainspring/internal/provider"
 )
 
-// count_tokens is answered locally: the context is already cancelled, so any
-// upstream call would fail instead of returning a count.
-func TestCountTokensDoesNotCallUpstream(t *testing.T) {
+// Cursor has no count endpoint: count_tokens gets a clear error and Cursor is never
+// asked. The context is already cancelled, so a call upstream would fail with
+// a different error instead.
+func TestCountTokensIsRefusedWithoutCallingUpstream(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	body := map[string]any{"model": "m", "messages": []any{map[string]any{"role": "user", "content": "hello there"}}}
 	res, err := (&Executor{}).Execute(ctx, domain.Credential{}, body, provider.ExecuteOptions{CountTokens: true})
-	if err != nil || !res.OK || res.Status != 200 {
+	want := "Cursor can't count tokens; only Claude models support /v1/messages/count_tokens"
+	if err != nil || res.OK || res.Status != 400 || res.Message != want {
 		t.Fatalf("%+v %v", res, err)
 	}
-	if n, _ := res.Body.(map[string]any)["input_tokens"].(int); n <= 0 {
-		t.Fatalf("input_tokens = %v", res.Body)
+	if e := res.Body.(map[string]any)["error"].(map[string]any); e["type"] != "invalid_request_error" || e["message"] != want {
+		t.Fatalf("body %v", res.Body)
 	}
 }
