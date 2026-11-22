@@ -5,6 +5,7 @@ A [pi](https://pi.dev) extension for [Mainspring](https://github.com/kacperkwapi
 - **Provider.** Adds Mainspring as the `mainspring` provider, with the models your subscriptions offer. Each model uses the API Mainspring names for it (Claude on Messages, GPT and Grok on Responses), so prompt caching and sessions behave as they do directly. Each pi session stays on one Mainspring account.
 - **Costs.** pi shows what each request's tokens would cost at the providers' API list prices, including long-context tiers. Your subscriptions pay for them, so the figure is what the same use would cost on the API.
 - **Web tools.** Registers `web_search` and `web_fetch`. They run on the Claude or Codex account your session already uses. They replace pi-claude-web, which registers the same names; remove it first.
+- **Images.** When your pool has a Codex account, adds `gpt-image-2` as an image model under `mainspring`. Codemode scripts (and extensions) generate and edit pictures with it on your ChatGPT plan: `models.generateImages({ provider: "mainspring", id: "gpt-image-2" }, { input })`. Image blocks in `input` make it an edit.
 - **Account moves.** When Mainspring moves your session to another account, pi tells you which and why.
 - **`/mainspring`.** Shows the pool: every account, its limits as bars with how far into the window you are, when each resets, which goes next, and your live sessions. `r` refreshes, `esc` closes.
 

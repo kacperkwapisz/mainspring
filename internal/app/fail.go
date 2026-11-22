@@ -61,5 +61,9 @@ func writeProxy(w http.ResponseWriter, r *http.Request, result proxy.Result) {
 		httpx.StreamSSE(w, r, result.Stream)
 		return
 	}
+	if result.Raw != nil {
+		httpx.Bytes(w, http.StatusOK, "application/json; charset=utf-8", result.Raw)
+		return
+	}
 	httpx.JSON(w, http.StatusOK, result.Body)
 }

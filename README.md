@@ -142,6 +142,7 @@ Codex can talk to Mainspring over WebSockets (`supports_websockets = true`). Usa
 ## API
 
 - `POST /v1/chat/completions`, `POST /v1/responses` (also over WebSocket), `POST /v1/responses/compact`
+- `POST /v1/images/generations`, `POST /v1/images/edits` (images on your ChatGPT plans, through your Codex accounts)
 - `POST /v1/messages`, `POST /v1/messages/count_tokens`
 - `GET /v1/models`, `GET /health`
 

@@ -103,6 +103,7 @@ func Create(source map[string]string) (*Booted, error) {
 	registerAnthropic(mux, hub)
 	registerResponses(mux, hub)
 	registerResponsesWS(mux, hub)
+	registerImages(mux, hub)
 	registerAuth(mux, authSvc)
 	registerPanel(mux)
 	registerDocs(mux)

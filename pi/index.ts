@@ -4,6 +4,8 @@
 //   subscriptions offer. Each model uses the API Mainspring names for it (Claude
 //   on Messages, GPT and Grok on Responses), so caching and sessions behave as
 //   they do directly.
+// - Adds gpt-image-2 as an image model when the pool has a Codex account, so
+//   codemode can generate pictures on your ChatGPT plan.
 // - Registers web_search and web_fetch, which run on the subscription account
 //   your session already uses.
 // - Tells you when Mainspring moves the session to another account.
@@ -23,9 +25,13 @@ import {
 	type ServedModel,
 } from "./client.ts";
 import { modelConfig } from "./models.ts";
+import { IMAGES_API, imageModels, imagesProvider } from "./images.ts";
 import { PoolView } from "./pool-view.ts";
 
 const PROVIDER = "mainspring";
+
+// Chat models, plus image models when the pool has a ChatGPT plan.
+const allModels = (config: Config, served: ServedModel[]) => [...served.map((m) => modelConfig(config, m)), ...imageModels(config, served)];
 
 function registerProvider(pi: ExtensionAPI, config: Config, models: ServedModel[]) {
 	pi.registerProvider(PROVIDER, {
@@ -33,15 +39,16 @@ function registerProvider(pi: ExtensionAPI, config: Config, models: ServedModel[
 		baseUrl: `${config.url}/v1`,
 		apiKey: config.key,
 		api: "openai-completions",
-		models: models.map((m) => modelConfig(config, m)) as any,
+		models: allModels(config, models) as any,
+		images: { [IMAGES_API]: imagesProvider(() => config) },
 		// pi asks twice: first without network (startup from the cache), then with it.
 		async refreshModels({ allowNetwork, signal }: { allowNetwork: boolean; signal: AbortSignal }) {
-			if (!allowNetwork) return cachedModels(config.url).map((m) => modelConfig(config, m)) as any;
+			if (!allowNetwork) return allModels(config, cachedModels(config.url)) as any;
 			const fresh = await fetchModels(config, signal);
 			keepModels(config.url, fresh);
 			// An empty answer doesn't wipe a list that worked.
 			const served = fresh.length ? fresh : cachedModels(config.url);
-			return served.map((m) => modelConfig(config, m)) as any;
+			return allModels(config, served) as any;
 		},
 	} as any);
 }

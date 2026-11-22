@@ -200,7 +200,7 @@ func noTimeout(r *http.Request) bool {
 		return false
 	}
 	switch p {
-	case "/v1/chat/completions", "/v1/messages", "/v1/messages/count_tokens", "/v1/responses", "/v1/responses/compact", "/mcp":
+	case "/v1/chat/completions", "/v1/messages", "/v1/messages/count_tokens", "/v1/responses", "/v1/responses/compact", "/v1/images/generations", "/v1/images/edits", "/mcp":
 		return true
 	}
 	if strings.HasPrefix(p, "/device/") {

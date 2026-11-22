@@ -75,6 +75,34 @@ The OpenAI Responses API, which Codex uses. Codex headers such as its turn state
 
 Codex's compaction endpoint, passed through to your Codex accounts.
 
+## POST /v1/images/generations
+
+The OpenAI Images API, on the ChatGPT plans of your Codex accounts. Codex's own image tool uses the same plan, so pictures cost no API credits. Each call goes to the Codex account your session uses (send the same session header as on chat requests), else to the one the router picks.
+
+The body goes to ChatGPT as you sent it, and it answers in OpenAI's format with each picture as `b64_json`. If it answers `stream: true` with a stream, Mainspring passes the events on as they come.
+
+- `model` is required. Send `gpt-image-2`, the model Codex's own image tool asks for. ChatGPT picks the image model itself, whatever `model` says: on Codex accounts that's GPT Image 2, not the Images 2.5 or 2.6 models the ChatGPT app uses.
+- `size`, `quality`, `background`, `n` and `output_format` are passed on, but ChatGPT may not honour them. Check the `size` and `output_format` in its answer for what you got.
+
+```sh
+curl https://mainspring.your-tailnet.ts.net/v1/images/generations \
+  -H "Authorization: Bearer $MAINSPRING_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-image-2","prompt":"A red fox in the snow, watercolor","size":"1024x1024"}'
+```
+
+Image generation has its own quota on a ChatGPT plan, separate from chat:
+
+- When an account answers `429` (out of image quota), or with a server error, the call moves to your next Codex account. The account keeps serving chat.
+- An account resting because a chat limit ran out is still tried for images, after the others.
+- Other errors, such as a `400` for a bad size or a `403` content refusal, come back to you as ChatGPT sent them, without trying another account.
+
+Calls show on the Meter, with tokens when ChatGPT reports them.
+
+## POST /v1/images/edits
+
+Edits pictures or uses them as references. Same rules as `/v1/images/generations`. Send JSON with the pictures in `images` as `{"image_url": "data:image/png;base64,…"}` (or `{"file_id": …}`), or the multipart form OpenAI's SDKs send: Mainspring turns each `image` or `image[]` file, and a `mask` file, into a `data:` URL.
+
 ## GET /v1/models
 
 Every model your accounts can serve, minus the ones you turned off, in OpenAI's list format with extra fields:
@@ -147,7 +175,7 @@ To get usage in a Chat Completions stream, set `"stream_options": {"include_usag
 
 ## Response headers
 
-With **Share pool with keys** on, every successful answer from `/v1/messages`, `/v1/chat/completions` and `/v1/responses` says which account served it:
+With **Share pool with keys** on, every successful answer from `/v1/messages`, `/v1/chat/completions`, `/v1/responses` and `/v1/images/*` says which account served it:
 
 | Header | Value |
 |---|---|

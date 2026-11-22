@@ -10,6 +10,8 @@ export interface Config {
 
 export interface ServedModel {
 	id: string;
+	// The provider serving it: claude, codex, grok, …
+	owned_by?: string;
 	name?: string;
 	context_length?: number;
 	max_output_tokens?: number;
@@ -194,4 +196,23 @@ export async function callTool(config: Config, name: string, args: Record<string
 	if (result.isError) throw new MainspringError(text || "Mainspring's web tools failed");
 	const sc = result.structuredContent ?? {};
 	return { text, sources: sc.sources ?? [], provider: sc.provider, model: sc.model };
+}
+
+/** An OpenAI Images API answer. */
+export interface ImageAnswer {
+	data?: { b64_json?: string }[];
+	output_format?: string;
+	usage?: { input_tokens?: number; output_tokens?: number };
+}
+
+/** Generates (or, with edit, edits) pictures on a ChatGPT plan in the pool. */
+export function generateImage(config: Config, body: Record<string, unknown>, edit: boolean, signal?: AbortSignal, headers: Record<string, string> = {}): Promise<ImageAnswer> {
+	return call<ImageAnswer>(config, edit ? "/v1/images/edits" : "/v1/images/generations", {
+		method: "POST",
+		signal,
+		// A picture can take a few minutes.
+		timeoutMs: 600_000,
+		headers,
+		body: JSON.stringify(body),
+	});
 }

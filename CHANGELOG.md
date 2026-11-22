@@ -2,6 +2,11 @@
 
 Mainspring shows the newest entries under **What's new** in the panel, and each GitHub release uses its version's entry as its notes. Write for the people running Mainspring: what changed for them and why.
 
+## [1.9.0] - 2026-11-22
+
+- Generate and edit images on your ChatGPT plans. Mainspring serves the OpenAI Images API at `/v1/images/generations` and `/v1/images/edits` on your Codex accounts, the same way Codex's own image tool uses the plan. Use `gpt-image-2` as the model; ChatGPT serves GPT Image 2 on Codex accounts whatever model you name. Image quota is separate from chat: an account that runs out of image quota passes the call to your next Codex account and keeps serving chat, and an account resting for a chat limit can still make images.
+- pi gets `gpt-image-2` as a Mainspring image model when your pool has a Codex account, so codemode scripts can call `models.generateImages()` on your plan. Run `pi update` to get it.
+
 ## [1.8.3] - 2026-11-17
 
 - Fixes Claude Code requests failing with "A maximum of 4 blocks with cache_control may be provided. Found 5." Mainspring added a cache breakpoint of its own to Anthropic-format requests whose tools had none. Claude Code already uses all four, so it now gets its request through as sent. 1.8.2 had stopped trimming Claude Code's breakpoints, which used to hide this.

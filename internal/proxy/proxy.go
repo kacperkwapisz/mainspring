@@ -66,6 +66,9 @@ type Result struct {
 	OK     bool
 	Status int
 	Body   any
+	// Raw is a JSON answer passed on byte for byte instead of Body, for
+	// answers too large to decode and encode again (pictures).
+	Raw    []byte
 	Stream <-chan string
 	// Header carries response headers for the client (Retry-After, Codex turn state).
 	Header http.Header
@@ -95,14 +98,8 @@ func Proxy(ctx context.Context, hub *Hub, req Request) (Result, error) {
 	for _, h := range chain {
 		tr.Add("hop %s/%s", h.Provider, h.Model)
 	}
-	if req.Key.DailyCap != nil {
-		used, err := hub.Usage.TodayTokensForKey(req.Key.ID, Zone(hub))
-		if err != nil {
-			return Result{}, err
-		}
-		if used >= *req.Key.DailyCap {
-			return failOut(req, 429, httpx.KindCap, "", model, "daily token cap reached", "wait until midnight ("+Zone(hub).String()+"), or raise the key's cap in the panel"), nil
-		}
+	if res, capped, err := dailyCapReached(hub, req, model); err != nil || capped {
+		return res, err
 	}
 
 	router := hub.router()

@@ -70,7 +70,7 @@ List the model IDs you want from [`/v1/models`](api.md#get-v1models).
 
 ## pi
 
-Install the Mainspring extension. It adds Mainspring as a provider with the models your subscriptions offer, registers `web_search` and `web_fetch`, tells you when Mainspring moves your session to another account, and shows the pool with `/mainspring`:
+Install the Mainspring extension. It adds Mainspring as a provider with the models your subscriptions offer, registers `web_search` and `web_fetch`, adds `gpt-image-2` as an image model when you have a Codex account, tells you when Mainspring moves your session to another account, and shows the pool with `/mainspring`:
 
 ```sh
 pi install git:github.com/kacperkwapisz/mainspring
